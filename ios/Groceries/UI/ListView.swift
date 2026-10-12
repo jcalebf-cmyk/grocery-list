@@ -85,9 +85,10 @@ struct ListView: View {
                 }
             }
         }
-        .confirmationDialog("Close out this list?", isPresented: $confirmingFinish, titleVisibility: .visible) {
+        .alert("Close out this list?", isPresented: $confirmingFinish) {
             Button("Move to a new list") { finish(carryOver: true) }
             Button("Drop them", role: .destructive) { finish(carryOver: false) }
+            Button("Cancel", role: .cancel) {}
         } message: {
             Text(uncheckedCount == 1 ? "1 item wasn't checked off." : "\(uncheckedCount) items weren't checked off.")
         }

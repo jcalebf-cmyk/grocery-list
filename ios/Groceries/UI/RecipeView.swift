@@ -83,13 +83,14 @@ struct RecipeView: View {
 
     private func hero(_ recipe: Recipe) -> some View {
         Button { if let url = URL(string: recipe.videoUrl) { openURL(url) } } label: {
-            AsyncImage(url: URL(string: recipe.thumbnailUrl)) { image in
-                image.resizable().scaledToFill()
-            } placeholder: { Color.card }
-            .frame(height: 340)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            .overlay {
+            // The width comes from the screen; the photo fills and crops inside it. (Letting the image
+            // set the width made the whole page wider than the phone.)
+            Color.card
+                .frame(height: 340)
+                .frame(maxWidth: .infinity)
+                .overlay { RecipePhoto(recipe: recipe) }
+                .clipped()
+                .overlay {
                 Image(systemName: "play.fill").font(.title).foregroundStyle(.white)
                     .frame(width: 68, height: 68)
                     .glassEffect(.regular.tint(.black.opacity(0.35)), in: .circle)
@@ -155,12 +156,19 @@ struct KitchenView: View {
                 Section("Quick add") {
                     FlowLayout {
                         ForEach(quickAdds, id: \.self) { name in
-                            Button { data.groceries.addOnHand(name, uid: data.user.id) } label: { Label(name, systemImage: "plus") }
-                                .buttonStyle(.glass)
+                            Button { data.groceries.addOnHand(name, uid: data.user.id) } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "plus")
+                                    Text(name)
+                                }
+                                .fixedSize()
+                            }
+                            .buttonStyle(.glass)
                         }
                     }
+                    .padding(.vertical, 4)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 }
             }
             if !data.onHand.isEmpty {

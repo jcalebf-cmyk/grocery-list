@@ -110,7 +110,7 @@ struct FlowLayout: Layout {
     private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
         var rows: [Row] = [Row()]
         for (index, subview) in subviews.enumerated() {
-            let size = subview.sizeThatFits(.unspecified)
+            let size = subview.sizeThatFits(ProposedViewSize(width: nil, height: nil))
             if !rows[rows.count - 1].indices.isEmpty && rows[rows.count - 1].width + spacing + size.width > width {
                 rows.append(Row())
             }
@@ -141,12 +141,13 @@ struct AddItemBar: View {
                 .padding(.leading, 18)
                 .padding(.vertical, 14)
             Button(action: submit) {
-                Image(systemName: "plus").font(.title3.weight(.semibold)).frame(width: 30, height: 30)
+                Image(systemName: "plus").font(.body.weight(.semibold)).frame(width: 22, height: 22)
             }
             .buttonStyle(.glassProminent)
             .buttonBorderShape(.circle)
             .disabled(text.trimmed.isEmpty)
-            .padding(.trailing, 8)
+            .padding(.vertical, 6)
+            .padding(.trailing, 6)
         }
         .glassEffect(.regular.interactive(), in: .capsule)
         .padding(.horizontal, 16)

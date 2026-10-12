@@ -88,13 +88,16 @@ struct HomeView: View {
                     NavigationLink(value: Route.settings) { Image(systemName: "gearshape") }
                         .accessibilityLabel("Settings")
                 }
-                ToolbarItem(placement: .bottomBar) {
-                    Button { pickingStore = true } label: {
-                        Label("New list", systemImage: "plus").fontWeight(.semibold).padding(.horizontal, 8)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.citrus)
+            }
+            // Floats over the content rather than sitting in the bottom toolbar, which would shrink it
+            // to an icon-only circle; it should read "New list".
+            .safeAreaInset(edge: .bottom) {
+                Button { pickingStore = true } label: {
+                    Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
                 }
+                .buttonStyle(.glassProminent)
+                .tint(.citrus)
+                .padding(.bottom, 4)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -266,17 +269,37 @@ struct HomeView: View {
     }
 }
 
+/// The recipe's video thumbnail, filling whatever frame it's given. YouTube's standard thumbnail has
+/// black bars baked in, so this asks for the widescreen version first and falls back if there isn't one.
+struct RecipePhoto: View {
+    let recipe: Recipe
+    @State private var useFallback = false
+
+    private var url: URL? {
+        useFallback ? URL(string: recipe.thumbnailUrl) : URL(string: "https://i.ytimg.com/vi/\(recipe.videoId)/maxresdefault.jpg")
+    }
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill()
+            } else if phase.error != nil {
+                Color.card.onAppear { useFallback = true }
+            } else {
+                Color.card
+            }
+        }
+    }
+}
+
 /// Full-bleed photo with the title on frosted glass, so the food does the talking.
 struct RecipeCard: View {
     let recipe: Recipe
 
     var body: some View {
-        AsyncImage(url: URL(string: recipe.thumbnailUrl)) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Color.card
-        }
+        Color.card
         .frame(width: 280, height: 210)
+        .overlay { RecipePhoto(recipe: recipe) }
         .overlay(alignment: .topLeading) {
             Text("\(recipe.totalMinutes) min").font(.caption.weight(.semibold))
                 .padding(.horizontal, 10).padding(.vertical, 5)
