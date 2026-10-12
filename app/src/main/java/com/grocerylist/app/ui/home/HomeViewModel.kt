@@ -83,6 +83,7 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
             when (recipeRepo.refresh(stats.value, onHand.value, force = true)) {
                 RefreshResult.NOT_ENOUGH_HISTORY -> messages.send("Add a few ingredients to My kitchen first")
                 RefreshResult.FAILED -> messages.send("Couldn't get new recipes. Try again in a bit.")
+                RefreshResult.RATE_LIMITED -> messages.send("That's all the new recipe ideas for today. Check back tomorrow.")
                 else -> Unit
             }
         }

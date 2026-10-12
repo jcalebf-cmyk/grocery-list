@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { verifyFirebaseUser } from "../lib/auth.js";
 import { extractSimpleRecipes, searchQueriesFor } from "../lib/claude.js";
+import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
 import { getVideos, searchVideoIds } from "../lib/youtube.js";
 
 const Item = z.string().trim().min(1).max(60);
@@ -10,6 +11,10 @@ const Body = z
     onHand: z.array(Item).max(30).default([]), // already in the kitchen or delivered by subscription
   })
   .refine((b) => b.items.length + b.onHand.length > 0);
+
+// Covers the daily refresh, a few kitchen edits, and some "New ideas" taps. Each request costs
+// about 300 of YouTube's 10,000 daily quota units, plus two Claude calls.
+const DAILY_LIMIT = 8;
 
 // Longer videos are rarely "simple", and their descriptions are often blog-length.
 const MAX_VIDEO_MINUTES = 25;
@@ -26,6 +31,9 @@ export async function POST(request: Request): Promise<Response> {
   const body = Body.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "Send { items: string[], onHand: string[] }" }, { status: 400 });
   const { items, onHand } = body.data;
+  if (await overDailyLimit("recipes", uid, DAILY_LIMIT)) {
+    return tooManyRequests("You've reached today's limit for new recipe ideas");
+  }
 
   try {
     const queries = await searchQueriesFor(items, onHand);

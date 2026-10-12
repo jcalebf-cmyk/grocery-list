@@ -10,6 +10,11 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
+/** A non-200 reply from the server. 429 means the user hit a daily limit. */
+class ServerException(val status: Int, message: String) : Exception(message) {
+    val isRateLimited get() = status == 429
+}
+
 /** Calls the Vercel server, which only accepts requests carrying the signed-in user's Firebase ID token. */
 object ServerApi {
     suspend fun post(path: String, body: JSONObject, readTimeoutMs: Int = 30_000): JSONObject {
@@ -25,7 +30,10 @@ object ServerApi {
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.outputStream.use { it.write(body.toString().toByteArray()) }
                 if (conn.responseCode != 200) {
-                    error("$path returned ${conn.responseCode}: ${conn.errorStream?.bufferedReader()?.readText()}")
+                    throw ServerException(
+                        conn.responseCode,
+                        "$path returned ${conn.responseCode}: ${conn.errorStream?.bufferedReader()?.readText()}",
+                    )
                 }
                 JSONObject(conn.inputStream.bufferedReader().readText())
             } finally {

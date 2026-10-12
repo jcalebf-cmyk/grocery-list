@@ -232,19 +232,26 @@ private sealed interface NearbyState {
     data class Loaded(val stores: List<NearbyStore>) : NearbyState
 }
 
-/** Loads nearby stores once location is allowed. Usually instant, since the home screen prefetches them. */
+/**
+ * Nearby stores once location is allowed. Saved results show immediately; meanwhile the phone's
+ * location is checked and a new lookup runs only if the saved one is stale or from elsewhere.
+ */
 @Composable
 private fun rememberNearbyStores(locationGranted: Boolean): NearbyState {
     val context = LocalContext.current
     var attempt by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<NearbyState>(NearbyStores.cached?.let { NearbyState.Loaded(it) } ?: NearbyState.Loading) }
+    var state by remember {
+        mutableStateOf<NearbyState>(NearbyStores.peek(context)?.let { NearbyState.Loaded(it) } ?: NearbyState.Loading)
+    }
     LaunchedEffect(locationGranted, attempt) {
-        if (!locationGranted || state is NearbyState.Loaded) return@LaunchedEffect
-        state = NearbyState.Loading
+        if (!locationGranted) return@LaunchedEffect
+        val showing = state as? NearbyState.Loaded
+        if (showing == null) state = NearbyState.Loading
         state = try {
             NearbyState.Loaded(NearbyStores.findCached(context))
         } catch (_: Exception) {
-            NearbyState.Failed(retry = { attempt++ })
+            // Keep showing what we had rather than replacing it with an error.
+            showing ?: NearbyState.Failed(retry = { attempt++ })
         }
     }
     return state
