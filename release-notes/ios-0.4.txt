@@ -1,0 +1,8 @@
+Groceries 0.4
+
+WHAT'S NEW
+• Forgot your password? Tap "Forgot password?" on the sign-in screen and we'll email you a link to reset it.
+• Confirm your email: new accounts get a confirmation email. Until you confirm, Settings shows a "Confirm your email" row where you can resend it. You can use the app either way.
+• Smarter ingredient matching: something in your kitchen no longer counts for a different product that shares its name. For example, rice no longer covers rice vinegar, and chicken no longer covers chicken broth (it still covers chicken breast).
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
