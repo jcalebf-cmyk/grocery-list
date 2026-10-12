@@ -1,7 +1,7 @@
 # Generates Groceries.xcodeproj. After editing, run: xcodegen
 name: Groceries
 options:
-  bundleIdPrefix: com.grocerylist
+  bundleIdPrefix: com.householdgroceries
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
@@ -10,7 +10,7 @@ settings:
     SWIFT_VERSION: "5.0"  # Swift 6 compiler, Swift 5 language mode
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: ""  # set once the Apple Developer membership is approved
+    DEVELOPMENT_TEAM: 6759US4CJM
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
@@ -26,7 +26,7 @@ targets:
       - path: Groceries
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.grocerylist.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.householdgroceries.app  # com.grocerylist.app was taken on the App Store
         PRODUCT_NAME: Groceries
         TARGETED_DEVICE_FAMILY: "1"  # iPhone only
         CODE_SIGN_STYLE: Automatic

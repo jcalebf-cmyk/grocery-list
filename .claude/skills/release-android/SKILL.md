@@ -42,7 +42,7 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
    grocery-list-d5a77` (comma-separated, and never write them into the repo, which is public). If Josh has since
    made tester groups (`firebase appdistribution:groups:list`), use `--groups <alias>` instead and ask which one if
    there are several. If `firebase` isn't installed, install it (`npm install -g firebase-tools`); if it isn't
-   signed in, ask Josh to run `firebase login` in a terminal (it opens a browser for his Google account), then retry. If the upload can't happen, fall back to the console: App Distribution → upload APK → paste
+   signed in, ask Josh to run `firebase login` in a terminal (it opens a browser for Josh's Google account), then retry. If the upload can't happen, fall back to the console: App Distribution → upload APK → paste
    notes → add testers → Distribute.
 
 8. **Tag the release on GitHub:** commit just `app/build.gradle.kts` and `release-notes/X.Y.txt`

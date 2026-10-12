@@ -8,8 +8,9 @@ owns it; testers are friends and family.
 ## Layout
 
 - `app/` – Android app. Package `com.grocerylist.app`, minSdk 26. Data layer in `data/`, screens in `ui/`.
-- `ios/` – iPhone app, SwiftUI, iOS 26+ (Liquid Glass). Bundle ID `com.grocerylist.app`. Project generated
-  from `ios/project.yml` by XcodeGen; `Groceries.xcodeproj` is not committed.
+- `ios/` – iPhone app, SwiftUI, iOS 26+ (Liquid Glass). Bundle ID **`com.householdgroceries.app`**
+  (`com.grocerylist.app` was taken on the App Store; Josh doesn't want their name in the ID). Android keeps
+  `com.grocerylist.app`. Project generated from `ios/project.yml` by XcodeGen; `Groceries.xcodeproj` isn't committed.
 - `server/` – Vercel functions (TypeScript): `/api/recipes`, `/api/stores`, `/api/health`.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
   Rules); after changing them, copy them to the clipboard (`pbcopy < firestore.rules`) and also paste the full
@@ -50,10 +51,14 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   never commit it. Josh's Pixel has the release-signed app, so install release builds on it
   (`adb -s 47221FDAS000XD install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
 - **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`).
+- **iPhone releases:** use the `release-ios` skill (archive → upload to TestFlight via `ios/ExportOptions.plist`).
 - **iOS:** Xcode 27, but `xcode-select` still points at Command Line Tools, so prefix commands with
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Run `xcodegen` in `ios/` after editing
   `project.yml`. Simulator builds must be signed locally (project default) or Firebase can't use the keychain.
   Firebase iOS SDK is pinned to 12.x because 13.x conflicts with GoogleSignIn 10 (App Check versions).
+  Apple team `6759US4CJM`; Josh's Mac is the team's registered development device (Apple won't issue any
+  signing profile until one device exists). Xcode is signed into Josh's Apple account, so
+  `-allowProvisioningUpdates` handles certificates and profiles.
   Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme.
 
 ## Working with Josh
@@ -67,9 +72,11 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 
 ## Status (Oct 2026)
 
-- Android 0.2 released to testers (tags v0.1, v0.2). iPhone app working in the simulator.
-- Waiting on Josh's Apple Developer Program approval, then: set `DEVELOPMENT_TEAM` in `ios/project.yml`,
-  test Sign in with Apple, archive, upload to App Store Connect, and set up TestFlight internal testing.
+- Android 0.2 released to testers via Firebase App Distribution (tags v0.1, v0.2).
+- iPhone 0.1 (build 1) uploaded to App Store Connect for TestFlight internal testing (app record created
+  by Josh). Josh is setting up the internal tester group. Next iOS upload must use build number 2.
 - Open question for Josh: ingredient matching marks "Rice vinegar" as in the kitchen when "Rice" is
   (both platforms); Josh hasn't decided whether to make it stricter.
 - "Clear checked items" removes checked items from the list; Josh wants it kept as is (name and trash icon).
+- Optional cleanups Josh may do: delete the unused `com.grocerylist.app` iOS app in Firebase (keep the
+  Android app), and remove `com.joshfranzen.groceries` from Apple Identifiers if it was registered.
