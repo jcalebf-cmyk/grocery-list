@@ -30,7 +30,7 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 - Firebase project `grocery-list-d5a77` (Auth: email, Google, Apple-on-iOS-only; Firestore).
   Config files `app/google-services.json` and `ios/Groceries/App/GoogleService-Info.plist` are git-ignored.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
-  `itemStats`, `onHand`, `recipes/current`; `inviteCodes/{code}`.
+  `itemStats`, `onHand`, `recipes/current`, `recipes/preferences`; `inviteCodes/{code}`.
 - Server: https://grocery-recipes.vercel.app (Vercel project `grocery-recipes`, account jcalebf-cmyk).
   Env vars set by Josh in Vercel: `YOUTUBE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_PLACES_API_KEY`.
   Recipes: Claude Haiku 5.5 (Josh chose it for cost) writes them, then each gets a YouTube video of a similar
@@ -45,7 +45,8 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 
 - **Deploys:** pushing to `main` auto-deploys the server (only when `server/` changes). Manual deploys must
   run from the **repo root** (`vercel deploy --prod --yes`), never from `server/` – the project's Root
-  Directory is `server`, so deploying from inside it breaks production. Check `/api/health` afterwards.
+  Directory is `server`, so deploying from inside it breaks production. `.vercelignore` keeps root deploys
+  under Vercel's upload limit. Check `/api/health` afterwards.
 - **Android:** `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleRelease testDebugUnitTest`.
   Release signing key lives outside the repo in `../GroceryList-signing/` (backed up in Josh's LastPass);
   never commit it. Josh's Pixel has the release-signed app, so install release builds on it
@@ -64,17 +65,17 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 ## Working with Josh
 
 - Run the `wrap-up` skill at the end of a task to keep this file current; keep this file short.
-
 - Commit and push **only when asked**. Before committing, check no config/key/signing files are staged.
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
 
-## Status (Oct 2026)
+## Status (Oct 12, 2026)
 
-- Android 0.2 released to testers via Firebase App Distribution (tags v0.1, v0.2).
-- iPhone 0.1 (build 1) uploaded to App Store Connect for TestFlight internal testing (app record created
-  by Josh). Josh is setting up the internal tester group. Next iOS upload must use build number 2.
+- **Android:** 0.3 (code 3) is the latest release, on Firebase App Distribution and tagged `v0.3`.
+- **iPhone:** 0.3 (build 2) uploaded to TestFlight (internal group, automatic distribution on); same features
+  and version as Android 0.3. Notes in `release-notes/ios-0.3.txt` for Josh to paste into "What to Test".
+  No `ios-v*` tag yet. The next upload must be build 3 (`release-ios`).
 - Open question for Josh: ingredient matching marks "Rice vinegar" as in the kitchen when "Rice" is
   (both platforms); Josh hasn't decided whether to make it stricter.
 - "Clear checked items" removes checked items from the list; Josh wants it kept as is (name and trash icon).

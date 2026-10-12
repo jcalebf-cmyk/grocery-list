@@ -1,0 +1,12 @@
+Groceries 0.3
+
+This build matches Android 0.3, so the version numbers now line up across both apps.
+
+WHAT'S IN THIS BUILD
+• Recipe ideas: six simple recipes with quantities, based on what's in your kitchen and what you usually buy. Each one links to a video of a similar dish.
+• Favorite cuisines: pick the cuisines your household likes, and most recipe ideas will lean that way. Change them anytime in Settings.
+• "Tonight…": on the Home screen, choose up to three cuisines you're in the mood for and get recipes just for those. They stay until you clear them or the next day's refresh.
+• Recipe ingredients leave out salt, pepper, oil, and water, so they don't end up on your shopping list.
+• Delete past lists: swipe left on a past list on Home, or use the list's menu. You'll be asked to confirm first.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
