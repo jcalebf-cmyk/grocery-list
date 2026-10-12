@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Paste into Firebase console → Firestore Database → Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function householdPath(hid) { return /databases/$(database)/documents/households/$(hid); }
+    function memberOf(hid) { return uid() in get(householdPath(hid)).data.memberIds; }
+    // For writes: checks membership as it will be after this write/batch commits,
+    // so creating a household and its first stores can happen in one batch.
+    function memberAfter(hid) { return uid() in getAfter(householdPath(hid)).data.memberIds; }
+
+    match /users/{userId} {
+      // You can read your own profile, plus profiles of people in your household.
+      allow read: if signedIn() && (
+        userId == uid() ||
+        (resource.data.get('householdId', null) != null && memberOf(resource.data.householdId))
+      );
+      // You can only edit your own profile, and only point it at a household you belong to.
+      allow create, update: if signedIn() && userId == uid() && (
+        request.resource.data.get('householdId', null) == null ||
+        memberAfter(request.resource.data.householdId)
+      );
+    }
+
+    // Maps a 6-character invite code to a household. Lookups by exact code only; no listing.
+    match /inviteCodes/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && memberAfter(request.resource.data.householdId)
+        && getAfter(householdPath(request.resource.data.householdId)).data.inviteCode == code;
+    }
+
+    match /households/{hid} {
+      allow read: if signedIn() && uid() in resource.data.memberIds;
+      allow create: if signedIn() && request.resource.data.memberIds == [uid()];
+      allow update: if signedIn() && (
+        // Members can rename the household.
+        (uid() in resource.data.memberIds
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']))
+        ||
+        // Anyone holding the invite code can add themselves, and only themselves.
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'joinCode'])
+          && request.resource.data.joinCode == resource.data.inviteCode
+          && request.resource.data.memberIds == resource.data.memberIds.concat([uid()]))
+      );
+
+      // Stores, lists, items, and item stats: members only.
+      match /{document=**} {
+        allow read: if signedIn() && memberOf(hid);
+        allow write: if signedIn() && memberAfter(hid);
+      }
+    }
+  }
+}
