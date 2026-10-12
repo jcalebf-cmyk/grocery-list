@@ -45,10 +45,7 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   Release signing key lives outside the repo in `../GroceryList-signing/` (backed up in Josh's LastPass);
   never commit it. Josh's Pixel has the release-signed app, so install release builds on it
   (`adb -s 47221FDAS000XD install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
-- **Android releases:** bump `versionCode`/`versionName`, build release, copy APK to
-  `../GroceryList-releases/Groceries-X.Y.apk`, write `release-notes/X.Y.txt`, put the notes on the clipboard.
-  Josh uploads to Firebase App Distribution. When asked: commit only the release files, tag `vX.Y`, and
-  create a GitHub **pre-release** with the notes and **no APK** (public repo).
+- **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`).
 - **iOS:** Xcode 27, but `xcode-select` still points at Command Line Tools, so prefix commands with
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Run `xcodegen` in `ios/` after editing
   `project.yml`. Simulator builds must be signed locally (project default) or Firebase can't use the keychain.
@@ -56,6 +53,8 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme.
 
 ## Working with Josh
+
+- Run the `wrap-up` skill at the end of a task to keep this file current; keep this file short.
 
 - Commit and push **only when asked**. Before committing, check no config/key/signing files are staged.
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
