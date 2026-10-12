@@ -13,7 +13,7 @@ owns it; testers are friends and family.
   `com.grocerylist.app`. Project generated from `ios/project.yml` by XcodeGen; `Groceries.xcodeproj` isn't committed.
 - `server/` – Vercel functions (TypeScript): `/api/recipes`, `/api/stores`, `/api/health`.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
-  Rules); after changing them, copy them to the clipboard (`pbcopy < firestore.rules`) and also paste the full
+  Rules); after changing them, copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy < firestore.rules`) and also paste the full
   text in chat.
 - `release-notes/X.Y.txt` – tester-facing notes per Android release.
 

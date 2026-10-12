@@ -23,7 +23,7 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
    - Write `release-notes/X.Y.txt` for testers: plain text (App Tester doesn't render Markdown), "WHAT'S NEW"
      bullets in user terms, no implementation details, ending with
      "Found a bug or have an idea? Let Josh know – a screenshot helps a lot."
-   - Copy the notes to `../GroceryList-releases/release-notes-X.Y.txt` and to the clipboard (`pbcopy`).
+   - Copy the notes to `../GroceryList-releases/release-notes-X.Y.txt` and to the clipboard (`LANG=en_US.UTF-8 pbcopy`, or bullets and dashes come out garbled).
    - Reveal the APK in Finder (`open -R`).
 
 5. **Optionally install on Josh's Pixel** if it's connected: `adb -s 47221FDAS000XD install -r` the release APK

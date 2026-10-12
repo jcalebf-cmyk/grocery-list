@@ -34,7 +34,7 @@ Run from `ios/`. Prefix every Xcode command with `DEVELOPER_DIR=/Applications/Xc
 
 6. **Write tester notes** in `release-notes/ios-X.Y.txt` (same style as the Android notes: plain text,
    user-facing, ending with "Found a bug or have an idea? Let Josh know – a screenshot helps a lot.")
-   and copy them to the clipboard. Josh pastes them into App Store Connect → TestFlight → the build →
+   and copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy`, or bullets and dashes come out garbled). Josh pastes them into App Store Connect → TestFlight → the build →
    **What to Test**. Processing takes about 5–30 minutes; with automatic distribution on, the internal
    group gets the build when it's ready.
 
