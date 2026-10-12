@@ -11,4 +11,8 @@ An Android grocery list app for households, plus a small server that suggests re
 1. Download `google-services.json` from Firebase (Project settings → Your apps → `com.grocerylist.app`) into `app/`. It's not committed.
 2. Open the project in Android Studio and press Run.
 
+## Release builds
+
+Release APKs are signed with a key kept outside the repo, in `../GroceryList-signing/` (`grocerylist-release.jks` plus `keystore.properties`). Back that folder up; every update must be signed with the same key. Build with `./gradlew assembleRelease`; the APK lands in `app/build/outputs/apk/release/`.
+
 The server needs `YOUTUBE_API_KEY` and `ANTHROPIC_API_KEY` set as environment variables on the Vercel project.
