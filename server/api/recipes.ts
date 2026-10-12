@@ -5,10 +5,13 @@ import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
 import { searchVideos } from "../lib/youtube.js";
 
 const Item = z.string().trim().min(1).max(60);
+const Cuisine = z.string().trim().min(1).max(30);
 const Body = z
   .object({
     items: z.array(Item).max(30).default([]), // bought often
     onHand: z.array(Item).max(30).default([]), // already in the kitchen or delivered by subscription
+    cuisines: z.array(Cuisine).max(20).default([]), // the household's favorites
+    mood: z.array(Cuisine).max(3).default([]), // what they're in the mood for tonight; overrides favorites
   })
   .refine((b) => b.items.length + b.onHand.length > 0);
 
@@ -17,7 +20,7 @@ const Body = z
 const DAILY_LIMIT = 8;
 
 /**
- * POST /api/recipes  { items: ["broccoli", ...], onHand: ["ground beef", ...] }
+ * POST /api/recipes  { items: ["broccoli", ...], onHand: ["ground beef", ...], cuisines: ["Thai", ...], mood: ["Mexican"] }
  * Requires a Firebase ID token: Authorization: Bearer <token>
  * Returns { recipes: [...] }: recipes Claude writes for the household, each with a YouTube video of a
  * similar dish to watch.
@@ -28,13 +31,13 @@ export async function POST(request: Request): Promise<Response> {
 
   const body = Body.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "Send { items: string[], onHand: string[] }" }, { status: 400 });
-  const { items, onHand } = body.data;
+  const { items, onHand, cuisines, mood } = body.data;
   if (await overDailyLimit("recipes", uid, DAILY_LIMIT)) {
     return tooManyRequests("You've reached today's limit for new recipe ideas");
   }
 
   try {
-    const written = (await writeRecipes(items, onHand)).slice(0, 6);
+    const written = (await writeRecipes(items, onHand, cuisines, mood)).slice(0, 6);
     const candidates = await Promise.all(
       written.map((r) =>
         searchVideos(r.videoQuery).catch((e) => {
@@ -62,7 +65,7 @@ export async function POST(request: Request): Promise<Response> {
       ];
     });
 
-    console.log(`uid=${uid} items=${items.length} onHand=${onHand.length} written=${written.length} recipes=${recipes.length}`);
+    console.log(`uid=${uid} items=${items.length} onHand=${onHand.length} cuisines=${cuisines.length} mood=${mood.join("/")} written=${written.length} recipes=${recipes.length}`);
     return Response.json({ recipes });
   } catch (e) {
     console.error("recipe generation failed", e);

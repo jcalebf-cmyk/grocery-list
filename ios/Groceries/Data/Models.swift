@@ -103,10 +103,20 @@ struct Recipe: Codable, Identifiable, Hashable {
     var id: String { videoId }
 }
 
+/// `onHandKeys` and `cuisines` record the kitchen and favorite cuisines these were generated from, so
+/// changes trigger new ideas. `mood` is what the household picked for tonight, if anything.
 struct RecipeSet: Codable {
     var generatedAt: Int64 = 0
     var onHandKeys: [String]?
+    var cuisines: [String]?
+    var mood: [String]?
     var recipes: [Recipe] = []
+}
+
+/// The household's favorite cuisines. `chosen` is false until someone picks (or skips) them.
+struct CuisinePrefs: Equatable {
+    var cuisines: [String]
+    var chosen: Bool
 }
 
 func nowMillis() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }

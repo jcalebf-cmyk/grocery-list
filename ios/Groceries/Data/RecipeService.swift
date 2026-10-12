@@ -10,19 +10,42 @@ enum RefreshResult { case updated, stillFresh, notEnoughHistory, busy, rateLimit
 final class RecipeService {
     private(set) var refreshing = false
     private let doc: DocumentReference
+    private let prefsDoc: DocumentReference
 
     init(householdId: String) {
-        doc = Firestore.firestore().collection("households").document(householdId).collection("recipes").document("current")
+        let recipes = Firestore.firestore().collection("households").document(householdId).collection("recipes")
+        doc = recipes.document("current")
+        prefsDoc = recipes.document("preferences")
     }
 
     func stream() -> AsyncThrowingStream<RecipeSet?, Error> { doc.stream(RecipeSet.self) }
 
-    private struct Request: Encodable { let items: [String]; let onHand: [String] }
+    /// The household's favorite cuisines. A missing document only counts once the server confirms it, so
+    /// an empty local cache doesn't send people who already chose back through setup.
+    func preferencesStream() -> AsyncThrowingStream<CuisinePrefs, Error> {
+        AsyncThrowingStream { continuation in
+            let registration = prefsDoc.addSnapshotListener(includeMetadataChanges: true) { snapshot, error in
+                if let error { continuation.finish(throwing: error); return }
+                guard let snapshot, snapshot.exists || !snapshot.metadata.isFromCache else { return }
+                continuation.yield(CuisinePrefs(cuisines: snapshot.get("cuisines") as? [String] ?? [], chosen: snapshot.exists))
+            }
+            continuation.onTermination = { _ in registration.remove() }
+        }
+    }
+
+    func savePreferences(_ cuisines: [String]) {
+        prefsDoc.setData(["cuisines": cuisines, "updatedAt": nowMillis()])
+    }
+
+    private struct Request: Encodable { let items: [String]; let onHand: [String]; let cuisines: [String]; let mood: [String] }
     private struct Response: Decodable { let recipes: [Recipe] }
 
-    func refresh(stats: [ItemStat], onHand: [OnHandItem], force: Bool) async -> RefreshResult {
+    /// Without `force`, does nothing if today's recipes were made from the same kitchen and favorite cuisines.
+    /// `mood` replaces tonight's cuisines (empty clears them); nil keeps the current ones until the daily refresh.
+    func refresh(stats: [ItemStat], onHand: [OnHandItem], favorites: [String], mood: [String]?, force: Bool) async -> RefreshResult {
         let onHandKeys = Set(onHand.map(\.key))
         let signature = onHandKeys.sorted()
+        let favorites = favorites.sorted()
         let regulars = suggestItems(stats, storeId: "", alreadyOnList: onHandKeys, now: nowMillis(), limit: 15).map(\.displayName)
         if onHand.isEmpty && regulars.count < 3 { return .notEnoughHistory }
         if refreshing { return .busy }
@@ -30,13 +53,18 @@ final class RecipeService {
         defer { refreshing = false }
         do {
             let current = try? await doc.getDocument(as: RecipeSet.self)
-            let fresh = current.map { nowMillis() - $0.generatedAt < 24 * 60 * 60 * 1000 && ($0.onHandKeys ?? []) == signature } ?? false
+            let today = current.flatMap { nowMillis() - $0.generatedAt < 24 * 60 * 60 * 1000 ? $0 : nil }
+            let fresh = today.map { ($0.onHandKeys ?? []) == signature && ($0.cuisines ?? []) == favorites } ?? false
             if !force && fresh { return .stillFresh }
+            let tonight = mood ?? today?.mood ?? []
             let response: Response = try await ServerAPI.post(
-                "/api/recipes", body: Request(items: regulars, onHand: Array(onHand.map(\.name).prefix(30))), timeout: 120)
+                "/api/recipes",
+                body: Request(items: regulars, onHand: Array(onHand.map(\.name).prefix(30)), cuisines: favorites, mood: tonight),
+                timeout: 120)
             // An empty result shouldn't wipe out the current recipes.
             if response.recipes.isEmpty && current != nil { return .failed }
-            try doc.setData(from: RecipeSet(generatedAt: nowMillis(), onHandKeys: signature, recipes: response.recipes))
+            try doc.setData(from: RecipeSet(
+                generatedAt: nowMillis(), onHandKeys: signature, cuisines: favorites, mood: tonight, recipes: response.recipes))
             return .updated
         } catch let error as ServerError where error.isRateLimited {
             return .rateLimited

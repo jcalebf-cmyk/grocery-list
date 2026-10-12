@@ -30,6 +30,9 @@ data class HomeState(
     val recipesUpdatedAt: Long? = null,
     val refreshingRecipes: Boolean = false,
     val kitchenCount: Int = 0,
+    /** True until the household picks (or skips) favorite cuisines. */
+    val needsCuisines: Boolean = false,
+    val mood: List<String> = emptyList(),
 )
 
 @OptIn(FlowPreview::class)
@@ -39,6 +42,7 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
 
     private val stats = repo.observeStats().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val onHand = repo.observeOnHand().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val prefs = recipeRepo.observePreferences().stateIn(viewModelScope, SharingStarted.Eagerly, null) // null while loading
     private var inputsLoaded = false
 
     private val messages = Channel<String>(Channel.BUFFERED)
@@ -49,7 +53,8 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
         recipeRepo.observe(),
         recipeRepo.refreshing,
         onHand,
-    ) { (household, stores, lists), recipes, refreshing, kitchen ->
+        prefs,
+    ) { (household, stores, lists), recipes, refreshing, kitchen, cuisines ->
         HomeState(
             householdName = household?.name.orEmpty(),
             stores = stores,
@@ -60,27 +65,40 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
             recipesUpdatedAt = recipes?.generatedAt,
             refreshingRecipes = refreshing,
             kitchenCount = kitchen.size,
+            needsCuisines = cuisines?.chosen == false,
+            mood = recipes?.mood.orEmpty(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())
 
     init {
         // The first snapshots can come from an empty local cache, so wait for the data to settle
-        // before deciding whether recipes need refreshing.
+        // before deciding whether recipes need refreshing. A new household picks cuisines first.
         viewModelScope.launch {
             combine(stats, onHand, ::Pair).debounce(SETTLE_MS).first()
+            prefs.first { it?.chosen == true }
             inputsLoaded = true
-            recipeRepo.refresh(stats.value, onHand.value, force = false)
+            refresh(mood = null, force = false)
         }
     }
 
-    /** Called whenever the home screen comes back into view, e.g. after editing on-hand items. */
+    /** Called whenever the home screen comes back into view, e.g. after editing on-hand items or cuisines. */
     fun onShown() {
-        if (inputsLoaded) viewModelScope.launch { recipeRepo.refresh(stats.value, onHand.value, force = false) }
+        if (inputsLoaded) viewModelScope.launch { refresh(mood = null, force = false) }
     }
 
-    fun refreshRecipes() {
+    fun saveCuisines(cuisines: List<String>) = recipeRepo.savePreferences(cuisines)
+
+    fun refreshRecipes() = refreshWithMessages(mood = null)
+
+    /** "Tonight I'm feeling…": new recipes from just these cuisines. Empty goes back to the usual mix. */
+    fun setMood(cuisines: List<String>) = refreshWithMessages(mood = cuisines)
+
+    private suspend fun refresh(mood: List<String>?, force: Boolean) =
+        recipeRepo.refresh(stats.value, onHand.value, prefs.value?.cuisines.orEmpty(), mood, force)
+
+    private fun refreshWithMessages(mood: List<String>?) {
         viewModelScope.launch {
-            when (recipeRepo.refresh(stats.value, onHand.value, force = true)) {
+            when (refresh(mood, force = true)) {
                 RefreshResult.NOT_ENOUGH_HISTORY -> messages.send("Add a few ingredients to My kitchen first")
                 RefreshResult.FAILED -> messages.send("Couldn't get new recipes. Try again in a bit.")
                 RefreshResult.RATE_LIMITED -> messages.send("That's all the new recipe ideas for today. Check back tomorrow.")

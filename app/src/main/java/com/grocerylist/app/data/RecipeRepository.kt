@@ -3,11 +3,14 @@ package com.grocerylist.app.data
 import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.tasks.await
@@ -28,8 +31,17 @@ data class Recipe(
     val thumbnailUrl: String,
 )
 
-/** [onHandKeys] records what was on hand when these were generated, so changes trigger new ideas. */
-data class RecipeSet(val generatedAt: Long, val onHandKeys: List<String>, val recipes: List<Recipe>)
+/**
+ * [onHandKeys] and [cuisines] record the kitchen and favorite cuisines these were generated from, so
+ * changes trigger new ideas. [mood] is what the household picked for tonight, if anything.
+ */
+data class RecipeSet(
+    val generatedAt: Long,
+    val onHandKeys: List<String>,
+    val cuisines: List<String>,
+    val mood: List<String>,
+    val recipes: List<Recipe>,
+)
 
 enum class RefreshResult { UPDATED, STILL_FRESH, NOT_ENOUGH_HISTORY, BUSY, RATE_LIMITED, FAILED }
 
@@ -38,8 +50,9 @@ enum class RefreshResult { UPDATED, STILL_FRESH, NOT_ENOUGH_HISTORY, BUSY, RATE_
  * household, then cached in Firestore so every member sees the same set without paying for it again.
  */
 class RecipeRepository(householdId: String) {
-    private val doc = Firebase.firestore.collection("households").document(householdId)
-        .collection("recipes").document("current")
+    private val recipes = Firebase.firestore.collection("households").document(householdId).collection("recipes")
+    private val doc = recipes.document("current")
+    private val prefsDoc = recipes.document("preferences")
     private val lock = Mutex()
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
@@ -47,14 +60,36 @@ class RecipeRepository(householdId: String) {
     fun observe(): Flow<RecipeSet?> = doc.snapshots().map(::parse)
 
     /**
-     * Asks the server for new recipes. Without [force], does nothing if today's recipes already exist
-     * and were made with the same on-hand ingredients.
-     * Needs either something on hand or a few regularly bought items, or the searches are too generic.
+     * The household's favorite cuisines. A missing document only counts once the server confirms it, so
+     * an empty local cache doesn't send people who already chose back through setup.
      */
-    suspend fun refresh(stats: List<ItemStat>, onHand: List<OnHandItem>, force: Boolean): RefreshResult {
+    @Suppress("UNCHECKED_CAST")
+    fun observePreferences(): Flow<CuisinePrefs> = prefsDoc.snapshots(MetadataChanges.INCLUDE)
+        .filter { it.exists() || !it.metadata.isFromCache }
+        .map { CuisinePrefs((it.get("cuisines") as? List<String>).orEmpty(), chosen = it.exists()) }
+        .distinctUntilChanged()
+
+    fun savePreferences(cuisines: List<String>) {
+        prefsDoc.set(mapOf("cuisines" to cuisines, "updatedAt" to System.currentTimeMillis()))
+    }
+
+    /**
+     * Asks the server for new recipes. Without [force], does nothing if today's recipes already exist
+     * and were made with the same on-hand ingredients and favorite cuisines.
+     * [mood] replaces tonight's cuisines (empty clears them); null keeps the current ones until the daily refresh.
+     * Needs either something on hand or a few regularly bought items, or the recipes are too generic.
+     */
+    suspend fun refresh(
+        stats: List<ItemStat>,
+        onHand: List<OnHandItem>,
+        favorites: List<String>,
+        mood: List<String>?,
+        force: Boolean,
+    ): RefreshResult {
         val onHandNames = onHand.map { it.name }
         val onHandKeys = onHand.mapTo(HashSet()) { it.key }
         val onHandSignature = onHandKeys.sorted()
+        val cuisines = favorites.sorted()
         val regulars = suggestItems(stats, storeId = "", alreadyOnList = onHandKeys, now = System.currentTimeMillis(), limit = 15)
             .map { it.displayName }
         if (onHandNames.isEmpty() && regulars.size < MIN_REGULARS) return RefreshResult.NOT_ENOUGH_HISTORY
@@ -62,15 +97,19 @@ class RecipeRepository(householdId: String) {
         _refreshing.value = true
         try {
             val current = parse(doc.get().await())
-            val fresh = current != null &&
-                System.currentTimeMillis() - current.generatedAt < REFRESH_INTERVAL_MS &&
-                current.onHandKeys == onHandSignature
+            val today = current?.takeIf { System.currentTimeMillis() - it.generatedAt < REFRESH_INTERVAL_MS }
+            val fresh = today != null && today.onHandKeys == onHandSignature && today.cuisines == cuisines
             if (!force && fresh) {
                 return RefreshResult.STILL_FRESH
             }
+            val tonight = mood ?: today?.mood.orEmpty()
             val recipes = ServerApi.post(
                 "/api/recipes",
-                JSONObject().put("items", JSONArray(regulars)).put("onHand", JSONArray(onHandNames.take(30))),
+                JSONObject()
+                    .put("items", JSONArray(regulars))
+                    .put("onHand", JSONArray(onHandNames.take(30)))
+                    .put("cuisines", JSONArray(cuisines))
+                    .put("mood", JSONArray(tonight)),
                 readTimeoutMs = 120_000, // a Claude call, then a YouTube search per recipe
             ).getJSONArray("recipes")
             // An empty result (e.g. a server hiccup) shouldn't wipe out the current recipes.
@@ -79,6 +118,8 @@ class RecipeRepository(householdId: String) {
                 mapOf(
                     "generatedAt" to System.currentTimeMillis(),
                     "onHandKeys" to onHandSignature,
+                    "cuisines" to cuisines,
+                    "mood" to tonight,
                     "recipes" to toFirestore(recipes),
                 ),
             ).await()
@@ -122,6 +163,8 @@ class RecipeRepository(householdId: String) {
         return RecipeSet(
             generatedAt = snap.getLong("generatedAt") ?: 0,
             onHandKeys = (snap.get("onHandKeys") as? List<String>).orEmpty(),
+            cuisines = (snap.get("cuisines") as? List<String>).orEmpty(),
+            mood = (snap.get("mood") as? List<String>).orEmpty(),
             recipes = raw.map { r ->
                 Recipe(
                     videoId = r["videoId"] as? String ?: "",

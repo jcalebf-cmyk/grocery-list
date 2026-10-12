@@ -128,3 +128,14 @@ enum StoreBrands {
         return URL(string: brand.logo ?? "https://www.google.com/s2/favicons?domain=\(brand.domain)&sz=128")
     }
 }
+
+// MARK: Cuisines
+
+/// Cuisines offered as favorites and for "Tonight". Same list and order as `CUISINES` in Cuisines.kt.
+let cuisines = [
+    "American", "Southern", "Mexican", "Caribbean", "Italian", "French", "Greek",
+    "Middle Eastern", "Indian", "Chinese", "Japanese", "Korean", "Thai", "Vietnamese",
+]
+
+/// "Tonight I'm feeling x, y, or z."
+let maxMoodCuisines = 3

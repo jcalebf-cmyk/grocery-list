@@ -33,7 +33,27 @@ const RecipesSchema = z.object({
 });
 export type WrittenRecipe = z.infer<typeof RecipesSchema>["recipes"][number];
 
-export async function writeRecipes(items: string[], onHand: string[]): Promise<WrittenRecipe[]> {
+/** Favorites tilt the mix; tonight's picks (the mood) are a hard requirement. */
+function describeCuisines(favorites: string[], mood: string[]): string {
+  if (mood.length > 0) {
+    return `Tonight they're in the mood for ${listOr(mood)} food. Every recipe must be from ${mood.length > 1 ? "one of these cuisines, spread across them" : "that cuisine"}; use their ingredients where they fit, but the cuisine comes first.`;
+  }
+  if (favorites.length > 0) {
+    return `Cuisines they like: ${favorites.join(", ")}. Make about four of the recipes from these, and leave the rest open for variety.`;
+  }
+  return "Keep the set varied across cuisines.";
+}
+
+function listOr(items: string[]): string {
+  return items.length <= 2 ? items.join(" or ") : `${items.slice(0, -1).join(", ")}, or ${items.at(-1)}`;
+}
+
+export async function writeRecipes(
+  items: string[],
+  onHand: string[],
+  favorites: string[],
+  mood: string[],
+): Promise<WrittenRecipe[]> {
   const response = await client.messages.parse({
     model: MODEL,
     max_tokens: 16000,
@@ -45,17 +65,19 @@ export async function writeRecipes(items: string[], onHand: string[]): Promise<W
         content: `${describeIngredients(items, onHand)}
 
 Write 6 simple weeknight recipes for this household. Each should be built around 2-3 of their ingredients and be a well-known, reliable dish rather than an experiment. Keep every recipe simple:
-- at most 10 ingredients, not counting salt, pepper, oil, and water
+- at most 10 ingredients
 - at most about 45 minutes total
 - nothing beyond a normal home kitchen
 - no desserts or drinks
 
-Build at least four recipes around what's already in their kitchen, if there is anything, then use their regular groceries. Skip non-food items. Keep the set varied: different main ingredients and cuisines, not six chicken dishes.
+Build at least four recipes around what's already in their kitchen, if there is anything, then use their regular groceries. Skip non-food items. Keep the set varied: different main ingredients, not six chicken dishes.
+
+${describeCuisines(favorites, mood)}
 
 For each card:
 - title: a short plain name for the dish
-- ingredients: everything the dish needs, each with a quantity in US kitchen measures for 2-4 servings (e.g. "1 lb", "2 cups", "1 tbsp")
-- steps: at most 6 short steps in plain language, with times and temperatures where they matter
+- ingredients: everything the dish needs except salt, pepper, oil, and water (ingredients get added to a shopping list, and every kitchen already has these), each with a quantity in US kitchen measures for 2-4 servings (e.g. "1 lb", "2 cups", "1 tbsp")
+- steps: at most 6 short steps in plain language, with times and temperatures where they matter; mention salt, pepper, oil, or water here where the dish uses them
 - usesHouseholdItems: which of the household's ingredients (from either list) the recipe uses, spelled as in their list
 - videoQuery: a short YouTube search that would find a video of this same dish, like "easy chicken broccoli stir fry"`,
       },

@@ -80,6 +80,12 @@ import com.grocerylist.app.data.NearbyStores
 import com.grocerylist.app.ui.StoreLogo
 import com.grocerylist.app.ui.rememberLocationPermissionState
 import com.grocerylist.app.ui.StorePicker
+import com.grocerylist.app.ui.CuisineSetupScreen
+import com.grocerylist.app.ui.CuisineSheet
+import com.grocerylist.app.data.MAX_MOOD_CUISINES
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,6 +111,12 @@ fun HomeScreen(
         if (location.granted) runCatching { NearbyStores.findCached(context) }
     }
     LaunchedEffect(Unit) { viewModel.userMessages.collect { snackbar.showSnackbar(it) } }
+
+    if (state.needsCuisines) {
+        CuisineSetupScreen(onDone = viewModel::saveCuisines)
+        return
+    }
+    var choosingMood by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -136,8 +148,10 @@ fun HomeScreen(
                     updatedAt = state.recipesUpdatedAt.takeIf { state.recipes.isNotEmpty() },
                     refreshing = state.refreshingRecipes,
                     kitchenCount = state.kitchenCount,
+                    mood = state.mood,
                     onRefresh = viewModel::refreshRecipes,
                     onOpenKitchen = onOpenOnHand,
+                    onChooseMood = { choosingMood = true },
                 )
             }
             item {
@@ -163,6 +177,30 @@ fun HomeScreen(
                 items(state.pastLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
             }
         }
+    }
+
+    if (choosingMood) {
+        CuisineSheet(
+            title = "What are you in the mood for?",
+            subtitle = "Pick up to $MAX_MOOD_CUISINES and get recipes from just those tonight.",
+            initial = state.mood,
+            confirm = "Get recipes",
+            max = MAX_MOOD_CUISINES,
+            requireSelection = true,
+            onConfirm = {
+                choosingMood = false
+                viewModel.setMood(it)
+            },
+            onDismiss = { choosingMood = false },
+            secondary = if (state.mood.isNotEmpty()) {
+                "Back to usual" to {
+                    choosingMood = false
+                    viewModel.setMood(emptyList())
+                }
+            } else {
+                null
+            },
+        )
     }
 
     if (pickingStore) {
@@ -229,8 +267,10 @@ private fun RecipesHeader(
     updatedAt: Long?,
     refreshing: Boolean,
     kitchenCount: Int,
+    mood: List<String>,
     onRefresh: () -> Unit,
     onOpenKitchen: () -> Unit,
+    onChooseMood: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
         Text("Recipes for you", style = MaterialTheme.typography.titleLarge)
@@ -246,7 +286,10 @@ private fun RecipesHeader(
         status?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             AssistChip(
                 onClick = onOpenKitchen,
                 label = { Text(if (kitchenCount > 0) "My kitchen · $kitchenCount" else "My kitchen") },
@@ -263,6 +306,13 @@ private fun RecipesHeader(
                         Icon(Icons.Default.Refresh, contentDescription = null, Modifier.size(18.dp))
                     }
                 },
+            )
+            FilterChip(
+                selected = mood.isNotEmpty(),
+                onClick = onChooseMood,
+                enabled = !refreshing,
+                label = { Text(if (mood.isEmpty()) "Tonight…" else "Tonight: ${mood.joinToString(", ")}") },
+                leadingIcon = { Icon(AppIcons.Restaurant, contentDescription = null, Modifier.size(18.dp)) },
             )
         }
     }

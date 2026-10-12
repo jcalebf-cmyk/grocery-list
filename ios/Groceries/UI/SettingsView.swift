@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var leaving = false
     @State private var deleting = false
     @State private var error: String?
+    @State private var editingCuisines = false
 
     private var me: UserProfile { data.members.first { $0.id == data.user.id } ?? data.user }
     private var shared: Bool { data.members.count > 1 }
@@ -80,10 +81,28 @@ struct SettingsView: View {
                     Button("Leave household", role: .destructive) { leaving = true }
                 }
             }
+
+            Section("Recipes") {
+                Button { editingCuisines = true } label: {
+                    LabeledContent("Favorite cuisines") {
+                        Text(data.cuisinePrefs.map { $0.cuisines.isEmpty ? "Any" : $0.cuisines.joined(separator: ", ") } ?? "")
+                    }
+                }
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Color.warmBackground)
         .navigationTitle("Settings")
+        // Recipes pick up the change when Home is next shown.
+        .sheet(isPresented: $editingCuisines) {
+            CuisineSheet(
+                title: "Favorite cuisines",
+                subtitle: "Recipe ideas lean toward these, with a few others mixed in.",
+                initial: data.cuisinePrefs?.cuisines ?? [],
+                confirm: "Save",
+                onConfirm: { picked in editingCuisines = false; data.recipeService.savePreferences(picked) }
+            )
+        }
         .alert("Your name", isPresented: $editingName) {
             TextField("Name", text: $draft)
             Button("Save") { run { try await HouseholdService.updateDisplayName(uid: data.user.id, name: draft); await data.refreshMembers() } }
@@ -182,6 +201,7 @@ private struct DeleteAccountSheet: View {
     @State private var newOwner: UserProfile?
     @State private var working = false
     @State private var error: String?
+    @State private var editingCuisines = false
     @Environment(\.dismiss) private var dismiss
 
     private var shared: Bool { !others.isEmpty }
