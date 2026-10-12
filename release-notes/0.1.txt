@@ -1,0 +1,29 @@
+Groceries 0.1 – first test version
+
+Thanks for trying this out! Groceries is a shared grocery list for your household that learns what you buy and suggests easy recipes.
+
+GETTING STARTED
+• Sign up with Google or email.
+• Start a household, or join one with the 6-character invite code someone shares with you (Settings → Invite code).
+
+WHAT'S IN THIS VERSION
+• Shared lists: everyone in the household sees changes instantly, and it works offline.
+• Stores: start a list for a store near you (logos for common chains), or skip and keep a general list.
+• Smart suggestions: items you buy often show up as one-tap chips on new lists.
+• Recipes for you: simple recipes from YouTube, based on what you buy and what's in "My kitchen". Tap "New ideas" for a fresh batch.
+• My kitchen: add what you already have (freezer, meat delivery, pantry) so recipes use it up first.
+• Add a recipe's ingredients to a list in one tap; things already in your kitchen are left off.
+• Finish & close out a list when you're done shopping; unchecked items can roll over to a new list. Past lists can be reopened.
+• Settings: rename the household, invite people, and manage members.
+
+GOOD TO KNOW
+• The app asks for your location the first time you start a list, to show nearby stores. It's optional, and only your approximate area is used.
+• Recipe ideas appear once you've added a few items to lists, or right away if you add things to My kitchen.
+• New recipe ideas are limited to a handful per day.
+
+WHAT TO TRY
+• Invite someone in your household and add items at the same time.
+• Start a list from the store picker and do a real shopping trip with it.
+• Add a recipe's ingredients to a list.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
