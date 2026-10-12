@@ -1,0 +1,9 @@
+Groceries 0.2
+
+WHAT'S NEW
+• Delete your account: Settings → Delete account. You'll confirm with your password or Google first.
+  – If you're the only one in your household, the household and its lists are deleted too.
+  – If you share a household, you're removed from it and its lists stay with everyone else. Owners pick who takes over first.
+• Creating an account now asks you to confirm your password, and shows the 6-character minimum up front.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
