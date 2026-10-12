@@ -73,11 +73,10 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 ## Status (Oct 12, 2026)
 
 - **Android:** 0.3 (code 3) is the latest release, on Firebase App Distribution and tagged `v0.3`.
-- **iPhone:** 0.3 (build 2) uploaded to TestFlight (internal group, automatic distribution on); same features
-  and version as Android 0.3. Notes in `release-notes/ios-0.3.txt` for Josh to paste into "What to Test".
-  No `ios-v*` tag yet. The next upload must be build 3 (`release-ios`).
-- Open question for Josh: ingredient matching marks "Rice vinegar" as in the kitchen when "Rice" is
-  (both platforms); Josh hasn't decided whether to make it stricter.
+- **iPhone:** 0.3 (build 2) is in TestFlight (internal group, automatic distribution on), tagged `ios-v0.3`.
+  Josh wanted the version numbers to match across platforms, so iOS jumped from 0.1 to 0.3. Waiting on
+  Josh: paste `release-notes/ios-0.3.txt` into build 2's "What to Test". The next upload must be build 3.
+- Unreleased on both platforms: stricter ingredient matching ("Rice" no longer covers "Rice vinegar").
 - "Clear checked items" removes checked items from the list; Josh wants it kept as is (name and trash icon).
 - Optional cleanups Josh may do: delete the unused `com.grocerylist.app` iOS app in Firebase (keep the
   Android app), and remove `com.joshfranzen.groceries` from Apple Identifiers if it was registered.

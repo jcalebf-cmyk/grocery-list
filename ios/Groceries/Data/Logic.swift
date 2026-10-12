@@ -52,13 +52,22 @@ func storesInUse(_ stores: [Store], lists: [GroceryList]) -> [Store] {
 }
 
 /// True if an on-hand item covers a recipe ingredient (every word of it appears, whole words only).
+/// An extra word that names a different product breaks the match: "rice" doesn't cover "rice vinegar".
 func isCoveredBy(_ ingredient: String, onHand: [String]) -> Bool {
     let ingredientWords = words(ingredient)
     return onHand.contains { item in
         let w = words(item)
-        return !w.isEmpty && w.isSubset(of: ingredientWords)
+        return !w.isEmpty && w.isSubset(of: ingredientWords) && ingredientWords.subtracting(w).isDisjoint(with: productWords)
     }
 }
+
+// Words that make "<item> <word>" a different thing to buy than the item itself. Singular, since words()
+// drops a trailing "s". Keep in step with IngredientMatch.kt.
+private let productWords: Set<String> = [
+    "vinegar", "flour", "noodle", "wine", "paper", "cake", "cracker", "chip", "milk", "cream", "butter",
+    "cheese", "oil", "sauce", "paste", "powder", "flake", "broth", "stock", "bouillon", "soup", "starch",
+    "meal", "syrup", "extract", "jam", "jelly", "spread", "dressing", "seasoning", "bread",
+]
 
 private func words(_ text: String) -> Set<String> {
     Set(itemKey(text).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map { word in

@@ -22,6 +22,19 @@ class IngredientMatchTest {
         assertFalse(isCoveredBy("beef", listOf("ground beef")))
     }
 
+    @Test fun differentProductMadeFromItemIsNotCovered() {
+        assertFalse(isCoveredBy("Rice vinegar", listOf("Rice")))
+        assertFalse(isCoveredBy("rice noodles", listOf("rice")))
+        assertFalse(isCoveredBy("chicken broth", listOf("chicken")))
+        assertFalse(isCoveredBy("olive oil", listOf("olives")))
+        assertFalse(isCoveredBy("2 tbsp tomato paste", listOf("tomatoes")))
+    }
+
+    @Test fun differentProductOnHandIsCovered() {
+        assertTrue(isCoveredBy("rice vinegar", listOf("rice vinegar")))
+        assertTrue(isCoveredBy("low-sodium chicken broth", listOf("chicken broth")))
+    }
+
     @Test fun nothingOnHand() {
         assertFalse(isCoveredBy("rice", emptyList()))
     }
