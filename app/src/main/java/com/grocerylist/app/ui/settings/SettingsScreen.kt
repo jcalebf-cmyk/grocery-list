@@ -1,6 +1,19 @@
 package com.grocerylist.app.ui.settings
 
 import android.content.Intent
+import kotlinx.coroutines.flow.MutableStateFlow
+import com.grocerylist.app.ui.auth.requestGoogleIdToken
+import com.grocerylist.app.data.NearbyStores
+import com.grocerylist.app.data.AccountDeletion
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Delete
+import android.widget.Toast
+import android.util.Log
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenuItem
@@ -109,6 +122,44 @@ class SettingsViewModel(private val householdId: String, private val uid: String
         households.leaveHousehold(householdId, uid)
     }
 
+    val deleting = MutableStateFlow(false)
+    val deleteError = MutableStateFlow<String?>(null)
+
+    /**
+     * Confirms identity with [reauthenticate], then deletes everything. Once identity is confirmed the
+     * rest runs in the app-wide scope: deleting changes the session, which closes this screen mid-way.
+     */
+    fun deleteAccount(context: Context, newOwner: UserProfile?, reauthenticate: suspend () -> Unit) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            deleting.value = true
+            deleteError.value = null
+            try {
+                reauthenticate()
+            } catch (_: GetCredentialCancellationException) {
+                deleting.value = false
+                return@launch
+            } catch (e: Exception) {
+                deleteError.value = if (e is FirebaseAuthInvalidCredentialsException) {
+                    "That password isn't right."
+                } else {
+                    "Couldn't confirm it's you. Try again."
+                }
+                deleting.value = false
+                return@launch
+            }
+            AppGraph.appScope.launch {
+                try {
+                    AccountDeletion.deleteAccount(uid, householdId, newOwner)
+                    NearbyStores.clear(appContext)
+                } catch (e: Exception) {
+                    Log.w("AccountDeletion", "Account deletion failed", e)
+                    Toast.makeText(appContext, "Couldn't finish deleting your account. Try again.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     private fun run(failure: String, block: suspend () -> Unit) {
         viewModelScope.launch {
             try {
@@ -138,6 +189,7 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
     var confirmingLeave by rememberSaveable { mutableStateOf(false) }
     var removing by remember { mutableStateOf<UserProfile?>(null) }
     var promoting by remember { mutableStateOf<UserProfile?>(null) }
+    var confirmingDelete by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -168,6 +220,14 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                     title = "Sign out",
                     leading = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null) },
                     onClick = onSignOut,
+                )
+            }
+            item {
+                SettingsRow(
+                    title = "Delete account",
+                    titleColor = MaterialTheme.colorScheme.error,
+                    leading = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    onClick = { confirmingDelete = true },
                 )
             }
 
@@ -257,6 +317,29 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
             onDismiss = { removing = null },
         )
     }
+    if (confirmingDelete) {
+        val context = LocalContext.current
+        DeleteAccountDialog(
+            householdName = household?.name ?: "your household",
+            shared = shared,
+            isOwner = isOwner,
+            candidates = members.filter { it.uid != session.user.uid },
+            usesPassword = AppGraph.auth.usesPassword,
+            viewModel = viewModel,
+            onDeleteWithPassword = { password, newOwner ->
+                viewModel.deleteAccount(context, newOwner) { AppGraph.auth.reauthenticateWithPassword(password) }
+            },
+            onDeleteWithGoogle = { newOwner ->
+                viewModel.deleteAccount(context, newOwner) {
+                    AppGraph.auth.reauthenticateWithGoogle(requestGoogleIdToken(context))
+                }
+            },
+            onDismiss = {
+                confirmingDelete = false
+                viewModel.deleteError.value = null
+            },
+        )
+    }
     promoting?.let { member ->
         ConfirmDialog(
             title = "Make ${member.displayName} the owner?",
@@ -309,6 +392,7 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun SettingsRow(
     title: String,
+    titleColor: Color = Color.Unspecified,
     subtitle: String? = null,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
@@ -321,7 +405,7 @@ private fun SettingsRow(
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         leadingContent = leading,
-        headlineContent = { Text(title) },
+        headlineContent = { Text(title, color = titleColor) },
         supportingContent = subtitle?.takeIf { it.isNotBlank() }?.let { { Text(it) } },
         trailingContent = trailing,
     )
@@ -481,5 +565,93 @@ private fun ChooseNewOwnerDialog(
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/**
+ * Explains what deletion removes, picks a new owner if needed, and confirms identity
+ * (password or Google) as the final step, since Firebase requires a fresh sign-in to delete.
+ */
+@Composable
+private fun DeleteAccountDialog(
+    householdName: String,
+    shared: Boolean,
+    isOwner: Boolean,
+    candidates: List<UserProfile>,
+    usesPassword: Boolean,
+    viewModel: SettingsViewModel,
+    onDeleteWithPassword: (String, UserProfile?) -> Unit,
+    onDeleteWithGoogle: (UserProfile?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val deleting by viewModel.deleting.collectAsStateWithLifecycle()
+    val error by viewModel.deleteError.collectAsStateWithLifecycle()
+    var password by rememberSaveable { mutableStateOf("") }
+    val needsNewOwner = shared && isOwner
+    var newOwner by remember { mutableStateOf(if (needsNewOwner) candidates.singleOrNull() else null) }
+    val ready = !deleting && (!needsNewOwner || newOwner != null) && (!usesPassword || password.isNotEmpty())
+
+    AlertDialog(
+        onDismissRequest = { if (!deleting) onDismiss() },
+        title = { Text("Delete your account?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    if (shared) {
+                        "This permanently deletes your account and removes you from $householdName. " +
+                            "Its lists stay with the other members."
+                    } else {
+                        "This permanently deletes your account and $householdName, including all of its " +
+                            "lists, stores, kitchen items, and recipes. This can't be undone."
+                    },
+                )
+                if (needsNewOwner) {
+                    Text("You're the owner. Choose who takes over:", style = MaterialTheme.typography.titleSmall)
+                    candidates.forEach { member ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { newOwner = member },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = newOwner?.uid == member.uid, onClick = { newOwner = member })
+                            Text(member.displayName)
+                        }
+                    }
+                }
+                if (usesPassword) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Your password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isError = error != null,
+                        enabled = !deleting,
+                    )
+                } else {
+                    Text("You'll confirm with Google before anything is deleted.", style = MaterialTheme.typography.bodySmall)
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (usesPassword) onDeleteWithPassword(password, newOwner) else onDeleteWithGoogle(newOwner) },
+                enabled = ready,
+            ) {
+                Text(
+                    when {
+                        deleting -> "Deleting…"
+                        usesPassword -> "Delete account"
+                        else -> "Confirm with Google & delete"
+                    },
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !deleting) { Text("Cancel") } },
     )
 }

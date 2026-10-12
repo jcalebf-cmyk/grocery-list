@@ -17,11 +17,34 @@ data class SignInState(
     val name: String = "",
     val email: String = "",
     val password: String = "",
+    val confirmPassword: String = "",
+    /** Set when "Create account" is tried with mismatched passwords, so the error shows even mid-typing. */
+    val submittedMismatch: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
 ) {
-    val canSubmit get() =
-        !busy && email.isNotBlank() && password.isNotBlank() && (!creatingAccount || name.isNotBlank())
+    /** Firebase rejects shorter passwords, so say so before the user submits. */
+    val passwordTooShort get() = creatingAccount && password.isNotEmpty() && password.length < MIN_PASSWORD_LENGTH
+
+    private val passwordsMatch get() = password == confirmPassword
+
+    /**
+     * Show "passwords don't match" only once the confirmation can't turn into a match by typing more:
+     * it's as long as the password, or already differs from how the password starts.
+     */
+    val showMismatch get() = creatingAccount && confirmPassword.isNotEmpty() && !passwordsMatch &&
+        (submittedMismatch || confirmPassword.length >= password.length || !password.startsWith(confirmPassword))
+
+    val canSubmit get() = !busy && email.isNotBlank() && password.isNotBlank() && (
+        !creatingAccount || (
+            name.isNotBlank() && password.length >= MIN_PASSWORD_LENGTH &&
+                confirmPassword.isNotEmpty() && passwordsMatch
+            )
+        )
+
+    companion object {
+        const val MIN_PASSWORD_LENGTH = 6
+    }
 }
 
 class SignInViewModel : ViewModel() {
@@ -30,11 +53,18 @@ class SignInViewModel : ViewModel() {
 
     fun setName(v: String) = _state.update { it.copy(name = v, error = null) }
     fun setEmail(v: String) = _state.update { it.copy(email = v, error = null) }
-    fun setPassword(v: String) = _state.update { it.copy(password = v, error = null) }
-    fun toggleMode() = _state.update { it.copy(creatingAccount = !it.creatingAccount, error = null) }
+    fun setPassword(v: String) = _state.update { it.copy(password = v, submittedMismatch = false, error = null) }
+    fun setConfirmPassword(v: String) = _state.update { it.copy(confirmPassword = v, submittedMismatch = false, error = null) }
+    fun toggleMode() = _state.update {
+        it.copy(creatingAccount = !it.creatingAccount, confirmPassword = "", submittedMismatch = false, error = null)
+    }
 
     fun submit() {
         val s = _state.value
+        if (s.creatingAccount && s.confirmPassword != s.password) {
+            _state.update { it.copy(submittedMismatch = true) }
+            return
+        }
         if (!s.canSubmit) return
         run {
             if (s.creatingAccount) {

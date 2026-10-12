@@ -134,10 +134,46 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
                     )
                 }
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            isError = state.passwordTooShort,
+            supportingText = if (state.creatingAccount) {
+                {
+                    Text(
+                        if (state.passwordTooShort) {
+                            "Too short. Use at least ${SignInState.MIN_PASSWORD_LENGTH} characters."
+                        } else {
+                            "At least ${SignInState.MIN_PASSWORD_LENGTH} characters"
+                        },
+                    )
+                }
+            } else {
+                null
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = if (state.creatingAccount) ImeAction.Next else ImeAction.Done,
+            ),
             keyboardActions = KeyboardActions(onDone = { viewModel.submit() }),
             modifier = Modifier.fillMaxWidth(),
         )
+        if (state.creatingAccount) {
+            // Uses the same show/hide toggle as the password field above.
+            OutlinedTextField(
+                value = state.confirmPassword,
+                onValueChange = viewModel::setConfirmPassword,
+                label = { Text("Confirm password") },
+                singleLine = true,
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                isError = state.showMismatch,
+                supportingText = if (state.showMismatch) {
+                    { Text("Passwords don't match. Type the same password in both fields.") }
+                } else {
+                    null
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { viewModel.submit() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         state.error?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)

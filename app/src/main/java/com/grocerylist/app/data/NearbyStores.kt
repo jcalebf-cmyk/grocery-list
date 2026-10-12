@@ -28,6 +28,12 @@ object NearbyStores {
 
     @Volatile private var memory: SavedLookup? = null
 
+    /** Forgets saved lookups (which reveal roughly where the user shops), e.g. when their account is deleted. */
+    fun clear(context: Context) {
+        memory = null
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { clear() }
+    }
+
     /** The last saved results, if fresh, for showing immediately before the location check finishes. */
     fun peek(context: Context): List<NearbyStore>? =
         saved(context)?.takeIf { it.isFresh(System.currentTimeMillis()) }?.stores

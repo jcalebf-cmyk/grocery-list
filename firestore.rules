@@ -22,6 +22,8 @@ service cloud.firestore {
         request.resource.data.get('householdId', null) == null ||
         memberAfter(request.resource.data.householdId)
       );
+      // Account deletion.
+      allow delete: if signedIn() && userId == uid();
     }
 
     // Maps a 6-character invite code to a household. Lookups by exact code only; no listing.
@@ -30,11 +32,15 @@ service cloud.firestore {
       allow create: if signedIn()
         && memberAfter(request.resource.data.householdId)
         && getAfter(householdPath(request.resource.data.householdId)).data.inviteCode == code;
+      // Removed along with a household when its only member deletes their account.
+      allow delete: if signedIn() && get(householdPath(resource.data.householdId)).data.memberIds == [uid()];
     }
 
     match /households/{hid} {
       allow read: if signedIn() && uid() in resource.data.memberIds;
       allow create: if signedIn() && request.resource.data.memberIds == [uid()];
+      // Only when the last member deletes their account (its contents are deleted first).
+      allow delete: if signedIn() && resource.data.memberIds == [uid()];
       allow update: if signedIn() && (
         // Members can rename the household.
         (uid() in resource.data.memberIds
