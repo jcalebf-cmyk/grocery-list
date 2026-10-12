@@ -50,12 +50,14 @@ class SignInViewModel : ViewModel() {
 
     fun showError(e: Throwable) = _state.update { it.copy(busy = false, error = friendlyMessage(e)) }
 
-    // On success the session flow switches screens, so there's nothing to reset.
     private fun run(block: suspend () -> Unit) {
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             try {
                 block()
+                // This view model outlives the sign-in screen, so wipe what was typed (password included).
+                // Otherwise signing out later would reopen the screen with the old details filled in.
+                _state.value = SignInState()
             } catch (e: Exception) {
                 showError(e)
             }

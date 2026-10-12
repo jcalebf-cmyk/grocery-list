@@ -2,6 +2,12 @@ package com.grocerylist.app.ui.settings
 
 import android.content.Intent
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -45,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -90,8 +96,18 @@ class SettingsViewModel(private val householdId: String, private val uid: String
         households.removeMember(householdId, member.uid)
     }
 
+    fun makeOwner(member: UserProfile) = run("Couldn't make ${member.displayName} the owner") {
+        household.value?.let { households.transferOwnership(it, member.uid) }
+    }
+
     // On success the session moves to household setup, so there's nothing else to do here.
     fun leave() = run("Couldn't leave the household") { households.leaveHousehold(householdId, uid) }
+
+    /** The owner hands ownership over first; the rules don't let an owner leave directly. */
+    fun makeOwnerAndLeave(member: UserProfile) = run("Couldn't leave the household") {
+        household.value?.let { households.transferOwnership(it, member.uid) }
+        households.leaveHousehold(householdId, uid)
+    }
 
     private fun run(failure: String, block: suspend () -> Unit) {
         viewModelScope.launch {
@@ -112,6 +128,8 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
     val members by viewModel.members.collectAsStateWithLifecycle()
     val me = members.firstOrNull { it.uid == session.user.uid } ?: session.user
     val isOwner = household?.ownerId == session.user.uid
+    // Members and leaving only matter once someone else has joined; alone, leaving would just strand your lists.
+    val shared = members.size > 1
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.errorMessages.collect { snackbar.showSnackbar(it) } }
 
@@ -119,6 +137,7 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
     var renamingHousehold by rememberSaveable { mutableStateOf(false) }
     var confirmingLeave by rememberSaveable { mutableStateOf(false) }
     var removing by remember { mutableStateOf<UserProfile?>(null) }
+    var promoting by remember { mutableStateOf<UserProfile?>(null) }
 
     Scaffold(
         topBar = {
@@ -162,38 +181,42 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                         onClick = { renamingHousehold = true },
                     )
                 }
-                item { InviteCard(h) }
+                item { InviteCard(h, shared) }
             }
-            item {
-                Text(
-                    "Members",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
-                )
-            }
-            items(members, key = { it.uid }) { member ->
-                val isMe = member.uid == session.user.uid
-                SettingsRow(
-                    title = if (isMe) "${member.displayName} (you)" else member.displayName,
-                    subtitle = if (member.uid == household?.ownerId) "Owner · ${member.email}" else member.email,
-                    leading = { MemberBadge(member.displayName) },
-                    trailing = if (isOwner && !isMe) {
-                        {
-                            IconButton(onClick = { removing = member }) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove ${member.displayName}")
+            if (shared) {
+                item {
+                    Text(
+                        "Members",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                    )
+                }
+                items(members, key = { it.uid }) { member ->
+                    val isMe = member.uid == session.user.uid
+                    SettingsRow(
+                        title = if (isMe) "${member.displayName} (you)" else member.displayName,
+                        subtitle = if (member.uid == household?.ownerId) "Owner · ${member.email}" else member.email,
+                        leading = { MemberBadge(member.displayName) },
+                        trailing = if (isOwner && !isMe) {
+                            {
+                                MemberMenu(
+                                    name = member.displayName,
+                                    onMakeOwner = { promoting = member },
+                                    onRemove = { removing = member },
+                                )
                             }
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-            item {
-                TextButton(
-                    onClick = { confirmingLeave = true },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
-                ) { Text("Leave household", color = MaterialTheme.colorScheme.error) }
+                        } else {
+                            null
+                        },
+                    )
+                }
+                item {
+                    TextButton(
+                        onClick = { confirmingLeave = true },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
+                    ) { Text("Leave household", color = MaterialTheme.colorScheme.error) }
+                }
             }
         }
     }
@@ -234,22 +257,43 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
             onDismiss = { removing = null },
         )
     }
-    if (confirmingLeave) {
-        val alone = members.size <= 1
+    promoting?.let { member ->
         ConfirmDialog(
-            title = "Leave ${household?.name ?: "household"}?",
-            text = if (alone) {
-                "You're the only member, so its lists and recipes will no longer be reachable by anyone."
-            } else {
-                "You'll lose access to its lists. You can rejoin with the invite code."
-            },
-            confirm = "Leave",
+            title = "Make ${member.displayName} the owner?",
+            text = "${member.displayName} will be able to remove members and hand ownership on. " +
+                "You'll stay in the household as a regular member.",
+            confirm = "Make owner",
+            destructive = false,
             onConfirm = {
-                confirmingLeave = false
-                viewModel.leave()
+                promoting = null
+                viewModel.makeOwner(member)
             },
-            onDismiss = { confirmingLeave = false },
+            onDismiss = { promoting = null },
         )
+    }
+    if (confirmingLeave && shared) {
+        if (isOwner) {
+            ChooseNewOwnerDialog(
+                householdName = household?.name ?: "household",
+                candidates = members.filter { it.uid != session.user.uid },
+                onConfirm = { newOwner ->
+                    confirmingLeave = false
+                    viewModel.makeOwnerAndLeave(newOwner)
+                },
+                onDismiss = { confirmingLeave = false },
+            )
+        } else {
+            ConfirmDialog(
+                title = "Leave ${household?.name ?: "household"}?",
+                text = "You'll lose access to its lists. You can rejoin with the invite code.",
+                confirm = "Leave",
+                onConfirm = {
+                    confirmingLeave = false
+                    viewModel.leave()
+                },
+                onDismiss = { confirmingLeave = false },
+            )
+        }
     }
 }
 
@@ -284,7 +328,7 @@ private fun SettingsRow(
 }
 
 @Composable
-private fun InviteCard(household: Household) {
+private fun InviteCard(household: Household, shared: Boolean) {
     val context = LocalContext.current
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Column(
@@ -292,10 +336,18 @@ private fun InviteCard(household: Household) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Invite code", style = MaterialTheme.typography.labelLarge)
+            Text(
+                if (shared) "Invite code" else "Share your lists",
+                style = MaterialTheme.typography.labelLarge,
+            )
             Text(household.inviteCode, style = MaterialTheme.typography.displaySmall, fontFamily = FontFamily.Monospace)
             Text(
-                "Anyone with this code can join and edit your lists.",
+                if (shared) {
+                    "Anyone with this code can join and edit your lists."
+                } else {
+                    "Send this code to someone you shop with. Once they join, you'll both see and edit the same lists."
+                },
+                textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -346,13 +398,87 @@ private fun TextInputDialog(
 }
 
 @Composable
-private fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirm: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    destructive: Boolean = true,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(text) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(confirm, color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = onConfirm) {
+                Text(confirm, color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun MemberMenu(name: String, onMakeOwner: () -> Unit, onRemove: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = "Options for $name")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Make owner") },
+                onClick = {
+                    open = false
+                    onMakeOwner()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Remove from household", color = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    open = false
+                    onRemove()
+                },
+            )
+        }
+    }
+}
+
+/** Owners must hand the household to someone before leaving, so nobody is left without an owner. */
+@Composable
+private fun ChooseNewOwnerDialog(
+    householdName: String,
+    candidates: List<UserProfile>,
+    onConfirm: (UserProfile) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var chosen by remember { mutableStateOf(candidates.singleOrNull()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Leave $householdName?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("You're the owner. Choose who takes over before you go.")
+                candidates.forEach { member ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable { chosen = member }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = chosen?.uid == member.uid, onClick = { chosen = member })
+                        Text(member.displayName)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { chosen?.let(onConfirm) }, enabled = chosen != null) {
+                Text("Make owner & leave", color = MaterialTheme.colorScheme.error)
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

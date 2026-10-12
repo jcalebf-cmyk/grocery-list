@@ -76,7 +76,16 @@ class HouseholdRepository {
         users.document(uid).update("displayName", name.trim()).await()
     }
 
-    /** Takes you out of the household; you'll be asked to create or join one next. */
+    /**
+     * Hands ownership to another member by moving them to the front of the member list.
+     * Owner only (enforced by security rules).
+     */
+    suspend fun transferOwnership(household: Household, newOwnerUid: String) {
+        val reordered = listOf(newOwnerUid) + household.memberIds.filter { it != newOwnerUid }
+        households.document(household.id).update("memberIds", reordered).await()
+    }
+
+    /** Takes you out of the household; you'll be asked to create or join one next. Not allowed for the owner. */
     suspend fun leaveHousehold(householdId: String, uid: String) {
         db.batch().apply {
             update(households.document(householdId), "memberIds", FieldValue.arrayRemove(uid))

@@ -45,10 +45,19 @@ service cloud.firestore {
           && request.resource.data.joinCode == resource.data.inviteCode
           && request.resource.data.memberIds == resource.data.memberIds.concat([uid()]))
         ||
-        // A member can leave, removing only themselves.
+        // A member other than the owner can leave, removing only themselves.
+        // (The owner has to hand ownership to someone else first.)
         (uid() in resource.data.memberIds
+          && resource.data.memberIds[0] != uid()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
           && request.resource.data.memberIds == resource.data.memberIds.removeAll([uid()]))
+        ||
+        // The owner can make another member the owner, by moving them to the front of the list.
+        (resource.data.memberIds[0] == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+          && request.resource.data.memberIds.size() == resource.data.memberIds.size()
+          && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          && request.resource.data.memberIds[0] != uid())
         ||
         // The owner (the earliest member, i.e. the creator) can remove one other member at a time.
         (resource.data.memberIds.size() > 1
