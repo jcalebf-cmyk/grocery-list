@@ -1,0 +1,6 @@
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+build/
+# Firebase config, like Android's google-services.json
+GoogleService-Info.plist

@@ -1,0 +1,51 @@
+# Generates Groceries.xcodeproj. After editing, run: xcodegen
+name: Groceries
+options:
+  bundleIdPrefix: com.grocerylist
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"  # Swift 6 compiler, Swift 5 language mode
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""  # set once the Apple Developer membership is approved
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "12.0.0"  # 13.x needs App Check 12, which Google Sign-In 10 does not support yet
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "10.0.0"
+targets:
+  Groceries:
+    type: application
+    platform: iOS
+    sources:
+      - path: Groceries
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.grocerylist.app
+        PRODUCT_NAME: Groceries
+        TARGETED_DEVICE_FAMILY: "1"  # iPhone only
+        CODE_SIGN_STYLE: Automatic
+        # Simulator builds sign locally (no Apple account needed); Firebase needs a signed app to use the keychain.
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+        CODE_SIGN_ENTITLEMENTS: Groceries/App/Groceries.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Groceries/App/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Groceries
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Groceries uses your approximate location to show grocery stores near you."
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
