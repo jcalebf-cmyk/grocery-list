@@ -27,7 +27,9 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 
 ## Backend facts
 
-- Firebase project `grocery-list-d5a77` (Auth: email, Google, Apple-on-iOS-only; Firestore).
+- Firebase project `grocery-list-d5a77` (Auth: email, Google, Apple-on-iOS-only; Firestore). Email
+  enumeration protection is on. Password reset must never reveal whether an email has an account (Josh's call);
+  email confirmation is optional (a Settings row with Resend, never a sign-up blocker). Firebase hosts the email links.
   Config files `app/google-services.json` and `ios/Groceries/App/GoogleService-Info.plist` are git-ignored.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
   `itemStats`, `onHand`, `recipes/current`, `recipes/preferences`; `inviteCodes/{code}`.
@@ -51,6 +53,7 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   Release signing key lives outside the repo in `../GroceryList-signing/` (backed up in Josh's LastPass);
   never commit it. Josh's Pixel has the release-signed app, so install release builds on it
   (`adb -s 47221FDAS000XD install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
+  `gradlew installDebug` targets every connected device, Pixel included; for the emulator use `adb -e install -r`.
 - **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`).
 - **iPhone releases:** use the `release-ios` skill (archive → upload to TestFlight via `ios/ExportOptions.plist`).
 - **iOS:** Xcode 27, but `xcode-select` still points at Command Line Tools, so prefix commands with
@@ -72,11 +75,14 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 
 ## Status (Oct 12, 2026)
 
-- **Android:** 0.3 (code 3) is the latest release, on Firebase App Distribution and tagged `v0.3`.
-- **iPhone:** 0.3 (build 2) is in TestFlight (internal group, automatic distribution on), tagged `ios-v0.3`.
-  Josh wanted the version numbers to match across platforms, so iOS jumped from 0.1 to 0.3. Waiting on
-  Josh: paste `release-notes/ios-0.3.txt` into build 2's "What to Test". The next upload must be build 3.
-- Unreleased on both platforms: stricter ingredient matching ("Rice" no longer covers "Rice vinegar").
+- **Android:** 0.4 (code 4) is the latest release, on Firebase App Distribution and tagged `v0.4`
+  (no tester groups yet; it goes to every tester individually).
+- **iPhone:** 0.4 (build 3) is in TestFlight (internal group, automatic distribution on), tagged `ios-v0.4`.
+  Version numbers match across platforms (Josh's call). The next upload must be build 4.
+- 0.4 = "Forgot password?", optional email confirmation, stricter ingredient matching. The confirmation
+  email and Settings row haven't been checked with a real account yet.
+- TestFlight "What to Test" is now set by `release-ios` through the App Store Connect API (key in
+  `../GroceryList-signing/`). Reading works; the write step gets its first real run on build 4.
 - "Clear checked items" removes checked items from the list; Josh wants it kept as is (name and trash icon).
 - Optional cleanups Josh may do: delete the unused `com.grocerylist.app` iOS app in Firebase (keep the
   Android app), and remove `com.joshfranzen.groceries` from Apple Identifiers if it was registered.

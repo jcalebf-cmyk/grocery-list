@@ -39,7 +39,7 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
      --release-notes-file release-notes/X.Y.txt --testers <emails>
    ```
    Send it to every current tester: get their emails from `firebase appdistribution:testers:list --project
-   grocery-list-d5a77` (comma-separated, and never write them into the repo, which is public). If Josh has since
+   grocery-list-d5a77 --json` (the email is the last segment of each tester's `name`; comma-separate them, and never write them into the repo, which is public). If Josh has since
    made tester groups (`firebase appdistribution:groups:list`), use `--groups <alias>` instead and ask which one if
    there are several. If `firebase` isn't installed, install it (`npm install -g firebase-tools`); if it isn't
    signed in, ask Josh to run `firebase login` in a terminal (it opens a browser for Josh's Google account), then retry. If the upload can't happen, fall back to the console: App Distribution → upload APK → paste

@@ -33,10 +33,16 @@ Run from `ios/`. Prefix every Xcode command with `DEVELOPER_DIR=/Applications/Xc
    FirebaseFirestoreInternal) are expected and harmless.
 
 6. **Write tester notes** in `release-notes/ios-X.Y.txt` (same style as the Android notes: plain text,
-   user-facing, ending with "Found a bug or have an idea? Let Josh know – a screenshot helps a lot.")
-   and copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy`, or bullets and dashes come out garbled). Josh pastes them into App Store Connect → TestFlight → the build →
-   **What to Test**. Processing takes about 5–30 minutes; with automatic distribution on, the internal
-   group gets the build when it's ready.
+   user-facing, ending with "Found a bug or have an idea? Let Josh know – a screenshot helps a lot.").
 
-7. **Only when Josh asks:** commit `ios/project.yml` and the notes ("Release iOS X.Y (N)"), push, tag
+7. **Set "What to Test"** (Josh wants this automatic, not pasted): from the repo root, run in the background
+   `node .claude/skills/release-ios/whats-new.mjs X.Y N release-notes/ios-X.Y.txt`. It waits for Apple to
+   finish processing (about 5–30 minutes), then sets the text through the App Store Connect API, using the
+   key in `../GroceryList-signing/app-store-connect.json`. `--dry-run` only reports the build's state and
+   current text. If the script fails, copy the notes (`LANG=en_US.UTF-8 pbcopy`) and have Josh paste them into
+   App Store Connect → TestFlight → the build → **What to Test**. With automatic distribution on, the internal
+   group gets the build when processing ends. "Ready to Submit" on the build refers to Beta App Review, which
+   only external testers need; for internal testers, just check the build lists the internal group.
+
+8. **Only when Josh asks:** commit `ios/project.yml` and the notes ("Release iOS X.Y (N)"), push, tag
    `ios-vX.Y`, and create a GitHub pre-release with the notes and no binaries.
