@@ -17,7 +17,10 @@ data class Household(
     val name: String = "",
     val inviteCode: String = "",
     val memberIds: List<String> = emptyList(),
-)
+) {
+    /** The household's creator, i.e. its earliest member. Only the owner can remove people. */
+    val ownerId: String? get() = memberIds.firstOrNull()
+}
 
 data class Store(
     @DocumentId val id: String = "",

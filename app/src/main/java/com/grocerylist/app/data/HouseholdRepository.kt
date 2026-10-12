@@ -68,6 +68,35 @@ class HouseholdRepository {
         return true
     }
 
+    suspend fun renameHousehold(householdId: String, name: String) {
+        households.document(householdId).update("name", name.trim()).await()
+    }
+
+    suspend fun updateDisplayName(uid: String, name: String) {
+        users.document(uid).update("displayName", name.trim()).await()
+    }
+
+    /** Takes you out of the household; you'll be asked to create or join one next. */
+    suspend fun leaveHousehold(householdId: String, uid: String) {
+        db.batch().apply {
+            update(households.document(householdId), "memberIds", FieldValue.arrayRemove(uid))
+            update(users.document(uid), "householdId", FieldValue.delete())
+        }.commit().await()
+    }
+
+    /**
+     * Owner only (enforced by security rules). The removed person's own profile still points here
+     * until their app notices they're no longer a member and sends them to household setup.
+     */
+    suspend fun removeMember(householdId: String, memberUid: String) {
+        households.document(householdId).update("memberIds", FieldValue.arrayRemove(memberUid)).await()
+    }
+
+    /** Clears a stale household link, e.g. after being removed by the owner. */
+    fun clearHousehold(uid: String) {
+        users.document(uid).update("householdId", FieldValue.delete())
+    }
+
     private suspend fun unusedInviteCode(): String {
         while (true) {
             val code = (1..6).map { INVITE_ALPHABET.random() }.joinToString("")

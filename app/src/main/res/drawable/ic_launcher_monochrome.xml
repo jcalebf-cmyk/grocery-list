@@ -1,0 +1,30 @@
+<!-- Single-color version for Android's themed icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.8" android:scaleY="0.8">
+        <path
+            android:pathData="M39.5,51 C39.5,36 47,30 54,30 C61,30 68.5,36 68.5,51"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.4"
+            android:strokeLineCap="round" />
+        <path android:fillColor="#FFFFFF" android:pathData="M47,53 C41,42 44,31 54,25 C59,35 56,46 47,53 Z" />
+        <path
+            android:pathData="M51,46.5 a9,9 0,1 1,18 0 a9,9 0,1 1,-18 0 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3" />
+        <path
+            android:pathData="M36,50 H72 L75,76 Q75.6,82 69.5,82 H38.5 Q32.4,82 33,76 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.4"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M44.5,66.5 L51,73 L63.5,60.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

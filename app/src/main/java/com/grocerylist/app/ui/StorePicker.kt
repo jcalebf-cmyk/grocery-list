@@ -289,8 +289,8 @@ private fun LocationPrompt(needsSettings: Boolean, onAllow: () -> Unit, onOpenSe
 private fun PlaceholderTile() {
     Column(Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.88f).aspectRatio(1.35f),
-            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.padding(top = 4.dp).fillMaxWidth(0.94f).aspectRatio(1.25f),
+            shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
         ) {}
         Surface(
@@ -332,7 +332,13 @@ private fun StoreTile(
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        StoreLogo(name, Modifier.fillMaxWidth(0.88f).aspectRatio(1.35f), padding = 10.dp)
+        StoreLogo(
+            name,
+            Modifier.padding(top = 4.dp).fillMaxWidth(0.94f).aspectRatio(1.25f),
+            padding = 10.dp,
+            cornerRadius = 16.dp,
+            elevation = 3.dp,
+        )
         Text(
             name,
             style = MaterialTheme.typography.bodyMedium,
@@ -370,7 +376,7 @@ private fun AddStoreTile(onClick: () -> Unit) {
         Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.fillMaxWidth(0.88f).aspectRatio(1.35f), contentAlignment = Alignment.Center) {
+        Box(Modifier.padding(top = 4.dp).fillMaxWidth(0.94f).aspectRatio(1.25f), contentAlignment = Alignment.Center) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.inverseSurface, modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.inverseOnSurface)

@@ -1,7 +1,13 @@
 package com.grocerylist.app.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement
+import com.grocerylist.app.R
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,7 +66,10 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Groceries", style = MaterialTheme.typography.displaySmall)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Image(painterResource(R.drawable.app_logo), contentDescription = null, modifier = Modifier.size(56.dp))
+            Text("Groceries", style = MaterialTheme.typography.displaySmall)
+        }
         Text(
             if (state.creatingAccount) "Create your account" else "Sign in to your household's lists",
             style = MaterialTheme.typography.bodyLarge,
@@ -82,7 +91,11 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
             },
             enabled = !state.busy,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Continue with Google") }
+        ) {
+            Image(painterResource(R.drawable.ic_google_g), contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Text("Continue with Google")
+        }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
 

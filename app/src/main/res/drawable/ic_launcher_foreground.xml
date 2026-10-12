@@ -1,15 +1,49 @@
+<!-- A grocery tote with a check mark, citrus and a leaf peeking out. Scaled to sit inside the launcher's safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <group
-        android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:translateX="6"
-        android:translateY="6">
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.8" android:scaleY="0.8">
+        <!-- handles, behind the produce -->
         <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M7,18c-1.1,0 -1.99,0.9 -1.99,2S5.9,22 7,22s2,-0.9 2,-2 -0.9,-2 -2,-2zM1,2v2h2l3.6,7.59 -1.35,2.45c-0.16,0.28 -0.25,0.61 -0.25,0.96 0,1.1 0.9,2 2,2h12v-2L7.42,15c-0.14,0 -0.25,-0.11 -0.25,-0.25l0.03,-0.12 0.9,-1.63h7.45c0.75,0 1.41,-0.41 1.75,-1.03l3.58,-6.49c0.08,-0.14 0.12,-0.31 0.12,-0.48 0,-0.55 -0.45,-1 -1,-1L5.21,4l-0.94,-2L1,2zM17,18c-1.1,0 -1.99,0.9 -1.99,2s0.89,2 1.99,2 2,-0.9 2,-2 -0.9,-2 -2,-2z" />
+            android:pathData="M39.5,51 C39.5,36 47,30 54,30 C61,30 68.5,36 68.5,51"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.4"
+            android:strokeLineCap="round" />
+        <!-- citrus -->
+        <path android:pathData="M50.5,46.5 a9.5,9.5 0,1 1,19 0 a9.5,9.5 0,1 1,-19 0 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="50.5" android:startY="37" android:endX="69.5" android:endY="56">
+                    <item android:offset="0" android:color="#FFFFC56B" />
+                    <item android:offset="1" android:color="#FFF28C28" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- leaf -->
+        <path android:pathData="M47,53 C41,42 44,31 54,25 C59,35 56,46 47,53 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="41" android:startY="53" android:endX="58" android:endY="25">
+                    <item android:offset="0" android:color="#FF7DD87F" />
+                    <item android:offset="1" android:color="#FFC6F28A" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M48.5,50 C49.5,42 51.5,35 54,29"
+            android:strokeColor="#3E9E55"
+            android:strokeWidth="1.6"
+            android:strokeLineCap="round" />
+        <!-- bag -->
+        <path android:fillColor="#FFFFFF" android:pathData="M36,50 H72 L75,76 Q75.6,82 69.5,82 H38.5 Q32.4,82 33,76 Z" />
+        <path android:fillColor="#E7F3EA" android:pathData="M36,50 H72 L72.6,55 H35.4 Z" />
+        <!-- check -->
+        <path
+            android:pathData="M44.5,66.5 L51,73 L63.5,60.5"
+            android:strokeColor="#1F6B3A"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
     </group>
 </vector>

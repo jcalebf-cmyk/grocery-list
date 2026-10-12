@@ -1,6 +1,18 @@
 package com.grocerylist.app.ui.list
 
 import androidx.compose.foundation.background
+import com.grocerylist.app.ui.glass
+import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,13 +69,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.ItemStat
 import com.grocerylist.app.data.ListItem
 import com.grocerylist.app.ui.AddItemBar
+import com.grocerylist.app.ui.MemberBadge
 import com.grocerylist.app.ui.Session
 import com.grocerylist.app.ui.StoreLogo
 
@@ -82,9 +94,16 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
         onBack()
     }
 
+    // The list scrolls under a frosted top bar and a floating glass add bar.
+    val haze = rememberHazeState()
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = Modifier.hazeEffect(haze, style = glass()),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                ),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val storeName = state.list?.storeName.orEmpty()
@@ -141,7 +160,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                 },
             )
         },
-        bottomBar = { if (active) AddItemBar(onAdd = viewModel::add) },
+        bottomBar = { if (active) AddItemBar(onAdd = viewModel::add, hazeState = haze) },
     ) { padding ->
         if (confirmingFinish) {
             AlertDialog(
@@ -160,7 +179,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                 },
             )
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+        LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {
             if (state.suggestions.isNotEmpty()) {
                 item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add) }
             }
@@ -191,6 +210,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
             }
             items(state.items, key = { it.id }) { item ->
                 GroceryRow(
+                    addedBy = state.otherMembers[item.addedBy],
                     item = item,
                     editable = active,
                     onToggle = { viewModel.toggle(item) },
@@ -233,10 +253,16 @@ private fun SuggestionRow(suggestions: List<ItemStat>, onAdd: (String) -> Unit) 
 private fun GroceryRow(
     item: ListItem,
     editable: Boolean,
+    addedBy: String?,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = LocalHapticFeedback.current
+    val toggleWithFeel = {
+        haptics.performHapticFeedback(if (item.checked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+        onToggle()
+    }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = {
             if (it == SwipeToDismissBoxValue.EndToStart) onDelete()
@@ -266,11 +292,11 @@ private fun GroceryRow(
     ) {
         val colors = MaterialTheme.colorScheme
         ListItem(
-            modifier = Modifier.clickable(enabled = editable, onClick = onToggle),
+            modifier = Modifier.clickable(enabled = editable, onClick = toggleWithFeel),
             leadingContent = {
                 Checkbox(
                     checked = item.checked,
-                    onCheckedChange = { onToggle() },
+                    onCheckedChange = { toggleWithFeel() },
                     enabled = editable,
                     // Closed-out lists: a pale outline instead of the usual disabled tint, so it reads as read-only.
                     colors = CheckboxDefaults.colors(
@@ -280,16 +306,34 @@ private fun GroceryRow(
                 )
             },
             headlineContent = {
-                Text(
-                    item.name,
-                    textDecoration = if (item.checked) TextDecoration.LineThrough else null,
-                    color = when {
+                // The strike-through draws across the word when an item is checked off.
+                val strike by animateFloatAsState(
+                    targetValue = if (item.checked) 1f else 0f,
+                    animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                    label = "strike",
+                )
+                val textColor by animateColorAsState(
+                    when {
                         !editable -> colors.onSurface.copy(alpha = 0.45f)
                         item.checked -> colors.onSurfaceVariant
                         else -> colors.onSurface
                     },
+                    label = "text color",
+                )
+                Text(
+                    item.name,
+                    color = textColor,
+                    modifier = Modifier.drawWithContent {
+                        drawContent()
+                        if (strike > 0f) {
+                            val y = size.height / 2
+                            drawLine(textColor, Offset(0f, y), Offset(size.width * strike, y), strokeWidth = 1.5.dp.toPx())
+                        }
+                    },
                 )
             },
+            // Only items someone else added get a badge, so your own list stays clean.
+            trailingContent = addedBy?.let { name -> { MemberBadge(name) } },
         )
     }
 }

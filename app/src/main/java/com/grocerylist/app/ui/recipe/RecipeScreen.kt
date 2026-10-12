@@ -1,6 +1,28 @@
 package com.grocerylist.app.ui.recipe
 
 import android.content.Intent
+import com.grocerylist.app.ui.sharedElement
+import com.grocerylist.app.ui.glass
+import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -57,60 +79,94 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
     var unchecked by remember(videoId, onHandIndices) { mutableStateOf(onHandIndices) }
     var pickingStore by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(recipe?.title.orEmpty(), maxLines = 1) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            if (recipe != null) {
-                val count = recipe.ingredients.size - unchecked.size
-                Surface(tonalElevation = 3.dp) {
-                    Button(
-                        onClick = { pickingStore = true },
-                        enabled = count > 0,
-                        modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
-                    ) { Text(if (count == 1) "Add 1 item to a list" else "Add $count items to a list") }
+    val haze = rememberHazeState()
+    val listState = rememberLazyListState()
+    // Past the photo, a frosted title bar fades in so you still know which recipe you're on.
+    val pastHero by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+        if (recipe != null) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().hazeSource(haze),
+                contentPadding = PaddingValues(bottom = 112.dp),
+            ) {
+                item(key = "hero") { RecipeHero(recipe) }
+                item(key = "title") { RecipeTitle(recipe) }
+                item { SectionTitle("Ingredients") }
+                itemsIndexed(recipe.ingredients) { i, ingredient ->
+                    val checked = i !in unchecked
+                    val toggle = { unchecked = if (checked) unchecked + i else unchecked - i }
+                    ListItem(
+                        modifier = Modifier.clickable(onClick = toggle),
+                        leadingContent = { Checkbox(checked = checked, onCheckedChange = { toggle() }) },
+                        headlineContent = { Text(ingredient.name.replaceFirstChar(Char::uppercase)) },
+                        supportingContent = if (i in onHandIndices) {
+                            { Text("In your kitchen", color = MaterialTheme.colorScheme.primary) }
+                        } else {
+                            null
+                        },
+                        trailingContent = { if (ingredient.quantity.isNotBlank()) Text(ingredient.quantity) },
+                    )
                 }
+                item { SectionTitle("Steps") }
+                itemsIndexed(recipe.steps) { i, step -> StepRow(i + 1, step) }
             }
-        },
-    ) { padding ->
-        if (recipe == null) return@Scaffold
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
-            item { RecipeHeader(recipe) }
-            item { SectionTitle("Ingredients") }
-            itemsIndexed(recipe.ingredients) { i, ingredient ->
-                val checked = i !in unchecked
-                val toggle = { unchecked = if (checked) unchecked + i else unchecked - i }
-                ListItem(
-                    modifier = Modifier.clickable(onClick = toggle),
-                    leadingContent = { Checkbox(checked = checked, onCheckedChange = { toggle() }) },
-                    headlineContent = { Text(ingredient.name.replaceFirstChar(Char::uppercase)) },
-                    supportingContent = if (i in onHandIndices) {
-                        { Text("In your kitchen", color = MaterialTheme.colorScheme.primary) }
-                    } else {
-                        null
-                    },
-                    trailingContent = { if (ingredient.quantity.isNotBlank()) Text(ingredient.quantity) },
+        }
+
+        AnimatedVisibility(
+            visible = pastHero,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .hazeEffect(haze, style = glass())
+                    .statusBarsPadding()
+                    .height(64.dp)
+                    .padding(start = 72.dp, end = 16.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    recipe?.title.orEmpty(),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            item { SectionTitle("Steps") }
-            itemsIndexed(recipe.steps) { i, step ->
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                    Text(
-                        "${i + 1}.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(28.dp),
-                    )
-                    Text(step, style = MaterialTheme.typography.bodyLarge)
-                }
+        }
+
+        // Frosted back button, readable over both the photo and the page.
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(8.dp)
+                .clip(CircleShape)
+                .hazeEffect(haze, style = glass()),
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        }
+
+        if (recipe != null) {
+            val count = recipe.ingredients.size - unchecked.size
+            Button(
+                onClick = { pickingStore = true },
+                enabled = count > 0,
+                shape = MaterialTheme.shapes.extraLarge,
+                contentPadding = PaddingValues(vertical = 16.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+            ) {
+                Text(
+                    if (count == 1) "Add 1 item to a list" else "Add $count items to a list",
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
         }
     }
@@ -140,35 +196,74 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
     }
 }
 
+/** Full-bleed photo that the home screen's card grows into. Tapping it plays the video. */
 @Composable
-private fun RecipeHeader(recipe: Recipe) {
+private fun RecipeHero(recipe: Recipe) {
     val context = LocalContext.current
     val openVideo = { context.startActivity(Intent(Intent.ACTION_VIEW, recipe.videoUrl.toUri())) }
-    Column {
+    Box(Modifier.fillMaxWidth().height(340.dp).clickable(onClick = openVideo)) {
         AsyncImage(
             model = recipe.thumbnailUrl,
             contentDescription = "Watch on YouTube",
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clickable(onClick = openVideo),
+            modifier = Modifier.fillMaxSize().sharedElement("recipe-image-${recipe.videoId}"),
         )
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(recipe.title, style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "${recipe.totalMinutes} min · from ${recipe.channel}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (recipe.usesHouseholdItems.isNotEmpty()) {
-                Text(
-                    "Uses your usual ${recipe.usesHouseholdItems.joinToString(", ")}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            OutlinedButton(onClick = openVideo, modifier = Modifier.padding(top = 8.dp)) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                Text("Watch on YouTube", Modifier.padding(start = 8.dp))
+        // Keeps the status bar readable over bright photos.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent))),
+        )
+        Surface(
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.45f),
+            contentColor = Color.White,
+            modifier = Modifier.align(Alignment.Center).size(64.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(36.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun RecipeTitle(recipe: Recipe) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(recipe.title, style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "${recipe.totalMinutes} min · ${recipe.ingredients.size} ingredients · from ${recipe.channel}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (recipe.usesHouseholdItems.isNotEmpty()) {
+            Text(
+                "Uses your usual ${recipe.usesHouseholdItems.joinToString(", ")}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepRow(number: Int, step: String) {
+    Row(
+        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(28.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("$number", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        Text(step, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -176,8 +271,7 @@ private fun RecipeHeader(recipe: Recipe) {
 private fun SectionTitle(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp),
     )
 }

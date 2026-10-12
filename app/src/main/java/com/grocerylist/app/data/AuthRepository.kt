@@ -33,5 +33,9 @@ class AuthRepository {
         auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
     }
 
+    suspend fun updateDisplayName(name: String) {
+        auth.currentUser?.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(name.trim()).build())?.await()
+    }
+
     fun signOut() = auth.signOut()
 }

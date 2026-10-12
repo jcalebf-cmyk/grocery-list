@@ -1,0 +1,60 @@
+<!-- The app icon as a rounded square, for use inside the app (e.g. the sign-in screen). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="72dp"
+    android:height="72dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <clip-path android:pathData="M18,0 H54 Q72,0 72,18 V54 Q72,72 54,72 H18 Q0,72 0,54 V18 Q0,0 18,0 Z" />
+    <group android:translateX="-18" android:translateY="-18">
+    <path android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108">
+                <item android:offset="0" android:color="#FF2F9E5B" />
+                <item android:offset="1" android:color="#FF11502B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+        <group android:pivotX="54" android:pivotY="54" android:scaleX="0.8" android:scaleY="0.8">
+        <!-- handles, behind the produce -->
+        <path
+            android:pathData="M39.5,51 C39.5,36 47,30 54,30 C61,30 68.5,36 68.5,51"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3.4"
+            android:strokeLineCap="round" />
+        <!-- citrus -->
+        <path android:pathData="M50.5,46.5 a9.5,9.5 0,1 1,19 0 a9.5,9.5 0,1 1,-19 0 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="50.5" android:startY="37" android:endX="69.5" android:endY="56">
+                    <item android:offset="0" android:color="#FFFFC56B" />
+                    <item android:offset="1" android:color="#FFF28C28" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- leaf -->
+        <path android:pathData="M47,53 C41,42 44,31 54,25 C59,35 56,46 47,53 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="41" android:startY="53" android:endX="58" android:endY="25">
+                    <item android:offset="0" android:color="#FF7DD87F" />
+                    <item android:offset="1" android:color="#FFC6F28A" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M48.5,50 C49.5,42 51.5,35 54,29"
+            android:strokeColor="#3E9E55"
+            android:strokeWidth="1.6"
+            android:strokeLineCap="round" />
+        <!-- bag -->
+        <path android:fillColor="#FFFFFF" android:pathData="M36,50 H72 L75,76 Q75.6,82 69.5,82 H38.5 Q32.4,82 33,76 Z" />
+        <path android:fillColor="#E7F3EA" android:pathData="M36,50 H72 L72.6,55 H35.4 Z" />
+        <!-- check -->
+        <path
+            android:pathData="M44.5,66.5 L51,73 L63.5,60.5"
+            android:strokeColor="#1F6B3A"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        </group>
+    </group>
+</vector>

@@ -7,7 +7,9 @@ import com.grocerylist.app.data.GroceryList
 import com.grocerylist.app.data.ItemStat
 import com.grocerylist.app.data.ListItem
 import com.grocerylist.app.data.suggestItems
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -16,8 +18,11 @@ data class ListState(
     val list: GroceryList? = null,
     val items: List<ListItem> = emptyList(),
     val suggestions: List<ItemStat> = emptyList(),
+    /** Names of other household members by user ID, for marking items they added. Empty if you're the only member. */
+    val otherMembers: Map<String, String> = emptyMap(),
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ListViewModel(householdId: String, private val listId: String, private val uid: String) : ViewModel() {
     private val repo = AppGraph.groceries(householdId)
 
@@ -25,8 +30,15 @@ class ListViewModel(householdId: String, private val listId: String, private val
         repo.observeList(listId),
         repo.observeItems(listId),
         repo.observeStats(),
-    ) { list, items, stats ->
+        AppGraph.households.observeHousehold(householdId)
+            .flatMapLatest { AppGraph.households.observeMembers(it?.memberIds.orEmpty()) },
+    ) { list, items, stats, members ->
         ListState(
+            otherMembers = if (members.size > 1) {
+                members.filter { it.uid != uid }.associate { it.uid to it.displayName }
+            } else {
+                emptyMap()
+            },
             list = list,
             items = items,
             suggestions = if (list?.isActive == true) {

@@ -34,6 +34,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.OnHandItem
 import com.grocerylist.app.ui.AddItemBar
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import com.grocerylist.app.ui.Session
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -61,6 +63,7 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val quickAdds by viewModel.quickAdds.collectAsStateWithLifecycle()
 
+    val haze = rememberHazeState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -72,9 +75,9 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
                 },
             )
         },
-        bottomBar = { AddItemBar(onAdd = viewModel::add, placeholder = "Add an ingredient") },
+        bottomBar = { AddItemBar(onAdd = viewModel::add, placeholder = "Add an ingredient", hazeState = haze) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+        LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {
             item {
                 Text(
                     "Things you already have, like a stocked freezer or a ButcherBox delivery. " +

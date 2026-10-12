@@ -2,6 +2,14 @@ package com.grocerylist.app.ui.home
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
+import com.grocerylist.app.ui.sharedElement
+import com.grocerylist.app.ui.photoGlass
+import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.height
 import com.grocerylist.app.ui.AppIcons
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.AssistChip
@@ -36,13 +44,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -79,7 +88,7 @@ fun HomeScreen(
     onOpenList: (String) -> Unit,
     onOpenRecipe: (String) -> Unit,
     onOpenOnHand: () -> Unit,
-    onOpenHousehold: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val viewModel: HomeViewModel = viewModel { HomeViewModel(session.householdId, session.user.uid) }
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -100,10 +109,12 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.householdName.ifEmpty { "Groceries" }) },
+                title = {
+                    Text(state.householdName.ifEmpty { "Groceries" }, style = MaterialTheme.typography.headlineSmall)
+                },
                 actions = {
-                    IconButton(onClick = onOpenHousehold) {
-                        Icon(Icons.Default.Person, contentDescription = "Household")
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
             )
@@ -112,6 +123,8 @@ fun HomeScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { pickingStore = true },
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text("New list") },
             )
@@ -178,9 +191,8 @@ fun HomeScreen(
 private fun SectionHeader(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
     )
 }
 
@@ -188,7 +200,11 @@ private fun SectionHeader(text: String) {
 private fun ListRow(list: GroceryList, onClick: () -> Unit) {
     val time = list.completedAt ?: list.createdAt
     ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(MaterialTheme.shapes.large)
+            .clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         leadingContent = {
             if (list.storeName.isBlank()) {
                 Box(Modifier.size(48.dp, 36.dp), contentAlignment = Alignment.Center) {
@@ -271,31 +287,64 @@ private fun KitchenPrompt(onOpenKitchen: () -> Unit) {
 @Composable
 private fun RecipeRow(recipes: List<Recipe>, onOpen: (String) -> Unit) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(recipes, key = { it.videoId }) { recipe ->
-            Card(onClick = { onOpen(recipe.videoId) }, modifier = Modifier.width(240.dp)) {
-                AsyncImage(
-                    model = recipe.thumbnailUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                )
-                Column(Modifier.padding(12.dp)) {
-                    Text(
-                        recipe.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "${recipe.totalMinutes} min · ${recipe.ingredients.size} ingredients",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+        items(recipes, key = { it.videoId }) { recipe -> RecipeCard(recipe, onClick = { onOpen(recipe.videoId) }) }
+    }
+}
+
+/** Full-bleed photo with the title on a frosted strip, so the food does the talking. */
+@Composable
+private fun RecipeCard(recipe: Recipe, onClick: () -> Unit) {
+    val haze = rememberHazeState()
+    val shape = MaterialTheme.shapes.large
+    Box(
+        Modifier
+            .width(280.dp)
+            .height(210.dp)
+            .clip(shape)
+            .clickable(onClick = onClick),
+    ) {
+        AsyncImage(
+            model = recipe.thumbnailUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .sharedElement("recipe-image-${recipe.videoId}")
+                .hazeSource(haze),
+        )
+        Text(
+            "${recipe.totalMinutes} min",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(10.dp)
+                .clip(CircleShape)
+                .hazeEffect(haze, style = photoGlass())
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .hazeEffect(haze, style = photoGlass())
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Text(
+                recipe.title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${recipe.ingredients.size} ingredients · ${recipe.channel}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

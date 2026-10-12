@@ -24,7 +24,8 @@ import kotlin.math.absoluteValue
 
 /**
  * The chain's logo on a white tile, or a colored tile with the store's initials if there's no logo.
- * Size it with [modifier]; [padding] and [initialsSize] scale the contents to match.
+ * Size it with [modifier]; [padding] and [initialsSize] scale the contents to match. With
+ * [elevation], the tile floats on a soft shadow instead of an outline.
  */
 @Composable
 fun StoreLogo(
@@ -33,18 +34,20 @@ fun StoreLogo(
     padding: Dp = 6.dp,
     cornerRadius: Dp = 12.dp,
     initialsSize: TextUnit = 20.sp,
+    elevation: Dp = 0.dp,
 ) {
     val shape = RoundedCornerShape(cornerRadius)
     val logo = StoreBrands.logoUrl(name)
     if (logo == null) {
-        MonogramTile(name, modifier, shape, initialsSize)
+        MonogramTile(name, modifier, shape, initialsSize, elevation)
         return
     }
     Surface(
         modifier = modifier,
         shape = shape,
         color = Color.White, // logos are drawn for white backgrounds, even in dark mode
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = elevation,
+        border = if (elevation > 0.dp) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         SubcomposeAsyncImage(
             model = logo,
@@ -58,11 +61,17 @@ fun StoreLogo(
 }
 
 @Composable
-private fun MonogramTile(name: String, modifier: Modifier, shape: RoundedCornerShape, initialsSize: TextUnit) {
+private fun MonogramTile(
+    name: String,
+    modifier: Modifier,
+    shape: RoundedCornerShape,
+    initialsSize: TextUnit,
+    elevation: Dp = 0.dp,
+) {
     val color = MONOGRAM_COLORS[name.lowercase().hashCode().absoluteValue % MONOGRAM_COLORS.size]
     val initials = name.split(Regex("\\s+")).filter { it.isNotEmpty() }.take(2)
         .joinToString("") { it.first().uppercase() }
-    Surface(modifier = modifier, shape = shape, color = color) {
+    Surface(modifier = modifier, shape = shape, color = color, shadowElevation = elevation) {
         Box(contentAlignment = Alignment.Center) {
             Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = initialsSize)
         }
