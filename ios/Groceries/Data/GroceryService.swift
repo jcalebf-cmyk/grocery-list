@@ -89,6 +89,19 @@ struct GroceryService {
         batch.commit()
     }
 
+    /// Deletes a list and its items. Suggestions keep what the list taught them, so habits don't reset.
+    /// The list document goes last, so an interrupted delete leaves it visible to retry.
+    func deleteList(_ listId: String) async throws {
+        let ref = lists.document(listId)
+        let refs = try await ref.collection("items").getDocuments().documents.map(\.reference) + [ref]
+        // Batches are capped at 500 writes.
+        for start in stride(from: 0, to: refs.count, by: 450) {
+            let batch = db.batch()
+            for doc in refs[start..<min(start + 450, refs.count)] { batch.deleteDocument(doc) }
+            try await batch.commit()
+        }
+    }
+
     func reopen(_ listId: String) {
         lists.document(listId).updateData(["status": GroceryList.statusActive, "completedAt": FieldValue.delete()])
     }

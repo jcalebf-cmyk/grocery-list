@@ -8,6 +8,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.tasks.await
 
 /**
  * Writes don't await the server: Firestore applies them to the local cache immediately and
@@ -101,6 +102,19 @@ class GroceryRepository(householdId: String) {
         lists.document(listId).update(
             mapOf("status" to GroceryList.STATUS_ACTIVE, "completedAt" to FieldValue.delete()),
         )
+    }
+
+    /**
+     * Deletes a list and its items. Suggestions keep what the list taught them, so habits don't reset.
+     * The list document goes last, so an interrupted delete leaves it visible to retry.
+     */
+    suspend fun deleteList(listId: String) {
+        val ref = lists.document(listId)
+        val refs = ref.collection("items").get().await().documents.map { it.reference } + ref
+        // Batches are capped at 500 writes.
+        refs.chunked(450).forEach { chunk ->
+            Firebase.firestore.batch().apply { chunk.forEach(::delete) }.commit().await()
+        }
     }
 
     /**

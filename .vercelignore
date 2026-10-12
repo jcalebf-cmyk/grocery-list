@@ -1,0 +1,5 @@
+# Manual deploys run from the repo root (the project's Root Directory is server/), so upload only the server.
+/*
+!/server
+/server/node_modules
+/server/.env*

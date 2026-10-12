@@ -6,6 +6,7 @@ struct ListView: View {
     @State private var list: GroceryList?
     @State private var items: [ListItem] = []
     @State private var confirmingFinish = false
+    @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
 
     private var active: Bool { list?.isActive == true }
@@ -79,11 +80,17 @@ struct ListView: View {
                             .disabled(!items.contains(where: \.checked))
                     } else if list != nil {
                         Button("Reopen list", systemImage: "arrow.uturn.backward") { data.groceries.reopen(listId) }
+                        Button("Delete list", systemImage: "trash", role: .destructive) { confirmingDelete = true }
                     }
                 } label: {
                     Image(systemName: "ellipsis")
                 }
             }
+        }
+        .deleteListAlert(isPresented: $confirmingDelete) {
+            let groceries = data.groceries, id = listId
+            Task { try? await groceries.deleteList(id) }
+            dismiss()
         }
         .alert("Close out this list?", isPresented: $confirmingFinish) {
             Button("Move to a new list") { finish(carryOver: true) }

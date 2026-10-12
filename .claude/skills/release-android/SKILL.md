@@ -29,10 +29,26 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
 5. **Optionally install on Josh's Pixel** if it's connected: `adb -s 47221FDAS000XD install -r` the release APK
    (it has the release-signed app, so debug builds won't install over it).
 
-6. **Tell Josh** where the APK is, show the notes, and remind Josh of the upload steps: Firebase console →
-   App Distribution → upload APK → paste notes → add testers → Distribute.
+6. **Show Josh the notes and ask to ship.** Shipping notifies testers and publishes a GitHub release, so wait
+   for a clear yes. One yes covers steps 7 and 8.
 
-7. **Only when Josh asks:** commit just `app/build.gradle.kts` and `release-notes/X.Y.txt` ("Release Android X.Y"),
-   push, confirm `git diff --quiet HEAD -- app server` (the tag matches the APK), create an annotated tag
-   `vX.Y`, push it, then `gh release create vX.Y --verify-tag --title "Groceries X.Y" --notes-file
-   release-notes/X.Y.txt --prerelease`. Never attach the APK (the repo is public).
+7. **Upload to Firebase App Distribution** with the Firebase CLI:
+   ```
+   firebase appdistribution:distribute ../GroceryList-releases/Groceries-X.Y.apk \
+     --app 1:566834645408:android:e9a111d798cb0d69107cc5 --project grocery-list-d5a77 \
+     --release-notes-file release-notes/X.Y.txt --testers <emails>
+   ```
+   Send it to every current tester: get their emails from `firebase appdistribution:testers:list --project
+   grocery-list-d5a77` (comma-separated, and never write them into the repo, which is public). If Josh has since
+   made tester groups (`firebase appdistribution:groups:list`), use `--groups <alias>` instead and ask which one if
+   there are several. If `firebase` isn't installed, install it (`npm install -g firebase-tools`); if it isn't
+   signed in, ask Josh to run `firebase login` in a terminal (it opens a browser for his Google account), then retry. If the upload can't happen, fall back to the console: App Distribution → upload APK → paste
+   notes → add testers → Distribute.
+
+8. **Tag the release on GitHub:** commit just `app/build.gradle.kts` and `release-notes/X.Y.txt`
+   ("Release Android X.Y"), push, confirm `git diff --quiet HEAD -- app server` (the tag matches the APK), create
+   an annotated tag `vX.Y`, push it, then `gh release create vX.Y --verify-tag --title "Groceries X.Y"
+   --notes-file release-notes/X.Y.txt --prerelease`. Never attach the APK (the repo is public).
+
+9. **Tell Josh** what shipped: the Firebase release (testers get an email), the GitHub release link, and anything
+   that didn't happen.

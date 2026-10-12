@@ -86,6 +86,12 @@ import com.grocerylist.app.data.MAX_MOOD_CUISINES
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import com.grocerylist.app.ui.DeleteListDialog
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.background
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +123,7 @@ fun HomeScreen(
         return
     }
     var choosingMood by rememberSaveable { mutableStateOf(false) }
+    var deletingList by remember { mutableStateOf<GroceryList?>(null) }
 
     Scaffold(
         topBar = {
@@ -174,9 +181,21 @@ fun HomeScreen(
             }
             if (state.pastLists.isNotEmpty()) {
                 item { SectionHeader("Past lists") }
-                items(state.pastLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
+                items(state.pastLists, key = { it.id }) { list ->
+                    SwipeToDelete(onDelete = { deletingList = list }) { ListRow(list) { onOpenList(list.id) } }
+                }
             }
         }
+    }
+
+    deletingList?.let { list ->
+        DeleteListDialog(
+            onConfirm = {
+                deletingList = null
+                viewModel.deleteList(list)
+            },
+            onDismiss = { deletingList = null },
+        )
     }
 
     if (choosingMood) {
@@ -232,6 +251,35 @@ private fun SectionHeader(text: String) {
         style = MaterialTheme.typography.titleLarge,
         modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
     )
+}
+
+/** Swiping left asks to delete; the row springs back either way, and goes once the delete lands. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == SwipeToDismissBoxValue.EndToStart) onDelete()
+            false
+        },
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        },
+    ) { content() }
 }
 
 @Composable

@@ -78,6 +78,9 @@ import com.grocerylist.app.ui.AddItemBar
 import com.grocerylist.app.ui.MemberBadge
 import com.grocerylist.app.ui.Session
 import com.grocerylist.app.ui.StoreLogo
+import com.grocerylist.app.ui.DeleteListDialog
+import com.grocerylist.app.ui.AppIcons
+import androidx.compose.material.icons.filled.CheckCircle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +90,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     val active = state.list?.isActive == true
     var menuOpen by remember { mutableStateOf(false) }
     var confirmingFinish by remember { mutableStateOf(false) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     val uncheckedCount = state.items.count { !it.checked }
     val finish = { carryOver: Boolean ->
         confirmingFinish = false
@@ -133,6 +137,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                             if (active) {
                                 DropdownMenuItem(
                                     text = { Text("Finish & close out") },
+                                    leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
                                     onClick = {
                                         menuOpen = false
                                         if (uncheckedCount > 0) confirmingFinish = true else finish(false)
@@ -140,6 +145,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Clear checked items") },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                                     enabled = state.items.any { it.checked },
                                     onClick = {
                                         menuOpen = false
@@ -149,9 +155,20 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                             } else {
                                 DropdownMenuItem(
                                     text = { Text("Reopen list") },
+                                    leadingIcon = { Icon(AppIcons.Undo, contentDescription = null) },
                                     onClick = {
                                         menuOpen = false
                                         viewModel.reopen()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete list", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                    },
+                                    onClick = {
+                                        menuOpen = false
+                                        confirmingDelete = true
                                     },
                                 )
                             }
@@ -177,6 +194,16 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                 dismissButton = {
                     TextButton(onClick = { finish(false) }) { Text("Drop them") }
                 },
+            )
+        }
+        if (confirmingDelete) {
+            DeleteListDialog(
+                onConfirm = {
+                    confirmingDelete = false
+                    viewModel.deleteList()
+                    onBack()
+                },
+                onDismiss = { confirmingDelete = false },
             )
         }
         LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {

@@ -75,6 +75,7 @@ struct HomeView: View {
     @State private var path: [Route] = []
     @State private var pickingStore = false
     @State private var choosingMood = false
+    @State private var deletingList: GroceryList?
     @State private var message: String?
     @Namespace private var zoom
 
@@ -153,6 +154,12 @@ struct HomeView: View {
         .onChange(of: data.needsCuisines) { if !data.needsCuisines { Task { await data.refreshRecipesIfStale() } } }
         .fullScreenCover(isPresented: .constant(data.needsCuisines)) {
             CuisineSetupView { data.recipeService.savePreferences($0) }
+        }
+        .deleteListAlert(isPresented: Binding(get: { deletingList != nil }, set: { if !$0 { deletingList = nil } })) {
+            guard let list = deletingList else { return }
+            Task {
+                do { try await data.groceries.deleteList(list.id) } catch { show("Couldn't delete that list. Try again.") }
+            }
         }
         .sheet(isPresented: $choosingMood) {
             CuisineSheet(
@@ -278,7 +285,9 @@ struct HomeView: View {
         ForEach(data.activeLists) { list in listRow(list) }
         if !data.pastLists.isEmpty {
             sectionTitle("Past lists")
-            ForEach(data.pastLists) { list in listRow(list) }
+            ForEach(data.pastLists) { list in
+                SwipeToDelete(onDelete: { deletingList = list }) { listRow(list) }
+            }
         }
     }
 

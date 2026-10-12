@@ -1,5 +1,6 @@
 package com.grocerylist.app.ui.list
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grocerylist.app.AppGraph
@@ -9,10 +10,11 @@ import com.grocerylist.app.data.ListItem
 import com.grocerylist.app.data.suggestItems
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class ListState(
     val list: GroceryList? = null,
@@ -62,6 +64,13 @@ class ListViewModel(householdId: String, private val listId: String, private val
     fun clearChecked() = repo.clearChecked(listId, state.value.items)
 
     fun reopen() = repo.reopenList(listId)
+
+    /** Runs app-wide: the screen closes as soon as this is called. */
+    fun deleteList() {
+        AppGraph.appScope.launch {
+            runCatching { repo.deleteList(listId) }.onFailure { Log.w("ListViewModel", "Couldn't delete list", it) }
+        }
+    }
 
     /** Closes out the trip; with [carryOver], unchecked items move to a new list for the same store. */
     fun finishTrip(carryOver: Boolean) {
