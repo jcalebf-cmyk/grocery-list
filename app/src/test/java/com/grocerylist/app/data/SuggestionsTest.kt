@@ -1,6 +1,7 @@
 package com.grocerylist.app.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SuggestionsTest {
@@ -37,5 +38,18 @@ class SuggestionsTest {
     @Test fun normalizesItemKeys() {
         assertEquals("whole milk", itemKey("  Whole   Milk "))
         assertEquals("salt-pepper", itemKey("Salt/Pepper"))
+    }
+
+    @Test fun kitchenQuickAddsPutRegularsFirst() {
+        val result = kitchenQuickAdds(listOf(stat("broccoli", 5, 0)), emptySet(), now)
+        assertEquals("broccoli", result.first())
+        assertEquals(12, result.size)
+    }
+
+    @Test fun kitchenQuickAddsSkipKitchenItemsAndDuplicates() {
+        val stats = listOf(ItemStat(key = "eggs", displayName = "Eggs", count = 4, lastAdded = now))
+        val result = kitchenQuickAdds(stats, inKitchen = setOf("rice"), now = now)
+        assertEquals(1, result.count { itemKey(it) == "eggs" }) // a regular and a staple, shown once
+        assertTrue(result.none { itemKey(it) == "rice" })
     }
 }

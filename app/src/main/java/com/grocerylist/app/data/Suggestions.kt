@@ -28,3 +28,26 @@ fun suggestItems(
         .sortedByDescending { it.second }
         .take(limit)
         .map { it.first }
+
+// Common things people keep stocked or get from subscription boxes.
+private val COMMON_KITCHEN_ITEMS = listOf(
+    "Chicken breast", "Ground beef", "Salmon", "Steak", "Pork chops", "Eggs",
+    "Rice", "Pasta", "Potatoes", "Onions", "Black beans", "Frozen vegetables",
+)
+
+/**
+ * Quick-add chips for My kitchen: the household's own regulars first (ranked like list suggestions,
+ * but across all stores), then common staples to fill out the row. Skips anything already in the kitchen.
+ */
+fun kitchenQuickAdds(
+    stats: List<ItemStat>,
+    inKitchen: Set<String>,
+    now: Long,
+    limit: Int = 12,
+    maxRegulars: Int = 8,
+): List<String> {
+    val regulars = suggestItems(stats, storeId = "", alreadyOnList = inKitchen, now = now, limit = maxRegulars)
+        .map { it.displayName }
+    val seen = HashSet(inKitchen)
+    return (regulars + COMMON_KITCHEN_ITEMS).filter { seen.add(itemKey(it)) }.take(limit)
+}

@@ -1,7 +1,7 @@
 package com.grocerylist.app.ui.onhand
 
 import androidx.compose.foundation.layout.fillMaxSize
-import com.grocerylist.app.data.itemKey
+import com.grocerylist.app.data.kitchenQuickAdds
 import androidx.compose.material3.AssistChip
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.layout.size
@@ -36,12 +36,17 @@ import com.grocerylist.app.data.OnHandItem
 import com.grocerylist.app.ui.AddItemBar
 import com.grocerylist.app.ui.Session
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 class OnHandViewModel(householdId: String, private val uid: String) : ViewModel() {
     private val repo = AppGraph.groceries(householdId)
 
     val items = repo.observeOnHand().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val quickAdds = combine(repo.observeOnHand(), repo.observeStats()) { kitchen, stats ->
+        kitchenQuickAdds(stats, kitchen.mapTo(HashSet()) { it.key }, System.currentTimeMillis())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun add(name: String) = repo.addOnHand(name, uid)
 
@@ -54,6 +59,7 @@ class OnHandViewModel(householdId: String, private val uid: String) : ViewModel(
 fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
     val viewModel: OnHandViewModel = viewModel { OnHandViewModel(session.householdId, session.user.uid) }
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val quickAdds by viewModel.quickAdds.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -77,8 +83,6 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
                     modifier = Modifier.padding(16.dp),
                 )
             }
-            val have = items.mapTo(HashSet()) { itemKey(it.name) }
-            val quickAdds = QUICK_ADDS.filterNot { itemKey(it) in have }
             if (quickAdds.isNotEmpty()) {
                 item {
                     Column(Modifier.padding(horizontal = 16.dp)) {
@@ -123,9 +127,3 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
         }
     }
 }
-
-// Common things people keep stocked or get from subscription boxes.
-private val QUICK_ADDS = listOf(
-    "Chicken breast", "Ground beef", "Salmon", "Steak", "Pork chops", "Eggs",
-    "Rice", "Pasta", "Potatoes", "Onions", "Black beans", "Frozen vegetables",
-)
