@@ -1,0 +1,36 @@
+package com.grocerylist.app.data
+
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import com.grocerylist.app.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+
+/** Calls the Vercel server, which only accepts requests carrying the signed-in user's Firebase ID token. */
+object ServerApi {
+    suspend fun post(path: String, body: JSONObject, readTimeoutMs: Int = 30_000): JSONObject {
+        val token = Firebase.auth.currentUser?.getIdToken(false)?.await()?.token ?: error("Not signed in")
+        return withContext(Dispatchers.IO) {
+            val conn = URL("${BuildConfig.RECIPES_API_URL}$path").openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 15_000
+                conn.readTimeout = readTimeoutMs
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.outputStream.use { it.write(body.toString().toByteArray()) }
+                if (conn.responseCode != 200) {
+                    error("$path returned ${conn.responseCode}: ${conn.errorStream?.bufferedReader()?.readText()}")
+                }
+                JSONObject(conn.inputStream.bufferedReader().readText())
+            } finally {
+                conn.disconnect()
+            }
+        }
+    }
+}

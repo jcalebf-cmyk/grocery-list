@@ -36,6 +36,9 @@ data class GroceryList(
 ) {
     val isActive get() = status == STATUS_ACTIVE
 
+    /** Lists started with "Skip" have no store. */
+    val displayName get() = storeName.ifBlank { "Shopping list" }
+
     companion object {
         const val STATUS_ACTIVE = "active"
         const val STATUS_DONE = "done"
@@ -60,8 +63,27 @@ data class ItemStat(
     val storeCounts: Map<String, Long> = emptyMap(),
 )
 
+/** Something the household already has (stocked up, or from a subscription box). Used for recipe ideas only. */
+data class OnHandItem(
+    @DocumentId val id: String = "",
+    val name: String = "",
+    val key: String = "",
+    val addedBy: String = "",
+    val createdAt: Long = 0,
+)
+
 /** "  Whole  Milk " and "whole milk" are the same item. Slashes aren't allowed in document IDs. */
 fun itemKey(name: String): String =
     name.trim().lowercase().replace(Regex("\\s+"), " ").replace('/', '-')
 
-val DEFAULT_STORES = listOf("Whole Foods", "King Soopers", "Costco")
+/**
+ * The stores to offer under "Your stores": only ones the household has made a list for,
+ * most recently used first. Stores that were saved but never shopped stay hidden.
+ */
+fun storesInUse(stores: List<Store>, lists: List<GroceryList>): List<Store> {
+    val lastUsed = HashMap<String, Long>()
+    for (list in lists) {
+        if (list.storeId.isNotEmpty()) lastUsed.merge(list.storeId, list.createdAt, ::maxOf)
+    }
+    return stores.filter { it.id in lastUsed }.sortedByDescending { lastUsed.getValue(it.id) }
+}

@@ -9,3 +9,8 @@
 .externalNativeBuild/
 .cxx/
 google-services.json
+
+# Vercel CLI link (deploys run from the repo root because the project root directory is server/)
+.vercel
+.env*
+.env*.local

@@ -49,5 +49,11 @@ class ListViewModel(householdId: String, private val listId: String, private val
 
     fun clearChecked() = repo.clearChecked(listId, state.value.items)
 
-    fun finishTrip() = repo.completeList(listId)
+    fun reopen() = repo.reopenList(listId)
+
+    /** Closes out the trip; with [carryOver], unchecked items move to a new list for the same store. */
+    fun finishTrip(carryOver: Boolean) {
+        val list = state.value.list ?: return
+        repo.completeList(list, uid, if (carryOver) state.value.items.filterNot { it.checked } else emptyList())
+    }
 }

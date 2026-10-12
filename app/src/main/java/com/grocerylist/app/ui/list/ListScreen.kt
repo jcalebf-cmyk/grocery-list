@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -23,7 +25,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,7 +63,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.ItemStat
 import com.grocerylist.app.data.ListItem
+import com.grocerylist.app.ui.AddItemBar
 import com.grocerylist.app.ui.Session
+import com.grocerylist.app.ui.StoreLogo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,38 +74,68 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val active = state.list?.isActive == true
     var menuOpen by remember { mutableStateOf(false) }
+    var confirmingFinish by remember { mutableStateOf(false) }
+    val uncheckedCount = state.items.count { !it.checked }
+    val finish = { carryOver: Boolean ->
+        confirmingFinish = false
+        viewModel.finishTrip(carryOver)
+        onBack()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.list?.storeName.orEmpty()) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val storeName = state.list?.storeName.orEmpty()
+                        if (storeName.isNotBlank()) {
+                            StoreLogo(
+                                storeName,
+                                Modifier.padding(end = 12.dp).size(44.dp, 32.dp),
+                                padding = 3.dp,
+                                cornerRadius = 8.dp,
+                                initialsSize = 13.sp,
+                            )
+                        }
+                        Text(state.list?.displayName.orEmpty())
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    if (active) {
+                    if (state.list != null) {
                         IconButton(onClick = { menuOpen = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Clear checked items") },
-                                enabled = state.items.any { it.checked },
-                                onClick = {
-                                    menuOpen = false
-                                    viewModel.clearChecked()
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Finish trip") },
-                                onClick = {
-                                    menuOpen = false
-                                    viewModel.finishTrip()
-                                    onBack()
-                                },
-                            )
+                            if (active) {
+                                DropdownMenuItem(
+                                    text = { Text("Finish & close out") },
+                                    onClick = {
+                                        menuOpen = false
+                                        if (uncheckedCount > 0) confirmingFinish = true else finish(false)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Clear checked items") },
+                                    enabled = state.items.any { it.checked },
+                                    onClick = {
+                                        menuOpen = false
+                                        viewModel.clearChecked()
+                                    },
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text("Reopen list") },
+                                    onClick = {
+                                        menuOpen = false
+                                        viewModel.reopen()
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -105,6 +143,23 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
         },
         bottomBar = { if (active) AddItemBar(onAdd = viewModel::add) },
     ) { padding ->
+        if (confirmingFinish) {
+            AlertDialog(
+                onDismissRequest = { confirmingFinish = false },
+                title = { Text("Close out this list?") },
+                text = {
+                    Text(
+                        if (uncheckedCount == 1) "1 item wasn't checked off." else "$uncheckedCount items weren't checked off.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { finish(true) }) { Text("Move to a new list") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { finish(false) }) { Text("Drop them") }
+                },
+            )
+        }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
             if (state.suggestions.isNotEmpty()) {
                 item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add) }
@@ -112,10 +167,26 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
             if (state.items.isEmpty() && state.list != null) {
                 item(key = "empty") {
                     Text(
-                        if (active) "Nothing on this list yet" else "No items on this trip",
+                        if (active) "Nothing on this list yet" else "No items on this list",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().padding(32.dp),
                     )
+                }
+            }
+            if (state.list?.isActive == false) {
+                item(key = "closed-banner") {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            "This list is closed out. Reopen it from the ⋮ menu to make changes.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
                 }
             }
             items(state.items, key = { it.id }) { item ->
@@ -193,59 +264,32 @@ private fun GroceryRow(
             }
         },
     ) {
+        val colors = MaterialTheme.colorScheme
         ListItem(
             modifier = Modifier.clickable(enabled = editable, onClick = onToggle),
             leadingContent = {
-                Checkbox(checked = item.checked, onCheckedChange = { onToggle() }, enabled = editable)
+                Checkbox(
+                    checked = item.checked,
+                    onCheckedChange = { onToggle() },
+                    enabled = editable,
+                    // Closed-out lists: a pale outline instead of the usual disabled tint, so it reads as read-only.
+                    colors = CheckboxDefaults.colors(
+                        disabledUncheckedColor = colors.outlineVariant,
+                        disabledCheckedColor = colors.outlineVariant,
+                    ),
+                )
             },
             headlineContent = {
                 Text(
                     item.name,
                     textDecoration = if (item.checked) TextDecoration.LineThrough else null,
-                    color = if (item.checked) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
+                    color = when {
+                        !editable -> colors.onSurface.copy(alpha = 0.45f)
+                        item.checked -> colors.onSurfaceVariant
+                        else -> colors.onSurface
                     },
                 )
             },
         )
-    }
-}
-
-@Composable
-private fun AddItemBar(onAdd: (String) -> Unit) {
-    var text by rememberSaveable { mutableStateOf("") }
-    val submit = {
-        onAdd(text)
-        text = ""
-    }
-    Surface(tonalElevation = 3.dp) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Add an item") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Done,
-                ),
-                // Keep the keyboard open so several items can be added in a row.
-                keyboardActions = KeyboardActions(onDone = { submit() }),
-            )
-            FilledIconButton(onClick = submit, enabled = text.isNotBlank()) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
-            }
-        }
     }
 }

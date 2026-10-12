@@ -52,8 +52,9 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
     val viewModel: RecipeViewModel = viewModel { RecipeViewModel(session.householdId, videoId, session.user.uid) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val recipe = state.recipe
-    // Everything starts checked; the shopper unticks what's already in the pantry.
-    var unchecked by remember(videoId) { mutableStateOf(emptySet<Int>()) }
+    // Everything starts checked except what's on hand; the shopper unticks anything else they have.
+    val onHandIndices = state.onHandIndices
+    var unchecked by remember(videoId, onHandIndices) { mutableStateOf(onHandIndices) }
     var pickingStore by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
@@ -91,6 +92,11 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
                     modifier = Modifier.clickable(onClick = toggle),
                     leadingContent = { Checkbox(checked = checked, onCheckedChange = { toggle() }) },
                     headlineContent = { Text(ingredient.name.replaceFirstChar(Char::uppercase)) },
+                    supportingContent = if (i in onHandIndices) {
+                        { Text("In your kitchen", color = MaterialTheme.colorScheme.primary) }
+                    } else {
+                        null
+                    },
                     trailingContent = { if (ingredient.quantity.isNotBlank()) Text(ingredient.quantity) },
                 )
             }
@@ -111,14 +117,24 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
 
     if (pickingStore && recipe != null) {
         StorePicker(
-            stores = state.stores,
-            title = "Add to which store's list?",
+            stores = state.yourStores,
+            title = "Add to which list?",
             onPick = { store ->
                 pickingStore = false
                 val chosen = recipe.ingredients.filterIndexed { i, _ -> i !in unchecked }
                 onOpenList(viewModel.addToList(store, chosen))
             },
-            onAddStore = viewModel::addStore,
+            onPickNew = { name ->
+                pickingStore = false
+                val chosen = recipe.ingredients.filterIndexed { i, _ -> i !in unchecked }
+                onOpenList(viewModel.addToNewStore(name, chosen))
+            },
+            onSkip = {
+                pickingStore = false
+                val chosen = recipe.ingredients.filterIndexed { i, _ -> i !in unchecked }
+                onOpenList(viewModel.addToList(null, chosen))
+            },
+            openStoreIds = state.activeLists.mapTo(HashSet()) { it.storeId },
             onDismiss = { pickingStore = false },
         )
     }

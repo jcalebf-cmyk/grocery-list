@@ -26,6 +26,7 @@ import com.grocerylist.app.ui.home.HomeScreen
 import com.grocerylist.app.ui.household.HouseholdScreen
 import com.grocerylist.app.ui.household.HouseholdSetupScreen
 import com.grocerylist.app.ui.list.ListScreen
+import com.grocerylist.app.ui.onhand.OnHandScreen
 import com.grocerylist.app.ui.recipe.RecipeScreen
 
 @Composable
@@ -61,6 +62,7 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                 session = session,
                 onOpenList = { nav.navigate("list/$it") },
                 onOpenRecipe = { nav.navigate("recipe/$it") },
+                onOpenOnHand = { nav.navigate("onhand") },
                 onOpenHousehold = { nav.navigate("household") },
             )
         }
@@ -80,6 +82,9 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                     nav.navigate("list/$listId") { popUpTo("home") }
                 },
             )
+        }
+        composable("onhand") {
+            OnHandScreen(session = session, onBack = { nav.popBackStack() })
         }
         composable("household") {
             HouseholdScreen(session = session, onBack = { nav.popBackStack() }, onSignOut = onSignOut)

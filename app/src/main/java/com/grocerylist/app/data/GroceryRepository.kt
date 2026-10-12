@@ -18,6 +18,7 @@ class GroceryRepository(householdId: String) {
     private val stores = household.collection("stores")
     private val lists = household.collection("lists")
     private val stats = household.collection("itemStats")
+    private val onHand = household.collection("onHand")
 
     fun observeStores(): Flow<List<Store>> =
         stores.orderBy("createdAt").snapshots().map { it.toObjects(Store::class.java) }
@@ -38,17 +39,45 @@ class GroceryRepository(householdId: String) {
     fun observeStats(): Flow<List<ItemStat>> =
         stats.snapshots().map { it.toObjects(ItemStat::class.java) }
 
-    fun addStore(name: String) {
-        stores.add(mapOf("name" to name.trim(), "createdAt" to System.currentTimeMillis()))
+    /** Removes the store from the picker. Its past and open lists keep the store's name. */
+    fun removeStore(store: Store) {
+        stores.document(store.id).delete()
     }
 
-    /** Returns the new list's ID right away; the write syncs in the background. */
-    fun createList(store: Store, uid: String): String {
+    fun observeOnHand(): Flow<List<OnHandItem>> =
+        onHand.orderBy("createdAt").snapshots().map { it.toObjects(OnHandItem::class.java) }
+
+    /** Not counted in item stats: on-hand items feed recipe ideas, not shopping suggestions. */
+    fun addOnHand(name: String, uid: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        // Keyed by name so adding "Ground beef" twice doesn't create duplicates.
+        onHand.document(itemKey(trimmed)).set(
+            mapOf("name" to trimmed, "key" to itemKey(trimmed), "addedBy" to uid, "createdAt" to System.currentTimeMillis()),
+        )
+    }
+
+    fun removeOnHand(item: OnHandItem) {
+        onHand.document(item.id).delete()
+    }
+
+    /** Returns the new store. Reuses an existing one with the same name instead of adding a duplicate. */
+    fun addStore(name: String, existing: List<Store>): Store {
+        val trimmed = name.trim()
+        existing.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.let { return it }
+        val doc = stores.document()
+        val createdAt = System.currentTimeMillis()
+        doc.set(mapOf("name" to trimmed, "createdAt" to createdAt))
+        return Store(id = doc.id, name = trimmed, createdAt = createdAt)
+    }
+
+    /** Returns the new list's ID right away; the write syncs in the background. A null store means "no store". */
+    fun createList(store: Store?, uid: String): String {
         val doc = lists.document()
         doc.set(
             mapOf(
-                "storeId" to store.id,
-                "storeName" to store.name,
+                "storeId" to store?.id.orEmpty(),
+                "storeName" to store?.name.orEmpty(),
                 "status" to GroceryList.STATUS_ACTIVE,
                 "createdBy" to uid,
                 "createdAt" to System.currentTimeMillis(),
@@ -57,15 +86,53 @@ class GroceryRepository(householdId: String) {
         return doc.id
     }
 
-    /** Reuses the store's open list if there is one, so a household doesn't end up with two Costco lists. */
-    fun openListFor(store: Store, uid: String, activeLists: List<GroceryList>): GroceryList =
-        activeLists.firstOrNull { it.storeId == store.id }
-            ?: GroceryList(id = createList(store, uid), storeId = store.id, storeName = store.name)
+    /**
+     * Reuses the store's open list if there is one, so a household doesn't end up with two Costco lists.
+     * A null store opens (or starts) the household's list that isn't tied to a store.
+     */
+    fun openListFor(store: Store?, uid: String, activeLists: List<GroceryList>): GroceryList {
+        val storeId = store?.id.orEmpty()
+        return activeLists.firstOrNull { it.storeId == storeId }
+            ?: GroceryList(id = createList(store, uid), storeId = storeId, storeName = store?.name.orEmpty())
+    }
 
-    fun completeList(listId: String) {
+    /** Moves a closed-out list back to the open lists, checked items and all. */
+    fun reopenList(listId: String) {
         lists.document(listId).update(
-            mapOf("status" to GroceryList.STATUS_DONE, "completedAt" to System.currentTimeMillis()),
+            mapOf("status" to GroceryList.STATUS_ACTIVE, "completedAt" to FieldValue.delete()),
         )
+    }
+
+    /**
+     * Closes out a trip. Items in [carryOver] (usually what wasn't checked off) move to a fresh list
+     * for the same store, whose ID is returned. They were counted toward suggestions when first added,
+     * so they aren't counted again.
+     */
+    fun completeList(list: GroceryList, uid: String, carryOver: List<ListItem> = emptyList()): String? {
+        val now = System.currentTimeMillis()
+        val next = if (carryOver.isNotEmpty()) lists.document() else null
+        Firebase.firestore.batch().apply {
+            update(lists.document(list.id), mapOf("status" to GroceryList.STATUS_DONE, "completedAt" to now))
+            if (next != null) {
+                set(
+                    next,
+                    mapOf(
+                        "storeId" to list.storeId,
+                        "storeName" to list.storeName,
+                        "status" to GroceryList.STATUS_ACTIVE,
+                        "createdBy" to uid,
+                        "createdAt" to now,
+                    ),
+                )
+                carryOver.forEach { item ->
+                    set(
+                        next.collection("items").document(),
+                        mapOf("name" to item.name, "key" to item.key, "checked" to false, "addedBy" to item.addedBy, "createdAt" to item.createdAt),
+                    )
+                }
+            }
+        }.commit()
+        return next?.id
     }
 
     fun addItem(list: GroceryList, name: String, uid: String) {
@@ -104,6 +171,7 @@ class GroceryRepository(householdId: String) {
         displayName?.let { put("displayName", it) }
         now?.let { put("lastAdded", it) }
         put("count", FieldValue.increment(by))
-        put("storeCounts", mapOf(storeId to FieldValue.increment(by)))
+        // Lists without a store still count toward overall habits, just not any store's.
+        if (storeId.isNotEmpty()) put("storeCounts", mapOf(storeId to FieldValue.increment(by)))
     }
 }

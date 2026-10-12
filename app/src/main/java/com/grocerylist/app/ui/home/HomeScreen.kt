@@ -2,6 +2,16 @@ package com.grocerylist.app.ui.home
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
+import com.grocerylist.app.ui.AppIcons
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.AssistChip
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.layout.size
 import com.grocerylist.app.data.Recipe
 import coil3.compose.AsyncImage
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,14 +57,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.GroceryList
 import com.grocerylist.app.data.Store
 import com.grocerylist.app.ui.Session
+import com.grocerylist.app.data.NearbyStores
+import com.grocerylist.app.ui.StoreLogo
+import com.grocerylist.app.ui.rememberLocationPermissionState
 import com.grocerylist.app.ui.StorePicker
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,11 +78,24 @@ fun HomeScreen(
     session: Session.Ready,
     onOpenList: (String) -> Unit,
     onOpenRecipe: (String) -> Unit,
+    onOpenOnHand: () -> Unit,
     onOpenHousehold: () -> Unit,
 ) {
     val viewModel: HomeViewModel = viewModel { HomeViewModel(session.householdId, session.user.uid) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pickingStore by rememberSaveable { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) { viewModel.onShown() }
+
+    // The store picker asks for location the first time it opens. Once allowed, nearby stores are
+    // fetched here in the background so New list opens straight onto them.
+    val location = rememberLocationPermissionState()
+    val context = LocalContext.current
+    LaunchedEffect(location.granted) {
+        if (location.granted) runCatching { NearbyStores.findCached(context) }
+    }
+    LaunchedEffect(Unit) { viewModel.userMessages.collect { snackbar.showSnackbar(it) } }
 
     Scaffold(
         topBar = {
@@ -80,6 +108,7 @@ fun HomeScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { pickingStore = true },
@@ -88,39 +117,58 @@ fun HomeScreen(
             )
         },
     ) { padding ->
-        if (state.activeLists.isEmpty() && state.pastLists.isEmpty() && state.recipes.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(
-                    "Tap New list and pick a store to start",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+            item {
+                RecipesHeader(
+                    updatedAt = state.recipesUpdatedAt.takeIf { state.recipes.isNotEmpty() },
+                    refreshing = state.refreshingRecipes,
+                    kitchenCount = state.kitchenCount,
+                    onRefresh = viewModel::refreshRecipes,
+                    onOpenKitchen = onOpenOnHand,
                 )
             }
-        } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
-                if (state.recipes.isNotEmpty()) {
-                    item { SectionHeader("Recipes for you") }
-                    item { RecipeRow(state.recipes, onOpenRecipe) }
+            item {
+                when {
+                    state.recipes.isNotEmpty() -> RecipeRow(state.recipes, onOpenRecipe)
+                    !state.refreshingRecipes -> KitchenPrompt(onOpenKitchen = onOpenOnHand)
                 }
-                if (state.activeLists.isNotEmpty()) {
-                    item { SectionHeader("Shopping lists") }
-                    items(state.activeLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
+            }
+            if (state.activeLists.isNotEmpty()) {
+                item { SectionHeader("Shopping lists") }
+                items(state.activeLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
+            } else {
+                item {
+                    Text(
+                        "Tap New list and pick a store to start",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
                 }
-                if (state.pastLists.isNotEmpty()) {
-                    item { SectionHeader("Past trips") }
-                    items(state.pastLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
-                }
+            }
+            if (state.pastLists.isNotEmpty()) {
+                item { SectionHeader("Past lists") }
+                items(state.pastLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
             }
         }
     }
 
     if (pickingStore) {
         StorePicker(
-            stores = state.stores,
+            stores = state.yourStores,
+            onRemove = viewModel::removeStore,
             onPick = { store ->
                 pickingStore = false
                 onOpenList(viewModel.openListFor(store))
             },
-            onAddStore = viewModel::addStore,
+            onPickNew = { name ->
+                pickingStore = false
+                onOpenList(viewModel.openListForNewStore(name))
+            },
+            onSkip = {
+                pickingStore = false
+                onOpenList(viewModel.openListWithoutStore())
+            },
+            openStoreIds = state.activeLists.mapTo(HashSet()) { it.storeId },
             onDismiss = { pickingStore = false },
         )
     }
@@ -142,16 +190,82 @@ private fun ListRow(list: GroceryList, onClick: () -> Unit) {
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
         leadingContent = {
-            Icon(if (list.isActive) Icons.Default.ShoppingCart else Icons.Default.Check, contentDescription = null)
+            if (list.storeName.isBlank()) {
+                Box(Modifier.size(48.dp, 36.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.ShoppingCart, contentDescription = null)
+                }
+            } else {
+                StoreLogo(list.storeName, Modifier.size(48.dp, 36.dp), padding = 4.dp, cornerRadius = 8.dp, initialsSize = 14.sp)
+            }
         },
-        headlineContent = { Text(list.storeName) },
+        headlineContent = { Text(list.displayName) },
         supportingContent = {
             Text(
-                (if (list.isActive) "Started " else "Shopped ") +
+                (if (list.isActive) "Started " else "Closed out ") +
                     DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS),
             )
         },
     )
+}
+
+@Composable
+private fun RecipesHeader(
+    updatedAt: Long?,
+    refreshing: Boolean,
+    kitchenCount: Int,
+    onRefresh: () -> Unit,
+    onOpenKitchen: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
+        Text("Recipes for you", style = MaterialTheme.typography.titleLarge)
+        val status = when {
+            refreshing -> "Finding new recipes…"
+            updatedAt != null -> "Updated " + DateUtils.getRelativeTimeSpanString(
+                updatedAt,
+                System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS,
+            ).toString().replaceFirstChar(Char::lowercase)
+            else -> null
+        }
+        status?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(
+                onClick = onOpenKitchen,
+                label = { Text(if (kitchenCount > 0) "My kitchen · $kitchenCount" else "My kitchen") },
+                leadingIcon = { Icon(AppIcons.Kitchen, contentDescription = null, Modifier.size(18.dp)) },
+            )
+            AssistChip(
+                onClick = onRefresh,
+                enabled = !refreshing,
+                label = { Text("New ideas") },
+                leadingIcon = {
+                    if (refreshing) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null, Modifier.size(18.dp))
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** Shown before there are any recipes, pointing people at the kitchen list. */
+@Composable
+private fun KitchenPrompt(onOpenKitchen: () -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("What's in your kitchen?", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Add a few ingredients you already have and you'll get simple recipes that use them.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FilledTonalButton(onClick = onOpenKitchen) { Text("Add ingredients") }
+        }
+    }
 }
 
 @Composable

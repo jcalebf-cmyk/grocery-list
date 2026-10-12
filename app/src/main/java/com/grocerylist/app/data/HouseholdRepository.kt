@@ -44,13 +44,10 @@ class HouseholdRepository {
     suspend fun createHousehold(uid: String, name: String) {
         val code = unusedInviteCode()
         val household = households.document()
-        val now = System.currentTimeMillis()
+        // No starter stores: the store picker suggests ones near the user instead.
         db.batch().apply {
             set(household, mapOf("name" to name.trim(), "inviteCode" to code, "memberIds" to listOf(uid)))
             set(inviteCodes.document(code), mapOf("householdId" to household.id))
-            DEFAULT_STORES.forEachIndexed { i, store ->
-                set(household.collection("stores").document(), mapOf("name" to store, "createdAt" to now + i))
-            }
             set(users.document(uid), mapOf("householdId" to household.id), SetOptions.merge())
         }.commit().await()
     }

@@ -9,7 +9,21 @@ const MODEL = "claude-haiku-5-5";
 
 const QueriesSchema = z.object({ queries: z.array(z.string()) });
 
-export async function searchQueriesFor(items: string[]): Promise<string[]> {
+/** Describes the household's ingredients for a prompt. On-hand items come first because using them up matters most. */
+function describeIngredients(items: string[], onHand: string[]): string {
+  const parts: string[] = [];
+  if (onHand.length > 0) {
+    parts.push(`Already in their kitchen (stocked up, or delivered by a subscription like a meat box):
+${onHand.map((i) => `- ${i}`).join("\n")}`);
+  }
+  if (items.length > 0) {
+    parts.push(`Groceries they buy often:
+${items.map((i) => `- ${i}`).join("\n")}`);
+  }
+  return parts.join("\n\n");
+}
+
+export async function searchQueriesFor(items: string[], onHand: string[]): Promise<string[]> {
   const response = await client.messages.parse({
     model: MODEL,
     max_tokens: 4000,
@@ -17,10 +31,9 @@ export async function searchQueriesFor(items: string[]): Promise<string[]> {
     messages: [
       {
         role: "user",
-        content: `A household often buys these groceries:
-${items.map((i) => `- ${i}`).join("\n")}
+        content: `${describeIngredients(items, onHand)}
 
-Write 3 YouTube search queries that would find quick, easy home-cooking recipe videos built around 2-3 of these ingredients each. Skip non-food items and pantry basics (salt, oil, flour). Make the 3 queries use different main ingredients so the results are varied. Keep each query short and natural, like "easy chicken broccoli rice bowl".`,
+Write 3 YouTube search queries that would find quick, easy home-cooking recipe videos built around 2-3 of these ingredients each. Build at least two queries around what's already in their kitchen, if there is anything. Skip non-food items and pantry basics (salt, oil, flour). Make the 3 queries use different main ingredients so the results are varied. Keep each query short and natural, like "easy chicken broccoli rice bowl".`,
       },
     ],
   });
@@ -42,7 +55,11 @@ const RecipesSchema = z.object({
 });
 export type ExtractedRecipe = z.infer<typeof RecipesSchema>["recipes"][number];
 
-export async function extractSimpleRecipes(items: string[], videos: Video[]): Promise<ExtractedRecipe[]> {
+export async function extractSimpleRecipes(
+  items: string[],
+  onHand: string[],
+  videos: Video[],
+): Promise<ExtractedRecipe[]> {
   if (videos.length === 0) return [];
   const videoBlocks = videos
     .map(
@@ -67,7 +84,7 @@ ${v.description}
         role: "user",
         content: `${videoBlocks}
 
-The household often buys: ${items.join(", ")}.
+${describeIngredients(items, onHand)}
 
 Pick up to 6 videos that make a good, simple weeknight recipe and write a recipe card for each.
 
@@ -80,9 +97,9 @@ Only include a video if its description lists the ingredients. Take ingredients 
 For each card:
 - title: a short plain name for the dish, without channel names, emojis, or clickbait
 - steps: at most 6 short steps in plain language, rewritten from the video
-- usesHouseholdItems: which of the household's items the recipe uses, spelled as in their list
+- usesHouseholdItems: which of the household's ingredients (from either list) the recipe uses, spelled as in their list
 
-Prefer recipes that use more of the household's items, and keep the set varied (not six chicken dishes). Return an empty list if none qualify.`,
+Prefer recipes that use what's already in their kitchen, then ones that use more of their regular groceries, and keep the set varied (not six chicken dishes). Return an empty list if none qualify.`,
       },
     ],
   });
