@@ -19,7 +19,7 @@ struct RecipeView: View {
                     hero(recipe)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(recipe.title).font(.brand(28))
-                        Text("\(recipe.totalMinutes) min · \(recipe.ingredients.count) ingredients · from \(recipe.channel)")
+                        Text("\(recipe.totalMinutes) min · \(recipe.ingredients.count) ingredients")
                             .font(.subheadline).foregroundStyle(.secondary)
                         if !recipe.usesHouseholdItems.isEmpty {
                             Text("Uses your usual \(recipe.usesHouseholdItems.joined(separator: ", "))")
@@ -97,7 +97,7 @@ struct RecipeView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Watch on YouTube")
+        .accessibilityLabel("Watch a similar recipe on YouTube")
     }
 
     private func ingredientRow(_ index: Int, _ ingredient: Ingredient) -> some View {

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { verifyFirebaseUser } from "../lib/auth.js";
-import { extractSimpleRecipes, searchQueriesFor } from "../lib/claude.js";
+import { writeRecipes } from "../lib/claude.js";
 import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
-import { getVideos, searchVideoIds } from "../lib/youtube.js";
+import { searchVideos } from "../lib/youtube.js";
 
 const Item = z.string().trim().min(1).max(60);
 const Body = z
@@ -12,17 +12,15 @@ const Body = z
   })
   .refine((b) => b.items.length + b.onHand.length > 0);
 
-// Covers the daily refresh, a few kitchen edits, and some "New ideas" taps. Each request costs
-// about 300 of YouTube's 10,000 daily quota units, plus two Claude calls.
+// Covers the daily refresh, a few kitchen edits, and some "New ideas" taps. Each request costs one
+// Claude call plus a YouTube search per recipe: about 600 of YouTube's 10,000 daily quota units.
 const DAILY_LIMIT = 8;
-
-// Longer videos are rarely "simple", and their descriptions are often blog-length.
-const MAX_VIDEO_MINUTES = 25;
 
 /**
  * POST /api/recipes  { items: ["broccoli", ...], onHand: ["ground beef", ...] }
  * Requires a Firebase ID token: Authorization: Bearer <token>
- * Returns { recipes: [...] }, each tied to the YouTube video it came from.
+ * Returns { recipes: [...] }: recipes Claude writes for the household, each with a YouTube video of a
+ * similar dish to watch.
  */
 export async function POST(request: Request): Promise<Response> {
   const uid = await verifyFirebaseUser(request);
@@ -36,19 +34,26 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const queries = await searchQueriesFor(items, onHand);
-    const idLists = await Promise.all(queries.map((q) => searchVideoIds(q, 5)));
-    const videos = (await getVideos([...new Set(idLists.flat())])).filter(
-      (v) => v.durationMinutes <= MAX_VIDEO_MINUTES && v.description.length > 80,
+    const written = (await writeRecipes(items, onHand)).slice(0, 6);
+    const candidates = await Promise.all(
+      written.map((r) =>
+        searchVideos(r.videoQuery).catch((e) => {
+          console.warn(`video search failed for "${r.videoQuery}"`, e);
+          return [];
+        }),
+      ),
     );
 
-    const byId = new Map(videos.map((v) => [v.id, v]));
-    const recipes = (await extractSimpleRecipes(items, onHand, videos)).flatMap((r) => {
-      const video = byId.get(r.videoId);
-      if (!video) return []; // model referenced a video we didn't send
+    // The apps key recipes by video, so each recipe needs its own. A recipe with no video is dropped.
+    const used = new Set<string>();
+    const recipes = written.flatMap(({ videoQuery, ...r }, i) => {
+      const video = candidates[i].find((v) => !used.has(v.id));
+      if (!video) return [];
+      used.add(video.id);
       return [
         {
           ...r,
+          videoId: video.id,
           videoUrl: `https://www.youtube.com/watch?v=${video.id}`,
           videoTitle: video.title,
           channel: video.channel,
@@ -57,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
       ];
     });
 
-    console.log(`uid=${uid} items=${items.length} onHand=${onHand.length} queries=${queries.length} videos=${videos.length} recipes=${recipes.length}`);
+    console.log(`uid=${uid} items=${items.length} onHand=${onHand.length} written=${written.length} recipes=${recipes.length}`);
     return Response.json({ recipes });
   } catch (e) {
     console.error("recipe generation failed", e);

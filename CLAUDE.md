@@ -1,6 +1,6 @@
 # Groceries – project notes for Claude
 
-Shared household grocery list with smart suggestions, nearby stores, and YouTube recipe ideas.
+Shared household grocery list with smart suggestions, nearby stores, and AI recipe ideas.
 Android (Kotlin/Compose) and iPhone (SwiftUI) apps share one Firebase project and one Vercel server,
 so households, lists, and recipes are shared across platforms. Josh (product, not a full-time developer)
 owns it; testers are friends and family.
@@ -32,7 +32,8 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   `itemStats`, `onHand`, `recipes/current`; `inviteCodes/{code}`.
 - Server: https://grocery-recipes.vercel.app (Vercel project `grocery-recipes`, account jcalebf-cmyk).
   Env vars set by Josh in Vercel: `YOUTUBE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_PLACES_API_KEY`.
-  Recipes use Claude Haiku 5.5 (Josh chose it for cost). Endpoints require a Firebase ID token and have
+  Recipes: Claude Haiku 5.5 (Josh chose it for cost) writes them, then each gets a YouTube video of a similar
+  dish (~600 of 10,000 daily quota units per request; apps key recipes by `videoId`). Endpoints require a Firebase ID token and have
   per-user daily limits (stores 20, recipes 8) in Vercel Runtime Cache.
 - Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down.
 

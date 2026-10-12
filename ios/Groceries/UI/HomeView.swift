@@ -309,7 +309,7 @@ struct RecipeCard: View {
         .overlay(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(recipe.title).font(.headline).lineLimit(2)
-                Text("\(recipe.ingredients.count) ingredients · \(recipe.channel)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text("\(recipe.ingredients.count) ingredients").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14).padding(.vertical, 10)

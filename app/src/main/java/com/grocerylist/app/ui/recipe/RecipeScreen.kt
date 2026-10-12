@@ -196,7 +196,7 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
     }
 }
 
-/** Full-bleed photo that the home screen's card grows into. Tapping it plays the video. */
+/** Full-bleed photo that the home screen's card grows into. Tapping it plays a video of a similar dish. */
 @Composable
 private fun RecipeHero(recipe: Recipe) {
     val context = LocalContext.current
@@ -204,7 +204,7 @@ private fun RecipeHero(recipe: Recipe) {
     Box(Modifier.fillMaxWidth().height(340.dp).clickable(onClick = openVideo)) {
         AsyncImage(
             model = recipe.thumbnailUrl,
-            contentDescription = "Watch on YouTube",
+            contentDescription = "Watch a similar recipe on YouTube",
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().sharedElement("recipe-image-${recipe.videoId}"),
         )
@@ -233,7 +233,7 @@ private fun RecipeTitle(recipe: Recipe) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(recipe.title, style = MaterialTheme.typography.headlineMedium)
         Text(
-            "${recipe.totalMinutes} min · ${recipe.ingredients.size} ingredients · from ${recipe.channel}",
+            "${recipe.totalMinutes} min · ${recipe.ingredients.size} ingredients",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

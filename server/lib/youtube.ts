@@ -4,9 +4,7 @@ export interface Video {
   id: string;
   title: string;
   channel: string;
-  description: string;
   thumbnailUrl: string;
-  durationMinutes: number;
 }
 
 function key(): string {
@@ -24,38 +22,38 @@ async function get(path: string, params: Record<string, string>): Promise<any> {
   return res.json();
 }
 
-/** Costs 100 quota units per call (of 10,000/day), so callers should keep queries few. */
-export async function searchVideoIds(query: string, max = 5): Promise<string[]> {
+/**
+ * Top results for a search, Shorts excluded. Costs 100 quota units per call (of 10,000/day) whatever
+ * the result count, so callers should keep searches few.
+ */
+export async function searchVideos(query: string, max = 3): Promise<Video[]> {
   const data = await get("search", {
-    part: "id",
+    part: "snippet",
     type: "video",
     q: query,
     maxResults: String(max),
-    videoDuration: "medium", // 4-20 minutes: skips Shorts, which rarely list ingredients
+    videoDuration: "medium", // 4-20 minutes: skips Shorts, whose thumbnails are portrait
     videoEmbeddable: "true",
     safeSearch: "strict",
     relevanceLanguage: "en",
   });
-  return (data.items ?? []).map((item: any) => item.id.videoId).filter(Boolean);
+  return (data.items ?? [])
+    .filter((item: any) => item.id?.videoId)
+    .map((item: any) => ({
+      id: item.id.videoId,
+      title: decodeEntities(item.snippet.title),
+      channel: decodeEntities(item.snippet.channelTitle),
+      thumbnailUrl:
+        item.snippet.thumbnails?.high?.url ?? item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? "",
+    }));
 }
 
-/** 1 quota unit per call, up to 50 IDs. */
-export async function getVideos(ids: string[]): Promise<Video[]> {
-  if (ids.length === 0) return [];
-  const data = await get("videos", { part: "snippet,contentDetails", id: ids.join(",") });
-  return (data.items ?? []).map((item: any) => ({
-    id: item.id,
-    title: item.snippet.title,
-    channel: item.snippet.channelTitle,
-    description: item.snippet.description ?? "",
-    thumbnailUrl:
-      item.snippet.thumbnails?.high?.url ?? item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? "",
-    durationMinutes: isoDurationToMinutes(item.contentDetails?.duration ?? ""),
-  }));
-}
-
-function isoDurationToMinutes(iso: string): number {
-  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return 0;
-  return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0) + Math.round(Number(m[3] ?? 0) / 60);
+/** Search snippets come HTML-escaped ("Mom&#39;s Kitchen"). */
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }

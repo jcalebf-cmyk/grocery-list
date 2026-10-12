@@ -339,7 +339,7 @@ private fun RecipeCard(recipe: Recipe, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "${recipe.ingredients.size} ingredients · ${recipe.channel}",
+                "${recipe.ingredients.size} ingredients",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
