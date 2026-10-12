@@ -27,7 +27,27 @@ class AuthRepository {
     suspend fun createAccount(name: String, email: String, password: String): FirebaseUser? {
         val user = auth.createUserWithEmailAndPassword(email.trim(), password).await().user ?: return null
         user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(name.trim()).build()).await()
+        // Confirming is optional, so a failed send mustn't fail sign-up; Settings offers to resend.
+        runCatching { user.sendEmailVerification().await() }
         return user
+    }
+
+    suspend fun sendPasswordReset(email: String) {
+        auth.sendPasswordResetEmail(email.trim()).await()
+    }
+
+    /**
+     * True if the account signs in with a password and hasn't confirmed its email yet. Refreshes from
+     * Firebase first, since the app's copy only updates on sign-in (not when the link is tapped).
+     */
+    suspend fun needsEmailConfirmation(): Boolean {
+        if (!usesPassword) return false
+        runCatching { auth.currentUser?.reload()?.await() }
+        return auth.currentUser?.isEmailVerified == false
+    }
+
+    suspend fun resendEmailConfirmation() {
+        auth.currentUser?.sendEmailVerification()?.await()
     }
 
     suspend fun signInWithGoogle(idToken: String) {

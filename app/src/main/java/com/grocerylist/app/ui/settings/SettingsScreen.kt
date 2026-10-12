@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -100,6 +102,19 @@ class SettingsViewModel(private val householdId: String, private val uid: String
 
     private val errors = Channel<String>(Channel.BUFFERED)
     val errorMessages = errors.receiveAsFlow()
+
+    /** Null while checking; checked on every resume, since the link is tapped outside the app. */
+    val emailUnconfirmed = MutableStateFlow<Boolean?>(null)
+    val confirmationSent = MutableStateFlow(false)
+
+    fun checkEmailConfirmation() {
+        viewModelScope.launch { emailUnconfirmed.value = AppGraph.auth.needsEmailConfirmation() }
+    }
+
+    fun resendEmailConfirmation() = run("Couldn't send the email. Try again in a few minutes.") {
+        AppGraph.auth.resendEmailConfirmation()
+        confirmationSent.value = true
+    }
 
     /** Recipes pick up the change when Home is next shown. */
     fun saveCuisines(cuisines: List<String>) = recipes.savePreferences(cuisines)
@@ -200,6 +215,12 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
     var confirmingDelete by rememberSaveable { mutableStateOf(false) }
     val cuisines by viewModel.cuisines.collectAsStateWithLifecycle()
     var editingCuisines by rememberSaveable { mutableStateOf(false) }
+    val emailUnconfirmed by viewModel.emailUnconfirmed.collectAsStateWithLifecycle()
+    val confirmationSent by viewModel.confirmationSent.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.checkEmailConfirmation()
+        onPauseOrDispose {}
+    }
 
     Scaffold(
         topBar = {
@@ -224,6 +245,20 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                     trailing = { Icon(Icons.Default.Edit, contentDescription = "Edit your name") },
                     onClick = { editingName = true },
                 )
+            }
+            if (emailUnconfirmed == true) {
+                item {
+                    SettingsRow(
+                        title = "Confirm your email",
+                        subtitle = "Tap the link we sent to ${me.email} so you can reset your password if you forget it.",
+                        leading = { Icon(Icons.Default.Email, contentDescription = null) },
+                        trailing = {
+                            TextButton(onClick = viewModel::resendEmailConfirmation, enabled = !confirmationSent) {
+                                Text(if (confirmationSent) "Sent" else "Resend")
+                            }
+                        },
+                    )
+                }
             }
             item {
                 SettingsRow(

@@ -13,6 +13,11 @@ struct SignInView: View {
     @State private var showPassword = false
     @State private var busy = false
     @State private var error: String?
+    @State private var resettingPassword = false
+    @State private var resetEmail = ""
+    /// After "Send link": where the link went, or why it couldn't be sent.
+    @State private var resetSentTo: String?
+    @State private var resetError: String?
     @State private var appleNonce = ""
 
     private let minLength = 6
@@ -100,6 +105,11 @@ struct SignInView: View {
                                 hint("Passwords don't match. Type the same password in both fields.", isError: true)
                             }
                         }
+                    } else {
+                        Button("Forgot password?") { resetEmail = email.trimmed; resettingPassword = true }
+                            .font(.callout)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .disabled(busy)
                     }
                 }
 
@@ -123,6 +133,54 @@ struct SignInView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color.warmBackground)
+        .alert("Reset your password", isPresented: $resettingPassword) {
+            TextField("Email", text: $resetEmail)
+                .textContentType(.emailAddress).keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            // Not .disabled: alert buttons keep the state they had when the alert opened.
+            Button("Send link", action: sendPasswordReset)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We'll email you a link to choose a new password.")
+        }
+        // Alert buttons always close their alert, so the result follows in an alert of its own.
+        .alert("Check your email", isPresented: isSet($resetSentTo)) {
+            Button("Done") {}
+        } message: {
+            Text("If there's an account for \(resetSentTo ?? ""), we've sent it a link to reset your password.")
+        }
+        .alert("Couldn't send the link", isPresented: isSet($resetError)) {
+            Button("Try again") { resettingPassword = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(resetError ?? "")
+        }
+    }
+
+    private func isSet(_ value: Binding<String?>) -> Binding<Bool> {
+        Binding(get: { value.wrappedValue != nil }, set: { if !$0 { value.wrappedValue = nil } })
+    }
+
+    private func sendPasswordReset() {
+        let address = resetEmail.trimmed
+        busy = true
+        Task {
+            defer { busy = false }
+            // Give the email alert time to close; one alert can't open while another is closing.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !address.isEmpty else { resetError = "Type your email to get a reset link."; return }
+            do {
+                try await AuthService.sendPasswordReset(email: address)
+            } catch where [17008, 17011].contains((error as NSError).code) {
+                // Malformed or unknown emails get the same answer, so the app never reveals who has an account.
+            } catch {
+                resetError = friendlyMessage(error)
+                return
+            }
+            // Fill in the sign-in email too, ready for when they come back with a new password.
+            email = address
+            resetSentTo = address
+        }
     }
 
     private func submit() {
@@ -159,6 +217,7 @@ struct SignInView: View {
         case 17007: return "There's already an account with that email. Try signing in."
         case 17026: return "Use a password with at least 6 characters."
         case 17004, 17009, 17011: return "That email and password don't match an account."
+        case 17010: return "Too many tries. Wait a few minutes and try again."
         case 1001, -5: return "" // user cancelled Apple or Google
         default: return error.localizedDescription
         }

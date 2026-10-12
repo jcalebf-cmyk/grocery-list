@@ -22,6 +22,24 @@ enum AuthService {
         try await change.commitChanges()
         // The profile doc is first written before the name is set, so write it again with the name.
         HouseholdService.ensureProfile(result.user)
+        // Confirming is optional, so a failed send mustn't fail sign-up; Settings offers to resend.
+        try? await result.user.sendEmailVerification()
+    }
+
+    static func sendPasswordReset(email: String) async throws {
+        try await auth.sendPasswordReset(withEmail: email.trimmed)
+    }
+
+    /// True if the account signs in with a password and hasn't confirmed its email yet. Refreshes from
+    /// Firebase first, since the app's copy only updates on sign-in (not when the link is tapped).
+    static func needsEmailConfirmation() async -> Bool {
+        guard let user = auth.currentUser, provider == .password else { return false }
+        try? await user.reload()
+        return auth.currentUser?.isEmailVerified == false
+    }
+
+    static func resendEmailConfirmation() async throws {
+        try await auth.currentUser?.sendEmailVerification()
     }
 
     // MARK: Google

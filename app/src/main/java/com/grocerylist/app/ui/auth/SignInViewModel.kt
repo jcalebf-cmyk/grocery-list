@@ -2,6 +2,7 @@ package com.grocerylist.app.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -22,6 +23,10 @@ data class SignInState(
     val submittedMismatch: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
+    /** The "Forgot password?" dialog: sending, sent (to this address), or failed. */
+    val resetSending: Boolean = false,
+    val resetSentTo: String? = null,
+    val resetError: String? = null,
 ) {
     /** Firebase rejects shorter passwords, so say so before the user submits. */
     val passwordTooShort get() = creatingAccount && password.isNotEmpty() && password.length < MIN_PASSWORD_LENGTH
@@ -58,6 +63,25 @@ class SignInViewModel : ViewModel() {
     fun toggleMode() = _state.update {
         it.copy(creatingAccount = !it.creatingAccount, confirmPassword = "", submittedMismatch = false, error = null)
     }
+
+    fun sendPasswordReset(email: String) {
+        _state.update { it.copy(resetSending = true, resetError = null) }
+        viewModelScope.launch {
+            try {
+                AppGraph.auth.sendPasswordReset(email)
+            } catch (_: FirebaseAuthInvalidCredentialsException) {
+                // Malformed or unknown emails get the same answer, so the app never reveals who has an account.
+            } catch (_: FirebaseAuthInvalidUserException) {
+            } catch (e: Exception) {
+                _state.update { it.copy(resetSending = false, resetError = friendlyMessage(e)) }
+                return@launch
+            }
+            // Fill in the sign-in email too, ready for when they come back with a new password.
+            _state.update { it.copy(resetSending = false, resetSentTo = email.trim(), email = email.trim()) }
+        }
+    }
+
+    fun closePasswordReset() = _state.update { it.copy(resetSending = false, resetSentTo = null, resetError = null) }
 
     fun submit() {
         val s = _state.value
@@ -99,6 +123,7 @@ class SignInViewModel : ViewModel() {
         is FirebaseAuthUserCollisionException -> "There's already an account with that email. Try signing in."
         is FirebaseAuthInvalidCredentialsException, is FirebaseAuthInvalidUserException ->
             "That email and password don't match an account."
+        is FirebaseTooManyRequestsException -> "Too many tries. Wait a few minutes and try again."
         else -> e.localizedMessage ?: "Something went wrong. Try again."
     }
 }

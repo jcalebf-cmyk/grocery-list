@@ -12,6 +12,9 @@ struct SettingsView: View {
     @State private var deleting = false
     @State private var error: String?
     @State private var editingCuisines = false
+    @State private var emailUnconfirmed = false
+    @State private var confirmationSent = false
+    @Environment(\.scenePhase) private var scenePhase
 
     private var me: UserProfile { data.members.first { $0.id == data.user.id } ?? data.user }
     private var shared: Bool { data.members.count > 1 }
@@ -29,6 +32,29 @@ struct SettingsView: View {
                         }
                         Spacer()
                         Image(systemName: "pencil").foregroundStyle(.secondary)
+                    }
+                }
+                if emailUnconfirmed {
+                    HStack(spacing: 12) {
+                        Image(systemName: "envelope.badge").foregroundStyle(.tint).frame(width: 34)
+                        VStack(alignment: .leading) {
+                            Text("Confirm your email")
+                            Text("Tap the link we sent to \(me.email) so you can reset your password if you forget it.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(confirmationSent ? "Sent" : "Resend") {
+                            Task {
+                                do {
+                                    try await AuthService.resendEmailConfirmation()
+                                    confirmationSent = true
+                                } catch {
+                                    self.error = "Couldn't send the email. Try again in a few minutes."
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(confirmationSent)
                     }
                 }
                 Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right") { AuthService.signOut() }
@@ -93,6 +119,10 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.warmBackground)
         .navigationTitle("Settings")
+        // Checked on every return to the app, since the link is tapped outside it.
+        .task(id: scenePhase) {
+            if scenePhase == .active { emailUnconfirmed = await AuthService.needsEmailConfirmation() }
+        }
         // Recipes pick up the change when Home is next shown.
         .sheet(isPresented: $editingCuisines) {
             CuisineSheet(

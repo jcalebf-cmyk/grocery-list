@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -55,6 +56,7 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showPassword by rememberSaveable { mutableStateOf(false) }
+    var resetEmail by rememberSaveable { mutableStateOf<String?>(null) }
 
     Column(
         Modifier
@@ -173,6 +175,12 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
                 keyboardActions = KeyboardActions(onDone = { viewModel.submit() }),
                 modifier = Modifier.fillMaxWidth(),
             )
+        } else {
+            TextButton(
+                onClick = { resetEmail = state.email.trim() },
+                enabled = !state.busy,
+                modifier = Modifier.align(Alignment.End),
+            ) { Text("Forgot password?") }
         }
 
         state.error?.let {
@@ -186,4 +194,63 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
             Text(if (state.creatingAccount) "I already have an account" else "New here? Create an account")
         }
     }
+
+    resetEmail?.let { email ->
+        ResetPasswordDialog(
+            initialEmail = email,
+            state = state,
+            onSend = viewModel::sendPasswordReset,
+            onDismiss = {
+                resetEmail = null
+                viewModel.closePasswordReset()
+            },
+        )
+    }
+}
+
+/** Asks for the email, then says the link is on its way in the same dialog. */
+@Composable
+private fun ResetPasswordDialog(
+    initialEmail: String,
+    state: SignInState,
+    onSend: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var email by rememberSaveable { mutableStateOf(initialEmail) }
+    val sentTo = state.resetSentTo
+    if (sentTo != null) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Check your email") },
+            text = { Text("If there's an account for $sentTo, we've sent it a link to reset your password.") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        )
+        return
+    }
+    val canSend = email.isNotBlank() && !state.resetSending
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reset your password") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("We'll email you a link to choose a new password.")
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    isError = state.resetError != null,
+                    supportingText = state.resetError?.let { { Text(it) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { if (canSend) onSend(email) }),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSend(email) }, enabled = canSend) {
+                Text(if (state.resetSending) "Sending…" else "Send link")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
