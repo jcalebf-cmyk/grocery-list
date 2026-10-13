@@ -7,7 +7,8 @@ const INK = "#1C1B17";
 const BODY = "#4A473F";
 const MUTED = "#7A766C";
 const LINE = "#EBE6DC";
-const FONT = `'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`;
+// System fonts only: loading a web font from another domain is one more thing spam filters weigh.
+const FONT = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`;
 
 interface Recipient {
   email: string;
@@ -80,7 +81,6 @@ function layout(e: Layout): string {
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
 <title>${escape(e.subject)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   @media (max-width: 600px) { .card { padding: 32px 24px 28px !important; } }
   @media (prefers-color-scheme: dark) {
@@ -96,7 +96,7 @@ function layout(e: Layout): string {
 </style>
 </head>
 <body class="bg" style="margin:0;padding:0;background:${CREAM};">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escape(e.preheader)}&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escape(e.preheader)}</div>
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};">
 <tr><td align="center" style="padding:40px 16px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
