@@ -8,6 +8,7 @@ struct SwipeAction<Content: View>: View {
     let label: String
     let systemImage: String
     let tint: Color
+    var iconColor: Color = .white
     let action: () -> Void
     @ViewBuilder let content: Content
     @State private var offset: CGFloat = 0
@@ -20,7 +21,7 @@ struct SwipeAction<Content: View>: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(tint.opacity(armed ? 1 : 0.75))
                 .overlay(alignment: .trailing) {
-                    Image(systemName: systemImage).font(.title3.weight(.semibold)).foregroundStyle(.white)
+                    Image(systemName: systemImage).font(.title3.weight(.semibold)).foregroundStyle(iconColor)
                         .scaleEffect(armed ? 1.15 : 1)
                         .padding(.trailing, 28)
                 }

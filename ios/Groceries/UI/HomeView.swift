@@ -71,6 +71,7 @@ final class HouseholdData {
 }
 
 struct HomeView: View {
+    @Environment(SessionModel.self) private var session
     @State private var data: HouseholdData
     @State private var path: [Route] = []
     @State private var pickingStore = false
@@ -107,7 +108,7 @@ struct HomeView: View {
                 Button { pickingStore = true } label: {
                     Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton(foreground: .onCitrus)
                 .tint(.citrus)
                 .padding(.bottom, 4)
             }
@@ -153,8 +154,14 @@ struct HomeView: View {
         .task { await data.markInputsLoaded() }
         .onChange(of: path) { if path.isEmpty { Task { await data.refreshRecipesIfStale() } } }
         .onChange(of: data.needsCuisines) { if !data.needsCuisines { Task { await data.refreshRecipesIfStale() } } }
-        .fullScreenCover(isPresented: .constant(data.needsCuisines)) {
-            CuisineSetupView { data.recipeService.savePreferences($0) }
+        // New members get the walkthrough. Otherwise a household that hasn't picked cuisines yet (say the
+        // app closed partway through) gets just that step.
+        .fullScreenCover(isPresented: .constant(session.onboarding != nil || data.needsCuisines)) {
+            if let start = session.onboarding {
+                OnboardingView(data: data, start: start) { session.onboarding = nil }
+            } else {
+                CuisineSetupView { data.recipeService.savePreferences($0) }
+            }
         }
         .deleteListAlert(isPresented: Binding(get: { deletingList != nil }, set: { if !$0 { deletingList = nil } })) {
             guard let list = deletingList else { return }
@@ -230,7 +237,7 @@ struct HomeView: View {
                     Text("What's in your kitchen?").font(.headline)
                     Text("Add a few ingredients you already have and you'll get simple recipes that use them.")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    NavigationLink("Add ingredients", value: Route.kitchen).buttonStyle(.glassProminent)
+                    NavigationLink("Add ingredients", value: Route.kitchen).prominentGlassButton()
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -258,7 +265,7 @@ struct HomeView: View {
             Label(data.mood.isEmpty ? "Tonight…" : "Tonight: \(data.mood.joined(separator: ", "))", systemImage: "fork.knife")
         }
         .disabled(data.recipeService.refreshing)
-        if data.mood.isEmpty { button.buttonStyle(.glass) } else { button.buttonStyle(.glassProminent) }
+        if data.mood.isEmpty { button.buttonStyle(.glass) } else { button.prominentGlassButton() }
     }
 
     /// `mood` nil keeps tonight's picks; empty goes back to the usual mix.
@@ -287,7 +294,7 @@ struct HomeView: View {
             Text("Tap New list and pick a store to start").foregroundStyle(.secondary).padding(.horizontal, 20)
         }
         ForEach(data.activeLists) { list in
-            SwipeAction(label: "Close out", systemImage: "checkmark.circle", tint: .accentColor, action: { closingList = list }) {
+            SwipeAction(label: "Close out", systemImage: "checkmark.circle", tint: .accentColor, iconColor: .onAccent, action: { closingList = list }) {
                 listRow(list)
             }
         }

@@ -24,7 +24,7 @@ struct CuisineChips: View {
             .fixedSize()
         }
         .disabled(!isSelected && max.map { selected.count >= $0 } ?? false)
-        if isSelected { button.buttonStyle(.glassProminent) } else { button.buttonStyle(.glass) }
+        if isSelected { button.prominentGlassButton() } else { button.buttonStyle(.glass) }
     }
 }
 
@@ -43,7 +43,7 @@ struct CuisineSetupView: View {
                 Button { onDone(selected) } label: {
                     Text("Continue").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton()
                 .disabled(selected.isEmpty)
                 .padding(.top, 8)
                 Button("Skip for now") { onDone([]) }

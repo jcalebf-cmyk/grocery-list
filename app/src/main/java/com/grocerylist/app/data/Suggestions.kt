@@ -9,16 +9,19 @@ private const val MIN_TIMES_ADDED = 2
 /**
  * Ranks items the household adds often, favoring recent habits and the store this list is for.
  * An item added 10 times three weeks ago scores the same as one added 5 times today.
+ * Skips what's already on the list, and what's in My kitchen ([onHand] names), matched like recipe
+ * ingredients so "Chicken" in the kitchen also skips "Chicken breast".
  */
 fun suggestItems(
     stats: List<ItemStat>,
     storeId: String,
     alreadyOnList: Set<String>,
     now: Long,
+    onHand: Collection<String> = emptyList(),
     limit: Int = 12,
 ): List<ItemStat> =
     stats
-        .filter { it.count >= MIN_TIMES_ADDED && it.key !in alreadyOnList }
+        .filter { it.count >= MIN_TIMES_ADDED && it.key !in alreadyOnList && !isCoveredBy(it.displayName, onHand) }
         .map { stat ->
             val daysSince = ((now - stat.lastAdded) / DAY_MS).coerceAtLeast(0.0)
             val recency = 0.5.pow(daysSince / HALF_LIFE_DAYS)

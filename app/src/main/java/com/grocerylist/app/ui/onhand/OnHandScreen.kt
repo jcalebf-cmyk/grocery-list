@@ -55,7 +55,7 @@ class OnHandViewModel(householdId: String, private val uid: String) : ViewModel(
     fun remove(item: OnHandItem) = repo.removeOnHand(item)
 }
 
-/** "My kitchen": ingredients the household already has. Recipe ideas use them; shopping suggestions don't. */
+/** "My kitchen": ingredients the household already has. Recipe ideas use them; list suggestions skip them. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
@@ -81,7 +81,7 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
             item {
                 Text(
                     "Things you already have, like a stocked freezer or a ButcherBox delivery. " +
-                        "Recipes for you will put these to use first.",
+                        "Lists won't suggest them, and recipes for you put them to use first.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
                 )

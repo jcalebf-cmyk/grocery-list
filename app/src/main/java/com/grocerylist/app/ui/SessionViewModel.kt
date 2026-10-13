@@ -1,5 +1,7 @@
 package com.grocerylist.app.ui
 
+import com.grocerylist.app.ui.onboarding.Onboarding
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -46,7 +48,10 @@ class SessionViewModel : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Session.Loading)
 
-    fun signOut() = AppGraph.auth.signOut()
+    fun signOut() {
+        Onboarding.pending.value = null
+        AppGraph.auth.signOut()
+    }
 
     /**
      * Ready while the user is still in the household. Once they leave or are removed, security rules

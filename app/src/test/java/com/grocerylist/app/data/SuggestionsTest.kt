@@ -21,6 +21,13 @@ class SuggestionsTest {
         assertEquals(listOf("eggs"), result.map { it.key })
     }
 
+    @Test fun skipsItemsInTheKitchen() {
+        val stats = listOf(stat("Ground beef", 5, 0), stat("Chicken breast", 5, 0), stat("Rice vinegar", 5, 0), stat("Milk", 5, 0))
+        val result = suggestItems(stats, "s", emptySet(), now, onHand = listOf("ground beef", "Chicken", "Rice"))
+        // "Chicken" covers "Chicken breast", but "Rice" doesn't cover "Rice vinegar".
+        assertEquals(setOf("Rice vinegar", "Milk"), result.map { it.key }.toSet())
+    }
+
     @Test fun recentHabitsOutrankOldOnes() {
         val result = suggestItems(listOf(stat("old", 6, 60), stat("recent", 3, 1)), "s", emptySet(), now)
         assertEquals(listOf("recent", "old"), result.map { it.key })

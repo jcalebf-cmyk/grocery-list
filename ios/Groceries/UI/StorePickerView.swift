@@ -101,7 +101,7 @@ struct StorePickerView: View {
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton()
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)

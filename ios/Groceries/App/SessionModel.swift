@@ -11,12 +11,17 @@ enum Session: Equatable {
     case ready(UserProfile, householdId: String)
 }
 
+/// Set when someone starts or joins a household, so Home walks them through the app first.
+/// Kept in memory: if the app is closed partway, a new household still gets the cuisine picker.
+enum OnboardingStart { case created, joined }
+
 /// Follows Firebase Auth, the user's profile, and their household membership, the same way the
 /// Android app's SessionViewModel does.
 @MainActor
 @Observable
 final class SessionModel {
     private(set) var session: Session = .loading
+    var onboarding: OnboardingStart?
     private var authHandle: AuthStateDidChangeListenerHandle?
     private var watch: Task<Void, Never>?
 
@@ -30,7 +35,7 @@ final class SessionModel {
 
     private func follow(_ user: User?) {
         watch?.cancel()
-        guard let user else { session = .signedOut; return }
+        guard let user else { session = .signedOut; onboarding = nil; return }
         HouseholdService.ensureProfile(user)
         watch = Task {
             do {

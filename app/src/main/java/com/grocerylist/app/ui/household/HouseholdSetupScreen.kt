@@ -1,5 +1,14 @@
 package com.grocerylist.app.ui.household
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import com.grocerylist.app.ui.AppIcons
+import com.grocerylist.app.ui.onboarding.Onboarding
+import com.grocerylist.app.ui.onboarding.OnboardingStart
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,22 +47,24 @@ class HouseholdSetupViewModel : ViewModel() {
     val busy = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
 
-    fun create(uid: String, name: String) = run { AppGraph.households.createHousehold(uid, name) }
+    fun create(uid: String, name: String) = run(OnboardingStart.CREATED) { AppGraph.households.createHousehold(uid, name) }
 
-    fun join(uid: String, code: String) = run {
-        if (!AppGraph.households.joinHousehold(uid, code)) error.value = "No household uses that code."
+    fun join(uid: String, code: String) = run(OnboardingStart.JOINED) {
+        if (!AppGraph.households.joinHousehold(uid, code)) error.value = "No household uses that code. Check it and try again."
     }
 
-    // On success the session flow moves on to the home screen.
-    private fun run(block: suspend () -> Unit) {
+    // Marks onboarding first: on success the session moves straight on to Home, which shows the rest of it.
+    private fun run(start: OnboardingStart, block: suspend () -> Unit) {
         busy.value = true
         error.value = null
+        Onboarding.pending.value = start
         viewModelScope.launch {
             try {
                 block()
             } catch (e: Exception) {
                 error.value = e.localizedMessage ?: "Something went wrong. Try again."
             } finally {
+                if (error.value != null) Onboarding.pending.value = null
                 busy.value = false
             }
         }
@@ -80,9 +91,19 @@ fun HouseholdSetupScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Box(
+            Modifier
+                .padding(top = 24.dp)
+                .size(52.dp)
+                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(AppIcons.Group, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
         Text("Welcome, ${user.displayName}", style = MaterialTheme.typography.headlineMedium)
         Text(
-            "Lists are shared by everyone in a household. Start one, or join the one your family already uses.",
+            "Groceries keeps one shared list for your whole household, updated live as anyone adds or checks off " +
+                "items. Start a household, or join one with an invite code.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
@@ -93,7 +114,7 @@ fun HouseholdSetupScreen(
                     value = householdName,
                     onValueChange = { householdName = it },
                     label = { Text("Household name") },
-                    placeholder = { Text("e.g. The Smiths") },
+                    placeholder = { Text("The Smiths") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     modifier = Modifier.fillMaxWidth(),
@@ -108,7 +129,7 @@ fun HouseholdSetupScreen(
 
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Join a household", style = MaterialTheme.typography.titleMedium)
+                Text("Have an invite code?", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it.uppercase().take(6) },
@@ -121,7 +142,7 @@ fun HouseholdSetupScreen(
                     onClick = { viewModel.join(user.uid, code) },
                     enabled = !busy && code.length == 6,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Join") }
+                ) { Text("Join household") }
             }
         }
 

@@ -55,7 +55,7 @@ struct RecipeView: View {
                     Text(count == 1 ? "Add 1 item to a list" : "Add \(count) items to a list")
                         .font(.headline).frame(maxWidth: .infinity, minHeight: 36)
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton()
                 .disabled(count == 0)
                 .padding(.horizontal, 16).padding(.bottom, 8)
             }
@@ -149,7 +149,7 @@ struct KitchenView: View {
 
     var body: some View {
         List {
-            Text("Things you already have, like a stocked freezer or a ButcherBox delivery. Recipes for you will put these to use first.")
+            Text("Things you already have, like a stocked freezer or a ButcherBox delivery. Lists won't suggest them, and recipes for you put them to use first.")
                 .foregroundStyle(.secondary)
                 .listRowBackground(Color.clear)
             if !quickAdds.isEmpty {

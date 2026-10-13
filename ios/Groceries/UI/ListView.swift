@@ -15,7 +15,8 @@ struct ListView: View {
     }
     private var suggestions: [ItemStat] {
         guard let list, active else { return [] }
-        return suggestItems(data.stats, storeId: list.storeId, alreadyOnList: Set(items.map(\.key)), now: nowMillis())
+        return suggestItems(data.stats, storeId: list.storeId, alreadyOnList: Set(items.map(\.key)), now: nowMillis(),
+                            onHand: data.onHand.map(\.name))
     }
 
     var body: some View {

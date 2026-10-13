@@ -16,9 +16,12 @@ private let halfLifeDays = 21.0
 private let minTimesAdded: Int64 = 2
 
 /// Ranks items the household adds often, favoring recent habits and the store this list is for.
-func suggestItems(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64, limit: Int = 12) -> [ItemStat] {
+/// Skips what's already on the list, and what's in My kitchen (`onHand` names), matched like recipe
+/// ingredients so "Chicken" in the kitchen also skips "Chicken breast".
+func suggestItems(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64,
+                  onHand: [String] = [], limit: Int = 12) -> [ItemStat] {
     stats
-        .filter { $0.count >= minTimesAdded && !alreadyOnList.contains($0.key) }
+        .filter { $0.count >= minTimesAdded && !alreadyOnList.contains($0.key) && !isCoveredBy($0.displayName, onHand: onHand) }
         .map { stat -> (ItemStat, Double) in
             let daysSince = max(0, Double(now - stat.lastAdded) / dayMs)
             let recency = pow(0.5, daysSince / halfLifeDays)

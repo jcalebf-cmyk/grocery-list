@@ -118,7 +118,7 @@ struct SignInView: View {
                 Button(action: submit) {
                     Text(creatingAccount ? "Create account" : "Sign in").fontWeight(.semibold).frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(.glassProminent)
+                .prominentGlassButton()
                 .disabled(!canSubmit)
 
                 Button(creatingAccount ? "I already have an account" : "New here? Create an account") {
@@ -244,9 +244,11 @@ struct SignInView: View {
     }
 }
 
-/// Start a household or join one with an invite code.
+/// Start a household or join one with an invite code: the first onboarding step. The rest
+/// (OnboardingView) follows on Home once the household is set.
 struct HouseholdSetupView: View {
     let user: UserProfile
+    @Environment(SessionModel.self) private var session
     @State private var householdName = ""
     @State private var code = ""
     @State private var busy = false
@@ -255,25 +257,36 @@ struct HouseholdSetupView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                Image(systemName: "person.2.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 52, height: 52)
+                    .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityHidden(true)
+                    .padding(.top, 24)
                 Text("Welcome, \(user.displayName)").font(.brand(30))
-                Text("Lists are shared by everyone in a household. Start one, or join the one your family already uses.")
+                Text("Groceries keeps one shared list for your whole household, updated live as anyone adds or checks off items. Start a household, or join one with an invite code.")
                     .foregroundStyle(.secondary)
 
                 card(title: "Start a household") {
-                    TextField("Household name, e.g. The Smiths", text: $householdName).textInputAutocapitalization(.words)
+                    TextField("Household name, like The Smiths", text: $householdName).textInputAutocapitalization(.words)
                         .padding(12).background(Color.warmBackground, in: RoundedRectangle(cornerRadius: 12))
-                    Button("Create household") { run { try await HouseholdService.createHousehold(uid: user.id, name: householdName) } }
-                        .buttonStyle(.glassProminent).disabled(busy || householdName.trimmed.isEmpty)
+                    Button { run(.created) { try await HouseholdService.createHousehold(uid: user.id, name: householdName) } } label: {
+                        Text("Create household").frame(maxWidth: .infinity)
+                    }
+                    .prominentGlassButton().disabled(busy || householdName.trimmed.isEmpty)
                 }
-                card(title: "Join a household") {
-                    TextField("6-character invite code", text: $code)
+                card(title: "Have an invite code?") {
+                    TextField("6-character code", text: $code)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                         .onChange(of: code) { code = String(code.uppercased().prefix(6)) }
                         .padding(12).background(Color.warmBackground, in: RoundedRectangle(cornerRadius: 12))
-                    Button("Join") {
-                        run { if try await !HouseholdService.joinHousehold(uid: user.id, code: code) { error = "No household uses that code." } }
+                    Button {
+                        run(.joined) { if try await !HouseholdService.joinHousehold(uid: user.id, code: code) { error = "No household uses that code. Check it and try again." } }
+                    } label: {
+                        Text("Join household").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.glassProminent).disabled(busy || code.count != 6)
+                    .prominentGlassButton().disabled(busy || code.count != 6)
                 }
                 if let error { Text(error).foregroundStyle(.red) }
                 Button("Sign out") { AuthService.signOut() }.frame(maxWidth: .infinity)
@@ -293,11 +306,15 @@ struct HouseholdSetupView: View {
         .background(Color.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
-    private func run(_ work: @escaping () async throws -> Void) {
+    /// Marks onboarding first: once the household is set, the session moves straight on to Home, which
+    /// shows the rest of the walkthrough.
+    private func run(_ start: OnboardingStart, _ work: @escaping () async throws -> Void) {
         busy = true
         error = nil
+        session.onboarding = start
         Task {
             do { try await work() } catch { self.error = error.localizedDescription }
+            if error != nil { session.onboarding = nil }
             busy = false
         }
     }

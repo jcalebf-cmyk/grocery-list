@@ -1,5 +1,8 @@
 package com.grocerylist.app.ui.home
 
+import com.grocerylist.app.ui.onboarding.Onboarding
+import com.grocerylist.app.ui.onboarding.OnboardingScreen
+
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import com.grocerylist.app.ui.sharedElement
@@ -122,6 +125,13 @@ fun HomeScreen(
     }
     LaunchedEffect(Unit) { viewModel.userMessages.collect { snackbar.showSnackbar(it) } }
 
+    // New members get the walkthrough. Otherwise a household that hasn't picked cuisines yet (say the app
+    // closed partway through) gets just that step.
+    val onboarding by Onboarding.pending.collectAsStateWithLifecycle()
+    onboarding?.let { start ->
+        OnboardingScreen(session, start, onDone = { Onboarding.pending.value = null })
+        return
+    }
     if (state.needsCuisines) {
         CuisineSetupScreen(onDone = viewModel::saveCuisines)
         return

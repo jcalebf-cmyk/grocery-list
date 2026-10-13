@@ -14,6 +14,33 @@ extension Color {
     static let citrusContainer = Color("CitrusContainer")
     static let warmBackground = Color("WarmBackground")
     static let card = Color("Card")
+    /// Text and icons on the accent green: white on the dark green of light mode, dark green on the light
+    /// green of dark mode (white there is hard to read). Matches Android's onPrimary.
+    static let onAccent = Color("OnAccent")
+    /// Text on citrus: dark brown in both modes (white on orange is hard to read).
+    static let onCitrus = Color("OnCitrus")
+}
+
+extension View {
+    /// The filled button (green unless tinted), with text that stays readable in dark mode. Pass
+    /// `.onCitrus` for a citrus-tinted one.
+    func prominentGlassButton(foreground: Color = .onAccent) -> some View {
+        modifier(ProminentGlassButton(foreground: foreground))
+    }
+}
+
+private struct ProminentGlassButton: ViewModifier {
+    let foreground: Color
+    @Environment(\.isEnabled) private var isEnabled
+
+    func body(content: Content) -> some View {
+        // Disabled buttons keep the system's grey text; green on their grey fill would be hard to read.
+        if isEnabled {
+            content.buttonStyle(.glassProminent).foregroundStyle(foreground)
+        } else {
+            content.buttonStyle(.glassProminent)
+        }
+    }
 }
 
 /// A colored initial for a household member. Each name always gets the same color.
@@ -143,7 +170,7 @@ struct AddItemBar: View {
             Button(action: submit) {
                 Image(systemName: "plus").font(.body.weight(.semibold)).frame(width: 22, height: 22)
             }
-            .buttonStyle(.glassProminent)
+            .prominentGlassButton()
             .buttonBorderShape(.circle)
             .disabled(text.trimmed.isEmpty)
             .padding(.vertical, 6)
