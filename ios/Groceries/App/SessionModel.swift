@@ -39,10 +39,10 @@ final class SessionModel {
         HouseholdService.ensureProfile(user)
         watch = Task {
             do {
-                for try await profile in HouseholdService.profile(user.uid) {
+                for try await (profile, saving) in HouseholdService.profileSaving(user.uid) {
                     guard let profile else { continue }
                     guard let householdId = profile.householdId else { session = .needsHousehold(profile); continue }
-                    await followMembership(profile, householdId)
+                    await followMembership(profile, householdId, saving: saving)
                 }
             } catch {
                 session = .signedOut
@@ -52,17 +52,22 @@ final class SessionModel {
 
     /// Ready while still a member. Once removed (or after leaving), security rules deny reading the
     /// household, so the user is sent to setup and the stale link is cleared.
-    private func followMembership(_ profile: UserProfile, _ householdId: String) async {
+    /// `saving`: the profile's household link isn't on the server yet (they're joining right now).
+    private func followMembership(_ profile: UserProfile, _ householdId: String, saving: Bool) async {
         do {
-            for try await household in HouseholdService.household(householdId) {
+            // Waits for the server: Home's listeners start on ready, and any the server refuses stop for good.
+            for try await household in HouseholdService.confirmedHousehold(householdId) {
                 if let household, household.memberIds.contains(profile.id) {
-                    session = .ready(profile, householdId: householdId)
+                    let ready = Session.ready(profile, householdId: householdId)
+                    if session != ready { session = ready }
                 } else {
                     leaveToSetup(profile)
                     return
                 }
             }
         } catch let error as NSError where error.domain == FirestoreErrorDomain && error.code == FirestoreErrorCode.permissionDenied.rawValue {
+            // Asked before the join was saved. The profile updates once it is, which tries again.
+            if saving { return }
             leaveToSetup(profile)
         } catch {}
     }

@@ -33,14 +33,14 @@ class SessionViewModel : ViewModel() {
             if (user == null) {
                 flowOf(Session.SignedOut)
             } else {
-                AppGraph.households.observeProfile(user.uid)
+                AppGraph.households.observeProfileSaving(user.uid)
                     .onStart { AppGraph.households.ensureProfile(user) }
-                    .flatMapLatest { profile ->
+                    .flatMapLatest { (profile, saving) ->
                         val householdId = profile?.householdId
                         when {
                             profile == null -> flowOf(Session.Loading)
                             householdId == null -> flowOf(Session.NeedsHousehold(profile))
-                            else -> membership(profile, householdId)
+                            else -> membership(profile, householdId, saving)
                         }
                     }
                     .catch { emit(Session.Failed(it.localizedMessage ?: "Couldn't load your account")) }
@@ -56,14 +56,23 @@ class SessionViewModel : ViewModel() {
     /**
      * Ready while the user is still in the household. Once they leave or are removed, security rules
      * stop them reading it, so they're sent to household setup and the stale link is cleared.
+     * [saving]: the profile's household link isn't on the server yet (they're joining right now).
      */
-    private fun membership(profile: UserProfile, householdId: String): Flow<Session> =
-        AppGraph.households.observeHousehold(householdId)
+    private fun membership(profile: UserProfile, householdId: String, saving: Boolean): Flow<Session> =
+        // Waits for the server: Home's listeners start on Ready, and any the server refuses stop for good.
+        AppGraph.households.observeConfirmedHousehold(householdId)
             .map { household -> household?.takeIf { profile.uid in it.memberIds } }
             .catch { e ->
-                // Only "permission denied" means you're out; any other error surfaces as a failure instead.
-                if (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) emit(null)
-                else throw e
+                // Listener errors arrive wrapped in a cancellation. Only "permission denied" means you're
+                // out; any other error surfaces as a failure instead.
+                val denied = (e as? FirebaseFirestoreException ?: e.cause as? FirebaseFirestoreException)
+                    ?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                when {
+                    // Asked before the join was saved. The profile updates once it is, which starts this again.
+                    denied && saving -> {}
+                    denied -> emit(null)
+                    else -> throw e
+                }
             }
             .map { household ->
                 if (household != null) {

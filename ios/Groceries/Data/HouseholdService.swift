@@ -8,8 +8,15 @@ enum HouseholdService {
     private static var households: CollectionReference { db.collection("households") }
     private static var inviteCodes: CollectionReference { db.collection("inviteCodes") }
 
-    static func profile(_ uid: String) -> AsyncThrowingStream<UserProfile?, Error> { users.document(uid).stream(UserProfile.self) }
+    static func profileSaving(_ uid: String) -> AsyncThrowingStream<(value: UserProfile?, saving: Bool), Error> {
+        users.document(uid).streamSaving(UserProfile.self)
+    }
     static func household(_ id: String) -> AsyncThrowingStream<Household?, Error> { households.document(id).stream(Household.self) }
+    /// Only the server's copy. A household created on this phone is in its cache straight away, but
+    /// security rules deny reading its lists and kitchen until the server has saved it.
+    static func confirmedHousehold(_ id: String) -> AsyncThrowingStream<Household?, Error> {
+        households.document(id).stream(Household.self, confirmedOnly: true)
+    }
 
     static func members(_ ids: [String]) async -> [UserProfile] {
         var result: [UserProfile] = []

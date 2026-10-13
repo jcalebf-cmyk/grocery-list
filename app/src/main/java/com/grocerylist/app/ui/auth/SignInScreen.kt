@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -55,6 +56,7 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var resetEmail by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -190,7 +192,14 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
         Button(onClick = viewModel::submit, enabled = state.canSubmit, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.creatingAccount) "Create account" else "Sign in")
         }
-        TextButton(onClick = viewModel::toggleMode, enabled = !state.busy) {
+        TextButton(
+            onClick = {
+                // Fields move when the form changes, so leave none focused rather than the one typed in last.
+                focusManager.clearFocus()
+                viewModel.toggleMode()
+            },
+            enabled = !state.busy,
+        ) {
             Text(if (state.creatingAccount) "I already have an account" else "New here? Create an account")
         }
     }

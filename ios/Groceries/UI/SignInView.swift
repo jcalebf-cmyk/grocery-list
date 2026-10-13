@@ -122,6 +122,8 @@ struct SignInView: View {
                 .disabled(!canSubmit)
 
                 Button(creatingAccount ? "I already have an account" : "New here? Create an account") {
+                    // Fields move when the form changes, so leave none focused rather than the one typed in last.
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     creatingAccount.toggle()
                     confirmPassword = ""
                     submittedMismatch = false

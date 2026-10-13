@@ -3,11 +3,14 @@ package com.grocerylist.app.data
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -21,8 +24,24 @@ class HouseholdRepository {
     fun observeProfile(uid: String): Flow<UserProfile?> =
         users.document(uid).snapshots().map { it.toObject(UserProfile::class.java) }
 
+    /** The user's profile, and whether it has changes from this phone the server hasn't saved yet. */
+    fun observeProfileSaving(uid: String): Flow<Pair<UserProfile?, Boolean>> =
+        users.document(uid).snapshots(MetadataChanges.INCLUDE)
+            .map { it.toObject(UserProfile::class.java) to it.metadata.hasPendingWrites() }
+            .distinctUntilChanged()
+
     fun observeHousehold(id: String): Flow<Household?> =
         households.document(id).snapshots().map { it.toObject(Household::class.java) }
+
+    /**
+     * Only the server's copy. A household created on this phone is in its cache straight away, but
+     * security rules deny reading its lists and kitchen until the server has saved it.
+     */
+    fun observeConfirmedHousehold(id: String): Flow<Household?> =
+        households.document(id).snapshots(MetadataChanges.INCLUDE)
+            .filter { !it.metadata.hasPendingWrites() }
+            .map { it.toObject(Household::class.java) }
+            .distinctUntilChanged()
 
     // Fetched one by one rather than queried, so security rules can check each profile directly.
     fun observeMembers(memberIds: List<String>): Flow<List<UserProfile>> =
