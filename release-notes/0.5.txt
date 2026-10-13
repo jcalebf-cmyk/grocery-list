@@ -1,0 +1,8 @@
+Groceries 0.5
+
+WHAT'S NEW
+• Swipe to close out: on the home screen, swipe a shopping list to the left to close it out and move it to Past lists. You'll be asked to confirm first.
+• Simpler close-out: "Finish & close out" now just asks you to confirm. Anything you didn't check off stays on the closed list, and you can reopen it anytime.
+• New-look emails: the email to confirm your address and the password reset email have a fresh design, and their links open a new Groceries page where you confirm your email or choose a new password.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
