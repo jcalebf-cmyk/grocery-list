@@ -32,8 +32,10 @@ Run from `ios/`. Prefix every Xcode command with `DEVELOPER_DIR=/Applications/Xc
    "Upload Symbols Failed" warnings for Firebase's prebuilt frameworks (grpc, absl, openssl_grpc,
    FirebaseFirestoreInternal) are expected and harmless.
 
-6. **Write tester notes** in `release-notes/ios-X.Y.txt` (same style as the Android notes: plain text,
-   user-facing, ending with "Found a bug or have an idea? Let Josh know – a screenshot helps a lot.").
+6. **Write tester notes** in `release-notes/ios-X.Y.txt` in the same format as the Android notes (see
+   `release-android` step 4): plain text, user-facing bullets under `ADDED`, `CHANGED` and `FIXED`, in that
+   order, leaving out empty sections, ending with "Found a bug or have an idea? Let Josh know – a screenshot
+   helps a lot." The same file becomes TestFlight's What to Test and the GitHub pre-release notes.
 
 7. **Finish in TestFlight** (Josh wants this automatic, not pasted): from the repo root, run in the background
    `node .claude/skills/release-ios/testflight.mjs X.Y N release-notes/ios-X.Y.txt`. Using the key in

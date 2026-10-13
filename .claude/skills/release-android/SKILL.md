@@ -20,9 +20,24 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
 
 4. **Stage the files for Josh:**
    - Copy the APK to `../GroceryList-releases/Groceries-X.Y.apk`.
-   - Write `release-notes/X.Y.txt` for testers: plain text (App Tester doesn't render Markdown), "WHAT'S NEW"
-     bullets in user terms, no implementation details, ending with
-     "Found a bug or have an idea? Let Josh know – a screenshot helps a lot."
+   - Write `release-notes/X.Y.txt` for testers: plain text (App Tester doesn't render Markdown), bullets in
+     user terms, no implementation details. Group the bullets under `ADDED` (new features), `CHANGED` (existing
+     behavior that works differently) and `FIXED` (bugs), in that order, leaving out any section with nothing in
+     it. This one file is what Firebase, GitHub and TestFlight all show, so the sections carry across. Format:
+     ```
+     Groceries X.Y
+
+     ADDED
+     • Short name: what the tester can now do.
+
+     CHANGED
+     • …
+
+     FIXED
+     • …
+
+     Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
+     ```
    - Copy the notes to `../GroceryList-releases/release-notes-X.Y.txt` and to the clipboard (`LANG=en_US.UTF-8 pbcopy`, or bullets and dashes come out garbled).
    - Reveal the APK in Finder (`open -R`).
 

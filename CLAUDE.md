@@ -16,7 +16,8 @@ owns it; testers are friends and family.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
   Rules); after changing them, copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy < firestore.rules`) and also paste the full
   text in chat.
-- `release-notes/X.Y.txt` / `ios-X.Y.txt` – tester-facing notes per release.
+- `release-notes/X.Y.txt` / `ios-X.Y.txt` – tester-facing notes per release, under ADDED / CHANGED / FIXED
+  (empty sections left out; from 0.8 on). One file feeds Firebase, TestFlight and GitHub.
 
 ## Keep the platforms in step
 
