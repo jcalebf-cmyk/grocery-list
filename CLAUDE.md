@@ -11,11 +11,12 @@ owns it; testers are friends and family.
 - `ios/` – iPhone app, SwiftUI, iOS 26+ (Liquid Glass). Bundle ID **`com.householdgroceries.app`**
   (`com.grocerylist.app` was taken on the App Store; Josh doesn't want their name in the ID). Android keeps
   `com.grocerylist.app`. Project generated from `ios/project.yml` by XcodeGen; `Groceries.xcodeproj` isn't committed.
-- `server/` – Vercel functions (TypeScript): `/api/recipes`, `/api/stores`, `/api/health`.
+- `server/` – Vercel functions (TypeScript): `/api/recipes`, `/api/stores`, `/api/send-verification`,
+  `/api/send-password-reset`, `/api/health`; `public/account.html` is the page email links open.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
   Rules); after changing them, copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy < firestore.rules`) and also paste the full
   text in chat.
-- `release-notes/X.Y.txt` – tester-facing notes per Android release.
+- `release-notes/X.Y.txt` / `ios-X.Y.txt` – tester-facing notes per release.
 
 ## Keep the platforms in step
 
@@ -23,13 +24,13 @@ Android and iOS mirror each other: same Firestore documents and field names (tim
 millis as Int64/Long), same rules, same logic (suggestion ranking, kitchen quick adds, "stores in use",
 ingredient matching, store brand logos). When changing behavior on one, change the other, or say why not.
 Android files to iOS files: `Suggestions.kt`/`IngredientMatch.kt`/`StoreBrands.kt` → `ios/Groceries/Data/Logic.swift`;
-repositories → `*Service.swift`; `AccountDeletion` exists in both.
+repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both.
 
 ## Backend facts
 
 - Firebase project `grocery-list-d5a77` (Auth: email, Google, Apple-on-iOS-only; Firestore). Email
   enumeration protection is on. Password reset must never reveal whether an email has an account (Josh's call);
-  email confirmation is optional (a Settings row with Resend, never a sign-up blocker). Firebase hosts the email links.
+  email confirmation is optional (a Settings row with Resend, never a sign-up blocker).
   Config files `app/google-services.json` and `ios/Groceries/App/GoogleService-Info.plist` are git-ignored.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
   `itemStats`, `onHand`, `recipes/current`, `recipes/preferences`; `inviteCodes/{code}`.
@@ -42,6 +43,14 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   Endpoints require a Firebase ID token and have
   per-user daily limits (stores 20, recipes 8) in Vercel Runtime Cache.
 - Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down.
+- Auth emails (confirmation, password reset) come from the server, not Firebase: Firebase Admin makes the link,
+  Resend sends it (designs in `server/lib/emailTemplates.ts`), and the link opens `householdgroceries.app/account`.
+  Reset needs no sign-in and always answers ok immediately (limits: 5/day per address, 20/day per network).
+  Extra env vars: `RESEND_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`. `firebase-admin` is pinned to 13.x: 14.x pulls
+  in an ESM-only `jose` that Vercel's runtime can't `require`.
+- Domain `householdgroceries.app` (bought in Vercel, jcalebf-cmyk; DNS in Vercel): Resend records, ImprovMX
+  forwards `hello@` to Josh's Gmail, DMARC `p=none`. The bare domain redirects to `www` (Vercel default).
+- The Vercel MCP connector is signed into a different account; use the `vercel` CLI (linked at the repo root).
 
 ## How to build and ship
 
@@ -64,6 +73,9 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
   signing profile until one device exists). Xcode is signed into Josh's Apple account, so
   `-allowProvisioningUpdates` handles certificates and profiles.
   Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme.
+- **Checking signed-in screens without an account:** temporarily swap `RootView()` (iOS) or `GroceryApp()`
+  (Android) for a debug-only view with sample data, check it, then delete it before committing.
+- Firebase App Distribution always serves the APK as `app.apk`; the file can't be renamed for testers.
 
 ## Working with Josh
 
@@ -72,17 +84,27 @@ repositories → `*Service.swift`; `AccountDeletion` exists in both.
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
+- Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
+  active lists and deletes past ones, each after a confirmation; items in My kitchen are never suggested on lists;
+  one show/hide toggle covers both password fields.
+- iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
+  Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
 ## Status (Oct 12, 2026)
 
-- **Android:** 0.4 (code 4) is the latest release, on Firebase App Distribution and tagged `v0.4`
+- **Android:** 0.6 (code 6) is the latest release, on Firebase App Distribution and tagged `v0.6`
   (no tester groups yet; it goes to every tester individually).
-- **iPhone:** 0.4 (build 3) is in TestFlight (internal group, automatic distribution on), tagged `ios-v0.4`.
-  Version numbers match across platforms (Josh's call). The next upload must be build 4.
-- 0.4 = "Forgot password?", optional email confirmation, stricter ingredient matching. The confirmation
-  email and Settings row haven't been checked with a real account yet.
-- TestFlight "What to Test" is now set by `release-ios` through the App Store Connect API (key in
-  `../GroceryList-signing/`). Reading works; the write step gets its first real run on build 4.
+- **iPhone:** 0.6 (build 5) is in TestFlight (internal group, automatic distribution on), tagged `ios-v0.6`;
+  `release-ios` sets "What to Test" and sends each build to external groups + Beta App Review automatically. Version numbers match across platforms (Josh's call).
+  The next upload must be build 6.
+- 0.5 = branded emails and link page, simpler close-out, swipe to close out. 0.6 = onboarding walkthrough,
+  kitchen items skipped in suggestions, version in Settings, readable iOS buttons.
+- Not yet tried with a real account: the onboarding flow, kitchen items dropping out of list suggestions,
+  swipes on real lists, and the confirmation email sent from the app.
+- Waiting on Josh: set the app name to "Groceries" in Google Auth Platform → Branding (Google sign-in still
+  shows "project-566834645408") and Firebase → Project settings → Public-facing name. Optional: make the bare
+  domain primary instead of `www`; point Firebase's email templates' action URL at `householdgroceries.app/account`
+  so emails sent by older app versions open the new page.
 - "Clear checked items" removes checked items from the list; Josh wants it kept as is (name and trash icon).
 - Optional cleanups Josh may do: delete the unused `com.grocerylist.app` iOS app in Firebase (keep the
   Android app), and remove `com.joshfranzen.groceries` from Apple Identifiers if it was registered.
