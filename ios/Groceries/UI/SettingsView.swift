@@ -20,6 +20,12 @@ struct SettingsView: View {
     private var shared: Bool { data.members.count > 1 }
     private var others: [UserProfile] { data.members.filter { $0.id != data.user.id } }
 
+    /// e.g. "0.5 (4)": the version testers see, and the TestFlight build number.
+    static let appVersion: String = {
+        let info = Bundle.main.infoDictionary
+        return "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
+    }()
+
     var body: some View {
         Form {
             Section("Account") {
@@ -108,12 +114,16 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Recipes") {
+            Section {
                 Button { editingCuisines = true } label: {
                     LabeledContent("Favorite cuisines") {
                         Text(data.cuisinePrefs.map { $0.cuisines.isEmpty ? "Any" : $0.cuisines.joined(separator: ", ") } ?? "")
                     }
                 }
+            } header: {
+                Text("Recipes")
+            } footer: {
+                Text("Version \(Self.appVersion)").frame(maxWidth: .infinity).padding(.top, 24)
             }
         }
         .scrollContentBackground(.hidden)

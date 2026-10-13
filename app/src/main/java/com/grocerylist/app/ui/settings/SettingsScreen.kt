@@ -73,6 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.AppGraph
+import com.grocerylist.app.BuildConfig
 import com.grocerylist.app.data.Household
 import com.grocerylist.app.data.UserProfile
 import com.grocerylist.app.ui.MemberBadge
@@ -331,6 +332,15 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                     subtitle = cuisines?.cuisines?.joinToString(", ")?.ifEmpty { "Any" },
                     trailing = { Icon(Icons.Default.Edit, contentDescription = "Change favorite cuisines") },
                     onClick = { editingCuisines = true },
+                )
+            }
+            item {
+                Text(
+                    "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                 )
             }
         }
