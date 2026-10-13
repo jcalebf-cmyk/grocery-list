@@ -15,10 +15,17 @@ class ServerException(val status: Int, message: String) : Exception(message) {
     val isRateLimited get() = status == 429
 }
 
-/** Calls the Vercel server, which only accepts requests carrying the signed-in user's Firebase ID token. */
+/**
+ * Calls the Vercel server. Requests carry the signed-in user's Firebase ID token; only the password reset
+ * email (sent while signed out) goes without one.
+ */
 object ServerApi {
-    suspend fun post(path: String, body: JSONObject, readTimeoutMs: Int = 30_000): JSONObject {
-        val token = Firebase.auth.currentUser?.getIdToken(false)?.await()?.token ?: error("Not signed in")
+    suspend fun post(path: String, body: JSONObject, readTimeoutMs: Int = 30_000, signedIn: Boolean = true): JSONObject {
+        val token = if (signedIn) {
+            Firebase.auth.currentUser?.getIdToken(false)?.await()?.token ?: error("Not signed in")
+        } else {
+            null
+        }
         return withContext(Dispatchers.IO) {
             val conn = URL("${BuildConfig.RECIPES_API_URL}$path").openConnection() as HttpURLConnection
             try {
@@ -27,7 +34,7 @@ object ServerApi {
                 conn.readTimeout = readTimeoutMs
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
-                conn.setRequestProperty("Authorization", "Bearer $token")
+                if (token != null) conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.outputStream.use { it.write(body.toString().toByteArray()) }
                 if (conn.responseCode != 200) {
                     throw ServerException(

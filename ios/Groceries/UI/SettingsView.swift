@@ -46,7 +46,7 @@ struct SettingsView: View {
                         Button(confirmationSent ? "Sent" : "Resend") {
                             Task {
                                 do {
-                                    try await AuthService.resendEmailConfirmation()
+                                    try await AuthService.sendEmailConfirmation()
                                     confirmationSent = true
                                 } catch {
                                     self.error = "Couldn't send the email. Try again in a few minutes."

@@ -23,11 +23,13 @@ enum AuthService {
         // The profile doc is first written before the name is set, so write it again with the name.
         HouseholdService.ensureProfile(result.user)
         // Confirming is optional, so a failed send mustn't fail sign-up; Settings offers to resend.
-        try? await result.user.sendEmailVerification()
+        try? await sendEmailConfirmation()
     }
 
+    /// Our server sends the email (Firebase's own can't be redesigned). It answers the same whether or not
+    /// the address has an account, so the app never reveals who does.
     static func sendPasswordReset(email: String) async throws {
-        try await auth.sendPasswordReset(withEmail: email.trimmed)
+        let _: ServerOK = try await ServerAPI.post("/api/send-password-reset", body: ["email": email.trimmed], signedIn: false)
     }
 
     /// True if the account signs in with a password and hasn't confirmed its email yet. Refreshes from
@@ -38,8 +40,9 @@ enum AuthService {
         return auth.currentUser?.isEmailVerified == false
     }
 
-    static func resendEmailConfirmation() async throws {
-        try await auth.currentUser?.sendEmailVerification()
+    /// Our server sends the email, so it can carry the app's design (Firebase's own can't be changed).
+    static func sendEmailConfirmation() async throws {
+        let _: ServerOK = try await ServerAPI.post("/api/send-verification", body: [String: String]())
     }
 
     // MARK: Google

@@ -10,6 +10,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
 
 class AuthRepository {
     private val auth = Firebase.auth
@@ -28,12 +29,16 @@ class AuthRepository {
         val user = auth.createUserWithEmailAndPassword(email.trim(), password).await().user ?: return null
         user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(name.trim()).build()).await()
         // Confirming is optional, so a failed send mustn't fail sign-up; Settings offers to resend.
-        runCatching { user.sendEmailVerification().await() }
+        runCatching { sendEmailConfirmation() }
         return user
     }
 
+    /**
+     * Our server sends the email (Firebase's own can't be redesigned). It answers the same whether or not
+     * the address has an account, so the app never reveals who does.
+     */
     suspend fun sendPasswordReset(email: String) {
-        auth.sendPasswordResetEmail(email.trim()).await()
+        ServerApi.post("/api/send-password-reset", JSONObject().put("email", email.trim()), signedIn = false)
     }
 
     /**
@@ -46,8 +51,9 @@ class AuthRepository {
         return auth.currentUser?.isEmailVerified == false
     }
 
-    suspend fun resendEmailConfirmation() {
-        auth.currentUser?.sendEmailVerification()?.await()
+    /** Our server sends the email, so it can carry the app's design (Firebase's own can't be changed). */
+    suspend fun sendEmailConfirmation() {
+        ServerApi.post("/api/send-verification", JSONObject())
     }
 
     suspend fun signInWithGoogle(idToken: String) {

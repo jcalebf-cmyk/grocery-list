@@ -112,7 +112,7 @@ class SettingsViewModel(private val householdId: String, private val uid: String
     }
 
     fun resendEmailConfirmation() = run("Couldn't send the email. Try again in a few minutes.") {
-        AppGraph.auth.resendEmailConfirmation()
+        AppGraph.auth.sendEmailConfirmation()
         confirmationSent.value = true
     }
 

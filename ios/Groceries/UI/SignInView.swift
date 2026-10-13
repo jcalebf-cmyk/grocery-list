@@ -171,10 +171,14 @@ struct SignInView: View {
             guard !address.isEmpty else { resetError = "Type your email to get a reset link."; return }
             do {
                 try await AuthService.sendPasswordReset(email: address)
-            } catch where [17008, 17011].contains((error as NSError).code) {
-                // Malformed or unknown emails get the same answer, so the app never reveals who has an account.
+            } catch let error as ServerError where error.isRateLimited {
+                resetError = "That's a lot of reset emails for one day. Try again tomorrow."
+                return
+            } catch is URLError {
+                resetError = "Couldn't connect. Check your internet and try again."
+                return
             } catch {
-                resetError = friendlyMessage(error)
+                resetError = "Couldn't send the email. Try again in a few minutes."
                 return
             }
             // Fill in the sign-in email too, ready for when they come back with a new password.

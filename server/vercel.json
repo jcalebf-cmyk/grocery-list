@@ -1,5 +1,8 @@
 {
+  "cleanUrls": true,
   "functions": {
-    "api/recipes.ts": { "maxDuration": 120 }
+    "api/recipes.ts": {
+      "maxDuration": 120
+    }
   }
 }

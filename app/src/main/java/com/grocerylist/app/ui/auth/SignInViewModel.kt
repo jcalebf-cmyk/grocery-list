@@ -8,10 +8,12 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.grocerylist.app.AppGraph
+import com.grocerylist.app.data.ServerException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 data class SignInState(
     val creatingAccount: Boolean = false,
@@ -69,11 +71,8 @@ class SignInViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 AppGraph.auth.sendPasswordReset(email)
-            } catch (_: FirebaseAuthInvalidCredentialsException) {
-                // Malformed or unknown emails get the same answer, so the app never reveals who has an account.
-            } catch (_: FirebaseAuthInvalidUserException) {
             } catch (e: Exception) {
-                _state.update { it.copy(resetSending = false, resetError = friendlyMessage(e)) }
+                _state.update { it.copy(resetSending = false, resetError = resetFailureMessage(e)) }
                 return@launch
             }
             // Fill in the sign-in email too, ready for when they come back with a new password.
@@ -116,6 +115,12 @@ class SignInViewModel : ViewModel() {
                 showError(e)
             }
         }
+    }
+
+    private fun resetFailureMessage(e: Throwable) = when {
+        e is ServerException && e.isRateLimited -> "That's a lot of reset emails for one day. Try again tomorrow."
+        e is IOException -> "Couldn't connect. Check your internet and try again."
+        else -> "Couldn't send the email. Try again in a few minutes."
     }
 
     private fun friendlyMessage(e: Throwable) = when (e) {
