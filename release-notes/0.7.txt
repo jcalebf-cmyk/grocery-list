@@ -1,0 +1,6 @@
+Groceries 0.7
+
+WHAT'S NEW
+• Recipes catch up faster: after you add ingredients to My kitchen during the welcome tour, recipe ideas for them show up right away instead of still asking you to add ingredients.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
