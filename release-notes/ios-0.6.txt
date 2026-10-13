@@ -1,0 +1,9 @@
+Groceries 0.6
+
+WHAT'S NEW
+• A quick tour for new members: after you start or join a household, a few short screens show you how to invite your household, get recipe ideas, and add what's already in your kitchen.
+• Lists skip what you already have: anything in My kitchen, like a ButcherBox delivery, no longer shows up in list suggestions.
+• See your version: the app version is now at the bottom of Settings.
+• Easier-to-read buttons: text on the green and orange buttons is clearer, especially in dark mode.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
