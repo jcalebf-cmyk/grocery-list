@@ -1,0 +1,8 @@
+Groceries 0.8
+
+FIXED
+• Welcome tour: items you tap or type on the "Already have it at home?" step now show up right away after starting a new household.
+• Joining a household: joining with an invite code no longer sometimes sends you back to the setup screen.
+• Creating an account: tapping "New here? Create an account" no longer leaves the cursor in the email field.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
