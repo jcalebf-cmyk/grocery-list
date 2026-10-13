@@ -37,8 +37,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CheckboxDefaults
@@ -78,6 +76,7 @@ import com.grocerylist.app.ui.AddItemBar
 import com.grocerylist.app.ui.MemberBadge
 import com.grocerylist.app.ui.Session
 import com.grocerylist.app.ui.StoreLogo
+import com.grocerylist.app.ui.CloseOutListDialog
 import com.grocerylist.app.ui.DeleteListDialog
 import com.grocerylist.app.ui.AppIcons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -91,12 +90,6 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmingFinish by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
-    val uncheckedCount = state.items.count { !it.checked }
-    val finish = { carryOver: Boolean ->
-        confirmingFinish = false
-        viewModel.finishTrip(carryOver)
-        onBack()
-    }
 
     // The list scrolls under a frosted top bar and a floating glass add bar.
     val haze = rememberHazeState()
@@ -140,7 +133,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                                     leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
                                     onClick = {
                                         menuOpen = false
-                                        if (uncheckedCount > 0) confirmingFinish = true else finish(false)
+                                        confirmingFinish = true
                                     },
                                 )
                                 DropdownMenuItem(
@@ -180,20 +173,13 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
         bottomBar = { if (active) AddItemBar(onAdd = viewModel::add, hazeState = haze) },
     ) { padding ->
         if (confirmingFinish) {
-            AlertDialog(
-                onDismissRequest = { confirmingFinish = false },
-                title = { Text("Close out this list?") },
-                text = {
-                    Text(
-                        if (uncheckedCount == 1) "1 item wasn't checked off." else "$uncheckedCount items weren't checked off.",
-                    )
+            CloseOutListDialog(
+                onConfirm = {
+                    confirmingFinish = false
+                    viewModel.closeOut()
+                    onBack()
                 },
-                confirmButton = {
-                    TextButton(onClick = { finish(true) }) { Text("Move to a new list") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { finish(false) }) { Text("Drop them") }
-                },
+                onDismiss = { confirmingFinish = false },
             )
         }
         if (confirmingDelete) {

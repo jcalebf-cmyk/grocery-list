@@ -72,9 +72,5 @@ class ListViewModel(householdId: String, private val listId: String, private val
         }
     }
 
-    /** Closes out the trip; with [carryOver], unchecked items move to a new list for the same store. */
-    fun finishTrip(carryOver: Boolean) {
-        val list = state.value.list ?: return
-        repo.completeList(list, uid, if (carryOver) state.value.items.filterNot { it.checked } else emptyList())
-    }
+    fun closeOut() = repo.closeOut(listId)
 }

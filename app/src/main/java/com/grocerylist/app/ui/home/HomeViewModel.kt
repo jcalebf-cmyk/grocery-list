@@ -111,6 +111,8 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
 
     fun removeStore(store: Store) = repo.removeStore(store)
 
+    fun closeOut(list: GroceryList) = repo.closeOut(list.id)
+
     fun deleteList(list: GroceryList) {
         viewModelScope.launch {
             runCatching { repo.deleteList(list.id) }.onFailure { messages.send("Couldn't delete that list. Try again.") }

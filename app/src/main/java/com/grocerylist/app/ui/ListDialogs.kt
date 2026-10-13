@@ -19,3 +19,15 @@ fun DeleteListDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+/** Shared by the list's menu and swiping an active list on Home. */
+@Composable
+fun CloseOutListDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Close out this list?") },
+        text = { Text("It moves to Past lists. You can reopen it anytime.") },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Close out") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}

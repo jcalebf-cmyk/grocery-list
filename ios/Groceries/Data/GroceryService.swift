@@ -73,20 +73,9 @@ struct GroceryService {
     }
 
     /// Closes out a trip; [carryOver] items move to a fresh list for the same store.
-    func complete(_ list: GroceryList, uid: String, carryOver: [ListItem]) {
-        let now = nowMillis()
-        let batch = db.batch()
-        batch.updateData(["status": GroceryList.statusDone, "completedAt": now], forDocument: lists.document(list.id))
-        if !carryOver.isEmpty {
-            let next = lists.document()
-            batch.setData(["storeId": list.storeId, "storeName": list.storeName, "status": GroceryList.statusActive,
-                           "createdBy": uid, "createdAt": now], forDocument: next)
-            for item in carryOver {
-                batch.setData(["name": item.name, "key": item.key, "checked": false, "addedBy": item.addedBy, "createdAt": item.createdAt],
-                              forDocument: next.collection("items").document())
-            }
-        }
-        batch.commit()
+    /// Moves the list to Past lists. Unchecked items stay on it, and it can be reopened.
+    func closeOut(_ listId: String) {
+        lists.document(listId).updateData(["status": GroceryList.statusDone, "completedAt": nowMillis()])
     }
 
     /// Deletes a list and its items. Suggestions keep what the list taught them, so habits don't reset.

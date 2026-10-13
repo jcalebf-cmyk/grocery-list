@@ -76,6 +76,7 @@ struct HomeView: View {
     @State private var pickingStore = false
     @State private var choosingMood = false
     @State private var deletingList: GroceryList?
+    @State private var closingList: GroceryList?
     @State private var message: String?
     @Namespace private var zoom
 
@@ -160,6 +161,9 @@ struct HomeView: View {
             Task {
                 do { try await data.groceries.deleteList(list.id) } catch { show("Couldn't delete that list. Try again.") }
             }
+        }
+        .closeOutListAlert(isPresented: Binding(get: { closingList != nil }, set: { if !$0 { closingList = nil } })) {
+            if let list = closingList { data.groceries.closeOut(list.id) }
         }
         .sheet(isPresented: $choosingMood) {
             CuisineSheet(
@@ -282,11 +286,15 @@ struct HomeView: View {
         if data.activeLists.isEmpty {
             Text("Tap New list and pick a store to start").foregroundStyle(.secondary).padding(.horizontal, 20)
         }
-        ForEach(data.activeLists) { list in listRow(list) }
+        ForEach(data.activeLists) { list in
+            SwipeAction(label: "Close out", systemImage: "checkmark.circle", tint: .accentColor, action: { closingList = list }) {
+                listRow(list)
+            }
+        }
         if !data.pastLists.isEmpty {
             sectionTitle("Past lists")
             ForEach(data.pastLists) { list in
-                SwipeToDelete(onDelete: { deletingList = list }) { listRow(list) }
+                SwipeAction(label: "Delete", systemImage: "trash", tint: .red, action: { deletingList = list }) { listRow(list) }
             }
         }
     }

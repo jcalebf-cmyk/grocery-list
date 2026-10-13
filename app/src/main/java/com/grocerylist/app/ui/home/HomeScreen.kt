@@ -86,7 +86,11 @@ import com.grocerylist.app.data.MAX_MOOD_CUISINES
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import com.grocerylist.app.ui.CloseOutListDialog
 import com.grocerylist.app.ui.DeleteListDialog
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.SwipeToDismissBox
@@ -124,6 +128,7 @@ fun HomeScreen(
     }
     var choosingMood by rememberSaveable { mutableStateOf(false) }
     var deletingList by remember { mutableStateOf<GroceryList?>(null) }
+    var closingList by remember { mutableStateOf<GroceryList?>(null) }
 
     Scaffold(
         topBar = {
@@ -169,7 +174,15 @@ fun HomeScreen(
             }
             if (state.activeLists.isNotEmpty()) {
                 item { SectionHeader("Shopping lists") }
-                items(state.activeLists, key = { it.id }) { list -> ListRow(list) { onOpenList(list.id) } }
+                items(state.activeLists, key = { it.id }) { list ->
+                    SwipeAction(
+                        icon = Icons.Default.CheckCircle,
+                        label = "Close out",
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onSwipe = { closingList = list },
+                    ) { ListRow(list) { onOpenList(list.id) } }
+                }
             } else {
                 item {
                     Text(
@@ -182,7 +195,13 @@ fun HomeScreen(
             if (state.pastLists.isNotEmpty()) {
                 item { SectionHeader("Past lists") }
                 items(state.pastLists, key = { it.id }) { list ->
-                    SwipeToDelete(onDelete = { deletingList = list }) { ListRow(list) { onOpenList(list.id) } }
+                    SwipeAction(
+                        icon = Icons.Default.Delete,
+                        label = "Delete",
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        onSwipe = { deletingList = list },
+                    ) { ListRow(list) { onOpenList(list.id) } }
                 }
             }
         }
@@ -195,6 +214,16 @@ fun HomeScreen(
                 viewModel.deleteList(list)
             },
             onDismiss = { deletingList = null },
+        )
+    }
+
+    closingList?.let { list ->
+        CloseOutListDialog(
+            onConfirm = {
+                closingList = null
+                viewModel.closeOut(list)
+            },
+            onDismiss = { closingList = null },
         )
     }
 
@@ -253,13 +282,23 @@ private fun SectionHeader(text: String) {
     )
 }
 
-/** Swiping left asks to delete; the row springs back either way, and goes once the delete lands. */
+/**
+ * Swiping left asks to confirm [onSwipe] (delete, or close out); the row springs back either way, and
+ * moves once the change lands.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+private fun SwipeAction(
+    icon: ImageVector,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    onSwipe: () -> Unit,
+    content: @Composable () -> Unit,
+) {
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = {
-            if (it == SwipeToDismissBoxValue.EndToStart) onDelete()
+            if (it == SwipeToDismissBoxValue.EndToStart) onSwipe()
             false
         },
     )
@@ -272,11 +311,11 @@ private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit)
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .clip(MaterialTheme.shapes.large)
-                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .background(containerColor)
                     .padding(horizontal = 24.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onErrorContainer)
+                Icon(icon, contentDescription = label, tint = contentColor)
             }
         },
     ) { content() }

@@ -17,7 +17,6 @@ struct ListView: View {
         guard let list, active else { return [] }
         return suggestItems(data.stats, storeId: list.storeId, alreadyOnList: Set(items.map(\.key)), now: nowMillis())
     }
-    private var uncheckedCount: Int { items.filter { !$0.checked }.count }
 
     var body: some View {
         List {
@@ -73,9 +72,7 @@ struct ListView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if active {
-                        Button("Finish & close out", systemImage: "checkmark.circle") {
-                            if uncheckedCount > 0 { confirmingFinish = true } else { finish(carryOver: false) }
-                        }
+                        Button("Finish & close out", systemImage: "checkmark.circle") { confirmingFinish = true }
                         Button("Clear checked items", systemImage: "trash") { data.groceries.clearChecked(in: listId, items: items) }
                             .disabled(!items.contains(where: \.checked))
                     } else if list != nil {
@@ -92,12 +89,9 @@ struct ListView: View {
             Task { try? await groceries.deleteList(id) }
             dismiss()
         }
-        .alert("Close out this list?", isPresented: $confirmingFinish) {
-            Button("Move to a new list") { finish(carryOver: true) }
-            Button("Drop them", role: .destructive) { finish(carryOver: false) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(uncheckedCount == 1 ? "1 item wasn't checked off." : "\(uncheckedCount) items weren't checked off.")
+        .closeOutListAlert(isPresented: $confirmingFinish) {
+            data.groceries.closeOut(listId)
+            dismiss()
         }
         .safeAreaInset(edge: .bottom) {
             if active { AddItemBar(onAdd: add) }
@@ -111,11 +105,6 @@ struct ListView: View {
         data.groceries.addItem(to: list, name: name, uid: data.user.id)
     }
 
-    private func finish(carryOver: Bool) {
-        guard let list else { return }
-        data.groceries.complete(list, uid: data.user.id, carryOver: carryOver ? items.filter { !$0.checked } : [])
-        dismiss()
-    }
 }
 
 /// A list item: tap to check off (with a haptic and an animated strike-through).

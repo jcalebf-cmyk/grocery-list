@@ -122,31 +122,9 @@ class GroceryRepository(householdId: String) {
      * for the same store, whose ID is returned. They were counted toward suggestions when first added,
      * so they aren't counted again.
      */
-    fun completeList(list: GroceryList, uid: String, carryOver: List<ListItem> = emptyList()): String? {
-        val now = System.currentTimeMillis()
-        val next = if (carryOver.isNotEmpty()) lists.document() else null
-        Firebase.firestore.batch().apply {
-            update(lists.document(list.id), mapOf("status" to GroceryList.STATUS_DONE, "completedAt" to now))
-            if (next != null) {
-                set(
-                    next,
-                    mapOf(
-                        "storeId" to list.storeId,
-                        "storeName" to list.storeName,
-                        "status" to GroceryList.STATUS_ACTIVE,
-                        "createdBy" to uid,
-                        "createdAt" to now,
-                    ),
-                )
-                carryOver.forEach { item ->
-                    set(
-                        next.collection("items").document(),
-                        mapOf("name" to item.name, "key" to item.key, "checked" to false, "addedBy" to item.addedBy, "createdAt" to item.createdAt),
-                    )
-                }
-            }
-        }.commit()
-        return next?.id
+    /** Moves the list to Past lists. Unchecked items stay on it, and it can be reopened. */
+    fun closeOut(listId: String) {
+        lists.document(listId).update(mapOf("status" to GroceryList.STATUS_DONE, "completedAt" to System.currentTimeMillis()))
     }
 
     fun addItem(list: GroceryList, name: String, uid: String) {
