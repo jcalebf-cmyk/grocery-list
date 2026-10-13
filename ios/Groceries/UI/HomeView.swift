@@ -158,7 +158,10 @@ struct HomeView: View {
         // app closed partway through) gets just that step.
         .fullScreenCover(isPresented: .constant(session.onboarding != nil || data.needsCuisines)) {
             if let start = session.onboarding {
-                OnboardingView(data: data, start: start) { session.onboarding = nil }
+                OnboardingView(data: data, start: start) {
+                    session.onboarding = nil
+                    Task { await data.refreshRecipesIfStale() }
+                }
             } else {
                 CuisineSetupView { data.recipeService.savePreferences($0) }
             }

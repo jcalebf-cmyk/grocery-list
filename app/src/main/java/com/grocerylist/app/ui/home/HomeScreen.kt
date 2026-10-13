@@ -129,7 +129,7 @@ fun HomeScreen(
     // closed partway through) gets just that step.
     val onboarding by Onboarding.pending.collectAsStateWithLifecycle()
     onboarding?.let { start ->
-        OnboardingScreen(session, start, onDone = { Onboarding.pending.value = null })
+        OnboardingScreen(session, start, onDone = { Onboarding.pending.value = null; viewModel.onShown() })
         return
     }
     if (state.needsCuisines) {
