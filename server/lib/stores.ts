@@ -15,6 +15,9 @@ const GROCERY_DEPARTMENT_STORES = new Set(["target", "walmart", "walmart superce
 export interface NearbyStore {
   name: string;
   distanceMeters: number;
+  // So the app can re-measure distances while it reuses a saved lookup.
+  lat: number;
+  lng: number;
 }
 
 export async function findNearbyStores(lat: number, lng: number): Promise<NearbyStore[]> {
@@ -101,7 +104,9 @@ function closestPerChain(places: Place[], fromLat: number, fromLng: number): Nea
     const distanceMeters = Math.round(haversineMeters(fromLat, fromLng, p.lat, p.lng));
     const key = p.name.toLowerCase();
     const existing = closest.get(key);
-    if (!existing || distanceMeters < existing.distanceMeters) closest.set(key, { name: p.name, distanceMeters });
+    if (!existing || distanceMeters < existing.distanceMeters) {
+      closest.set(key, { name: p.name, distanceMeters, lat: p.lat, lng: p.lng });
+    }
   }
   return [...closest.values()].sort((a, b) => a.distanceMeters - b.distanceMeters).slice(0, MAX_STORES);
 }

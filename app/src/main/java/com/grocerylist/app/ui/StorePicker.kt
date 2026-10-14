@@ -97,8 +97,13 @@ fun StorePicker(
     var removing by remember { mutableStateOf<Store?>(null) }
     val location = rememberLocationPermissionState()
     // Ask the first time the picker opens, when the reason is obvious. If declined, the
-    // Near you section explains what location is for and how to turn it on.
-    LaunchedEffect(Unit) { if (!location.granted && !location.askedBefore) location.request() }
+    // Near you section explains what location is for and how to turn it on. People who allowed
+    // only approximate location before precise was offered are asked once more.
+    LaunchedEffect(Unit) {
+        val firstTime = !location.granted && !location.askedBefore
+        val offerPrecise = location.granted && !location.precise && !location.askedPrecise
+        if (firstTime || offerPrecise) location.request()
+    }
     val nearby = rememberNearbyStores(location.granted)
     val savedByName = stores.associateBy { it.name.lowercase() }
     val nearbyStores = (nearby as? NearbyState.Loaded)?.stores.orEmpty().take(NEARBY_SHOWN)
@@ -269,9 +274,9 @@ private fun LocationPrompt(needsSettings: Boolean, onAllow: () -> Unit, onOpenSe
             Text(
                 if (needsSettings) {
                     "Location is turned off for this app. Turn it on in Settings to see the 8 closest " +
-                        "grocery stores here. Only your approximate area is used."
+                        "grocery stores here and how far away they are."
                 } else {
-                    "Allow location to see the 8 closest grocery stores here. Only your approximate area is used."
+                    "Allow location to see the 8 closest grocery stores here and how far away they are."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

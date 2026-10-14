@@ -3,11 +3,15 @@ import Foundation
 
 struct NearbyStore: Codable, Hashable {
     let name: String
-    let distanceMeters: Int
+    var distanceMeters: Int
+    /// Missing only in results saved by app versions before 0.9.
+    var lat: Double?
+    var lng: Double?
 }
 
 /// Nearby grocery stores, saved on the phone so the paid Places lookup runs about once a week per
-/// area: results are reused until they're 7 days old or the user has moved more than ~1.5 km.
+/// area: results are reused until they're 7 days old or the user has moved more than ~1.5 km, with
+/// distances re-measured from where the user is now.
 @MainActor
 final class NearbyStores: NSObject, CLLocationManagerDelegate {
     static let shared = NearbyStores()
@@ -23,7 +27,7 @@ final class NearbyStores: NSObject, CLLocationManagerDelegate {
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
     var authorization: CLAuthorizationStatus { manager.authorizationStatus }
@@ -58,18 +62,30 @@ final class NearbyStores: NSObject, CLLocationManagerDelegate {
             if let previous { return previous.stores }
             throw CLError(.locationUnknown)
         }
-        // Two decimal places is about 1 km: enough to find stores, without sharing an exact position.
-        let lat = (location.coordinate.latitude * 100).rounded() / 100
-        let lng = (location.coordinate.longitude * 100).rounded() / 100
+        let lat = location.coordinate.latitude
+        let lng = location.coordinate.longitude
+        // Results saved before stores carried coordinates can't be re-measured, so they're looked up again.
         if let previous, Date().timeIntervalSince(previous.fetchedAt) < maxAge,
-           CLLocation(latitude: previous.lat, longitude: previous.lng).distance(from: CLLocation(latitude: lat, longitude: lng)) < reuseRadius {
-            return previous.stores
+           CLLocation(latitude: previous.lat, longitude: previous.lng).distance(from: location) < reuseRadius,
+           previous.stores.allSatisfy({ $0.lat != nil && $0.lng != nil }) {
+            return measured(previous.stores, from: location)
         }
         struct Request: Encodable { let lat: Double; let lng: Double }
         struct Response: Decodable { let stores: [NearbyStore] }
         let response: Response = try await ServerAPI.post("/api/stores", body: Request(lat: lat, lng: lng))
         save(Saved(lat: lat, lng: lng, fetchedAt: Date(), stores: response.stores))
         return response.stores
+    }
+
+    /// The stores with distances from `location`, closest first.
+    private func measured(_ stores: [NearbyStore], from location: CLLocation) -> [NearbyStore] {
+        stores.map { store in
+            guard let lat = store.lat, let lng = store.lng else { return store }
+            var s = store
+            s.distanceMeters = Int(location.distance(from: CLLocation(latitude: lat, longitude: lng)).rounded())
+            return s
+        }
+        .sorted { $0.distanceMeters < $1.distanceMeters }
     }
 
     /// Forgets saved lookups, e.g. when the account is deleted.

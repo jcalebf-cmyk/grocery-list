@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 private val PERMISSIONS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 private const val PREFS = "location_permission"
 private const val KEY_ASKED = "asked"
+private const val KEY_ASKED_PRECISE = "asked_precise"
 
 @Stable
 class LocationPermissionState internal constructor(
@@ -35,8 +36,19 @@ class LocationPermissionState internal constructor(
     var granted by mutableStateOf(isGranted())
         internal set
 
+    /** False when the user picked "Approximate". */
+    var precise by mutableStateOf(isPrecise())
+        internal set
+
     /** Whether the app has ever shown the system prompt (persisted, so it isn't shown again at every launch). */
     var askedBefore by mutableStateOf(prefs().getBoolean(KEY_ASKED, false))
+        private set
+
+    /**
+     * Whether the user has seen a prompt that offered precise location. Versions before 0.9 asked for
+     * approximate only, so testers who allowed that are asked once more.
+     */
+    var askedPrecise by mutableStateOf(prefs().getBoolean(KEY_ASKED_PRECISE, false))
         private set
 
     /**
@@ -46,8 +58,9 @@ class LocationPermissionState internal constructor(
     val needsSettings: Boolean get() = !granted && askedBefore && !shouldShowRationale()
 
     fun request() {
-        prefs().edit { putBoolean(KEY_ASKED, true) }
+        prefs().edit { putBoolean(KEY_ASKED, true).putBoolean(KEY_ASKED_PRECISE, true) }
         askedBefore = true
+        askedPrecise = true
         launch()
     }
 
@@ -60,9 +73,12 @@ class LocationPermissionState internal constructor(
 
     internal fun refresh() {
         granted = isGranted()
+        precise = isPrecise()
     }
 
-    private fun isGranted() = PERMISSIONS.any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    private fun isGranted() = PERMISSIONS.any(::has)
+    private fun isPrecise() = has(Manifest.permission.ACCESS_FINE_LOCATION)
+    private fun has(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     private fun prefs() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 

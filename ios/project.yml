@@ -40,7 +40,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Groceries
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Groceries uses your approximate location to show grocery stores near you."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Groceries uses your location to show grocery stores near you and how far away they are."
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
     dependencies:
       - package: Firebase

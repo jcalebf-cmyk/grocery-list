@@ -10,8 +10,8 @@ const Body = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-1
 
 /**
  * POST /api/stores  { lat, lng }
- * Requires a Firebase ID token. The app rounds coordinates to ~1 km before sending. Searches a 10-mile radius.
- * Returns { stores: [{ name, distanceMeters }] }, one entry per chain, closest first.
+ * Requires a Firebase ID token. Searches a 10-mile radius.
+ * Returns { stores: [{ name, distanceMeters, lat, lng }] }, one entry per chain, closest first.
  */
 export async function POST(request: Request): Promise<Response> {
   const uid = await verifyFirebaseUser(request);

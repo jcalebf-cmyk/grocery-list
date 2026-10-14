@@ -96,7 +96,7 @@ struct StorePickerView: View {
         if !locationAllowed {
             VStack(alignment: .leading, spacing: 8) {
                 Label("See grocery stores near you", systemImage: "location.fill").font(.headline)
-                Text("Location is off for Groceries. Turn it on in Settings to see the \(nearbyShown) closest grocery stores here. Only your approximate area is used.")
+                Text("Location is off for Groceries. Turn it on in Settings to see the \(nearbyShown) closest grocery stores here and how far away they are.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
