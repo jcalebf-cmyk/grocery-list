@@ -20,7 +20,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.compose.LifecycleResumeEffect
 
-private const val PERMISSION = Manifest.permission.ACCESS_COARSE_LOCATION
+// Fine and coarse are requested together (required on Android 12+); either one counts as allowed,
+// since people can still choose "Approximate" in the prompt.
+private val PERMISSIONS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 private const val PREFS = "location_permission"
 private const val KEY_ASKED = "asked"
 
@@ -60,24 +62,24 @@ class LocationPermissionState internal constructor(
         granted = isGranted()
     }
 
-    private fun isGranted() = ContextCompat.checkSelfPermission(context, PERMISSION) == PackageManager.PERMISSION_GRANTED
+    private fun isGranted() = PERMISSIONS.any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
     private fun prefs() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 
-/** Approximate-location permission, re-checked whenever the screen resumes (e.g. back from Settings). */
+/** Location permission (precise requested, approximate accepted), re-checked whenever the screen resumes (e.g. back from Settings). */
 @Composable
 fun rememberLocationPermissionState(): LocationPermissionState {
     val context = LocalContext.current
     val activity = LocalActivity.current
     var holder: LocationPermissionState? = null
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         holder?.refresh()
     }
     val state = remember {
         LocationPermissionState(
             context = context,
-            launch = { launcher.launch(PERMISSION) },
-            shouldShowRationale = { activity?.shouldShowRequestPermissionRationale(PERMISSION) == true },
+            launch = { launcher.launch(PERMISSIONS) },
+            shouldShowRationale = { PERMISSIONS.any { activity?.shouldShowRequestPermissionRationale(it) == true } },
         )
     }
     holder = state

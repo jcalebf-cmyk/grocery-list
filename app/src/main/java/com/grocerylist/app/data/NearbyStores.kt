@@ -38,7 +38,7 @@ object NearbyStores {
     fun peek(context: Context): List<NearbyStore>? =
         saved(context)?.takeIf { it.isFresh(System.currentTimeMillis()) }?.stores
 
-    /** Caller must hold ACCESS_COARSE_LOCATION. Throws if no location and nothing saved to fall back on. */
+    /** Caller must hold ACCESS_FINE_LOCATION or ACCESS_COARSE_LOCATION. Throws if no location and nothing saved to fall back on. */
     @SuppressLint("MissingPermission")
     suspend fun findCached(context: Context): List<NearbyStore> {
         val previous = saved(context)
