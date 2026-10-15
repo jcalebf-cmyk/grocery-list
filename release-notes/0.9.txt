@@ -1,0 +1,7 @@
+Groceries 0.9
+
+CHANGED
+• Nearby stores: the app now asks for your precise location, so the closest stores and their distances are more accurate. If you only allowed approximate location before, you'll be asked once more the next time you pick a store. Approximate still works if you prefer it.
+• Store distances: distances to nearby stores now update as you move around, even when the app reuses stores it already found.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
