@@ -1,0 +1,9 @@
+Groceries 0.11
+
+CHANGED
+• Pantry & seasonings: salt and black pepper are now the first suggestions.
+
+FIXED
+• "What are you in the mood for?": the sheet now opens full height, so Surprise me and Back to usual aren't hidden at the bottom.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
