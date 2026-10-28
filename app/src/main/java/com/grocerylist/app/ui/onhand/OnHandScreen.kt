@@ -25,6 +25,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import com.grocerylist.app.data.pantryQuickAdds
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -50,18 +58,29 @@ class OnHandViewModel(householdId: String, private val uid: String) : ViewModel(
         kitchenQuickAdds(stats, kitchen.mapTo(HashSet()) { it.key }, System.currentTimeMillis())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun add(name: String) = repo.addOnHand(name, uid)
+    val pantryQuickAdds = combine(repo.observeOnHand(), AppGraph.recipes(householdId).observePreferences()) { kitchen, prefs ->
+        pantryQuickAdds(prefs.cuisines, kitchen.mapTo(HashSet()) { it.key })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun add(name: String, pantry: Boolean) = repo.addOnHand(name, uid, pantry)
 
     fun remove(item: OnHandItem) = repo.removeOnHand(item)
 }
 
-/** "My kitchen": ingredients the household already has. Recipe ideas use them; list suggestions skip them. */
+/**
+ * "My kitchen": ingredients the household already has, in two tabs. Ingredients are what recipes get
+ * built around; pantry seasonings and sauces just flavor them. List suggestions skip both.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
     val viewModel: OnHandViewModel = viewModel { OnHandViewModel(session.householdId, session.user.uid) }
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val quickAdds by viewModel.quickAdds.collectAsStateWithLifecycle()
+    val allItems by viewModel.items.collectAsStateWithLifecycle()
+    val kitchenQuickAdds by viewModel.quickAdds.collectAsStateWithLifecycle()
+    val pantryQuickAdds by viewModel.pantryQuickAdds.collectAsStateWithLifecycle()
+    var pantry by rememberSaveable { mutableStateOf(false) }
+    val items = allItems.filter { it.isPantry == pantry }
+    val quickAdds = if (pantry) pantryQuickAdds else kitchenQuickAdds
 
     val haze = rememberHazeState()
     Scaffold(
@@ -75,13 +94,35 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
                 },
             )
         },
-        bottomBar = { AddItemBar(onAdd = viewModel::add, placeholder = "Add an ingredient", hazeState = haze) },
+        bottomBar = {
+            AddItemBar(
+                onAdd = { viewModel.add(it, pantry) },
+                placeholder = if (pantry) "Add a seasoning or sauce" else "Add an ingredient",
+                hazeState = haze,
+            )
+        },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {
             item {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
+                    listOf("Ingredients", "Pantry & seasonings").forEachIndexed { i, label ->
+                        SegmentedButton(
+                            selected = pantry == (i == 1),
+                            onClick = { pantry = i == 1 },
+                            shape = SegmentedButtonDefaults.itemShape(i, 2),
+                        ) { Text(label, maxLines = 1) }
+                    }
+                }
+            }
+            item {
                 Text(
-                    "Things you already have, like a stocked freezer or a ButcherBox delivery. " +
-                        "Lists won't suggest them, and recipes for you put them to use first.",
+                    if (pantry) {
+                        "Spices, sauces, and other flavor-makers, like soy sauce or mirin. " +
+                            "Recipes use them freely without building a dish around them."
+                    } else {
+                        "Things you already have, like a stocked freezer or a ButcherBox delivery. " +
+                            "Lists won't suggest them, and recipes for you put them to use first."
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
                 )
@@ -96,7 +137,7 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
                         ) {
                             quickAdds.forEach { name ->
                                 AssistChip(
-                                    onClick = { viewModel.add(name) },
+                                    onClick = { viewModel.add(name, pantry) },
                                     label = { Text(name) },
                                     leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp)) },
                                 )
@@ -108,7 +149,7 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
             if (items.isNotEmpty()) {
                 item {
                     Text(
-                        "In your kitchen",
+                        if (pantry) "In your pantry" else "In your kitchen",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),

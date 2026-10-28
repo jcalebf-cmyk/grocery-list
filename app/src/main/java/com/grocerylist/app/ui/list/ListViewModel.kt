@@ -68,7 +68,11 @@ class ListViewModel(householdId: String, private val listId: String, private val
         state.value.list?.let { repo.deleteItem(it, item) }
     }
 
-    fun clearChecked() = repo.clearChecked(listId, state.value.items)
+    fun rename(item: ListItem, name: String) {
+        state.value.list?.let { repo.renameItem(it, item, name) }
+    }
+
+    fun clearChecked() =repo.clearChecked(listId, state.value.items)
 
     fun reopen() = repo.reopenList(listId)
 

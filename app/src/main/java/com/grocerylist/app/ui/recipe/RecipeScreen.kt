@@ -111,6 +111,7 @@ fun RecipeScreen(session: Session.Ready, videoId: String, onBack: () -> Unit, on
                 }
                 item { SectionTitle("Steps") }
                 itemsIndexed(recipe.steps) { i, step -> StepRow(i + 1, step) }
+                if (recipe.tip.isNotBlank()) item { TipCard(recipe.tip) }
             }
         }
 
@@ -232,8 +233,13 @@ private fun RecipeHero(recipe: Recipe) {
 private fun RecipeTitle(recipe: Recipe) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(recipe.title, style = MaterialTheme.typography.headlineMedium)
+        if (recipe.description.isNotBlank()) Text(recipe.description, style = MaterialTheme.typography.bodyLarge)
         Text(
-            "${recipe.totalMinutes} min · ${recipe.ingredients.size} ingredients",
+            listOfNotNull(
+                "${recipe.totalMinutes} min",
+                recipe.servings.takeIf { it > 0 }?.let { "Serves $it" },
+                "${recipe.ingredients.size} ingredients",
+            ).joinToString(" · "),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -264,6 +270,21 @@ private fun StepRow(number: Int, step: String) {
             }
         }
         Text(step, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
+@Composable
+private fun TipCard(tip: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Tip", style = MaterialTheme.typography.titleSmall)
+            Text(tip, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 

@@ -49,12 +49,18 @@ class GroceryRepository(householdId: String) {
         onHand.orderBy("createdAt").snapshots().map { it.toObjects(OnHandItem::class.java) }
 
     /** Not counted in item stats: on-hand items feed recipe ideas, not shopping suggestions. */
-    fun addOnHand(name: String, uid: String) {
+    fun addOnHand(name: String, uid: String, pantry: Boolean = false) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         // Keyed by name so adding "Ground beef" twice doesn't create duplicates.
         onHand.document(itemKey(trimmed)).set(
-            mapOf("name" to trimmed, "key" to itemKey(trimmed), "addedBy" to uid, "createdAt" to System.currentTimeMillis()),
+            buildMap {
+                put("name", trimmed)
+                put("key", itemKey(trimmed))
+                put("addedBy", uid)
+                put("createdAt", System.currentTimeMillis())
+                if (pantry) put("kind", OnHandItem.KIND_PANTRY)
+            },
         )
     }
 
@@ -150,6 +156,23 @@ class GroceryRepository(householdId: String) {
         Firebase.firestore.batch().apply {
             delete(lists.document(list.id).collection("items").document(item.id))
             if (!item.checked) set(stats.document(item.key), statDelta(null, list.storeId, -1, null), SetOptions.merge())
+        }.commit()
+    }
+
+    /** Fixing a typo moves the item's suggestion count to the new name, so the misspelling stops being suggested. */
+    fun renameItem(list: GroceryList, item: ListItem, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed == item.name) return
+        val key = itemKey(trimmed)
+        val now = System.currentTimeMillis()
+        Firebase.firestore.batch().apply {
+            update(lists.document(list.id).collection("items").document(item.id), mapOf("name" to trimmed, "key" to key))
+            if (key != item.key) {
+                set(stats.document(item.key), statDelta(null, list.storeId, -1, null), SetOptions.merge())
+                set(stats.document(key), statDelta(trimmed, list.storeId, +1, now), SetOptions.merge())
+            } else {
+                set(stats.document(key), mapOf("displayName" to trimmed), SetOptions.merge())
+            }
         }.commit()
     }
 

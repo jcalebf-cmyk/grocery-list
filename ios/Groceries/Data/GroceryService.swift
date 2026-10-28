@@ -66,6 +66,22 @@ struct GroceryService {
         batch.commit()
     }
 
+    /// Fixing a typo moves the item's suggestion count to the new name, so the misspelling stops being suggested.
+    func renameItem(_ item: ListItem, in list: GroceryList, to name: String) {
+        let trimmed = name.trimmed
+        guard !trimmed.isEmpty, trimmed != item.name else { return }
+        let key = itemKey(trimmed)
+        let batch = db.batch()
+        batch.updateData(["name": trimmed, "key": key], forDocument: lists.document(list.id).collection("items").document(item.id))
+        if key != item.key {
+            batch.setData(statDelta(displayName: nil, storeId: list.storeId, by: -1, now: nil), forDocument: stats.document(item.key), merge: true)
+            batch.setData(statDelta(displayName: trimmed, storeId: list.storeId, by: 1, now: nowMillis()), forDocument: stats.document(key), merge: true)
+        } else {
+            batch.setData(["displayName": trimmed], forDocument: stats.document(key), merge: true)
+        }
+        batch.commit()
+    }
+
     func clearChecked(in listId: String, items: [ListItem]) {
         let batch = db.batch()
         for item in items where item.checked { batch.deleteDocument(lists.document(listId).collection("items").document(item.id)) }
@@ -96,10 +112,12 @@ struct GroceryService {
     }
 
     /// Not counted in item stats: kitchen items feed recipe ideas, not shopping suggestions.
-    func addOnHand(_ name: String, uid: String) {
+    func addOnHand(_ name: String, uid: String, pantry: Bool = false) {
         let trimmed = name.trimmed
         guard !trimmed.isEmpty else { return }
-        onHand.document(itemKey(trimmed)).setData(["name": trimmed, "key": itemKey(trimmed), "addedBy": uid, "createdAt": nowMillis()])
+        var data: [String: Any] = ["name": trimmed, "key": itemKey(trimmed), "addedBy": uid, "createdAt": nowMillis()]
+        if pantry { data["kind"] = OnHandItem.pantryKind }
+        onHand.document(itemKey(trimmed)).setData(data)
     }
 
     func removeOnHand(_ item: OnHandItem) { onHand.document(item.id).delete() }

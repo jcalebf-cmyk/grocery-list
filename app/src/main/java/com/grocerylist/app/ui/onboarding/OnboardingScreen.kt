@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +70,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.itemKey
 import com.grocerylist.app.data.kitchenQuickAdds
+import com.grocerylist.app.data.pantryQuickAdds
 import com.grocerylist.app.ui.AppIcons
 import com.grocerylist.app.ui.CuisineChips
 import com.grocerylist.app.ui.Session
@@ -97,8 +99,10 @@ class OnboardingViewModel(householdId: String, private val uid: String) : ViewMo
     val household = AppGraph.households.observeHousehold(householdId)
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val kitchen = repo.observeOnHand().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val needsCuisines = recipeRepo.observePreferences().map { it.chosen == false }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    private val prefs = recipeRepo.observePreferences()
+    val needsCuisines = prefs.map { it.chosen == false }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /** For a household someone joined that already picked cuisines, so pantry chips match them. */
+    val savedCuisines = prefs.map { it.cuisines }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Suggested staples, fixed when the screen opens so chips don't move as they're added. */
     val kitchenOptions = flow { emit(kitchenQuickAdds(repo.observeStats().first(), emptySet(), System.currentTimeMillis())) }
@@ -106,21 +110,23 @@ class OnboardingViewModel(householdId: String, private val uid: String) : ViewMo
 
     fun saveCuisines(cuisines: List<String>) = recipeRepo.savePreferences(cuisines)
 
-    fun addToKitchen(name: String) {
-        if (name.isNotBlank()) repo.addOnHand(name, uid)
+    fun addToKitchen(name: String, pantry: Boolean) {
+        if (name.isNotBlank()) repo.addOnHand(name, uid, pantry)
     }
 
-    fun toggleKitchen(name: String) {
-        val item = kitchen.value.firstOrNull { it.key == itemKey(name) }
-        if (item != null) repo.removeOnHand(item) else repo.addOnHand(name, uid)
+    /** Adding an item that's already on the other tab moves it here. */
+    fun toggleKitchen(name: String, pantry: Boolean) {
+        val item = kitchen.value.firstOrNull { it.key == itemKey(name) && it.isPantry == pantry }
+        if (item != null) repo.removeOnHand(item) else repo.addOnHand(name, uid, pantry)
     }
 }
 
-private enum class Step { INVITE, RECIPES, KITCHEN }
+private enum class Step { INVITE, RECIPES, KITCHEN, PANTRY }
 
 /**
  * The walkthrough after someone starts or joins a household: invite (new households only), recipes,
- * then My kitchen. Each step teaches one thing the app does and can be skipped. iOS: OnboardingView.swift.
+ * then My kitchen's ingredients and pantry. Each step teaches one thing the app does and can be skipped.
+ * iOS: OnboardingView.swift.
  */
 @Composable
 fun OnboardingScreen(session: Session.Ready, start: OnboardingStart, onDone: () -> Unit) {
@@ -129,14 +135,17 @@ fun OnboardingScreen(session: Session.Ready, start: OnboardingStart, onDone: () 
     val kitchen by viewModel.kitchen.collectAsStateWithLifecycle()
     val needsCuisines by viewModel.needsCuisines.collectAsStateWithLifecycle()
     val kitchenOptions by viewModel.kitchenOptions.collectAsStateWithLifecycle()
+    val savedCuisines by viewModel.savedCuisines.collectAsStateWithLifecycle()
 
     OnboardingContent(
         start = start,
         householdName = household?.name,
         inviteCode = household?.inviteCode,
         needsCuisines = needsCuisines,
+        savedCuisines = savedCuisines,
         kitchenOptions = kitchenOptions,
-        inKitchen = kitchen.map { it.name },
+        inKitchen = kitchen.filterNot { it.isPantry }.map { it.name },
+        inPantry = kitchen.filter { it.isPantry }.map { it.name },
         onSaveCuisines = viewModel::saveCuisines,
         onToggleKitchen = viewModel::toggleKitchen,
         onAddToKitchen = viewModel::addToKitchen,
@@ -151,23 +160,28 @@ fun OnboardingContent(
     householdName: String?,
     inviteCode: String?,
     needsCuisines: Boolean,
+    savedCuisines: List<String>,
     kitchenOptions: List<String>,
     inKitchen: List<String>,
+    inPantry: List<String>,
     onSaveCuisines: (List<String>) -> Unit,
-    onToggleKitchen: (String) -> Unit,
-    onAddToKitchen: (String) -> Unit,
+    onToggleKitchen: (name: String, pantry: Boolean) -> Unit,
+    onAddToKitchen: (name: String, pantry: Boolean) -> Unit,
     onDone: () -> Unit,
 ) {
     val steps = if (start == OnboardingStart.CREATED) {
-        listOf(Step.INVITE, Step.RECIPES, Step.KITCHEN)
+        listOf(Step.INVITE, Step.RECIPES, Step.KITCHEN, Step.PANTRY)
     } else {
-        listOf(Step.RECIPES, Step.KITCHEN)
+        listOf(Step.RECIPES, Step.KITCHEN, Step.PANTRY)
     }
     var index by rememberSaveable { mutableIntStateOf(0) }
     var cuisines by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val step = steps[index]
     // A household someone just started always picks cuisines; one they joined only does if nobody has yet.
     val picksCuisines = start == OnboardingStart.CREATED || needsCuisines
+    val pantryOptions = remember(picksCuisines, cuisines, savedCuisines) {
+        pantryQuickAdds(if (picksCuisines) cuisines else savedCuisines, emptySet())
+    }
 
     fun advance() {
         if (index + 1 < steps.size) index++ else onDone()
@@ -211,14 +225,33 @@ fun OnboardingContent(
                 when (shown) {
                     Step.INVITE -> InviteStep(householdName, inviteCode)
                     Step.RECIPES -> RecipesStep(picksCuisines, cuisines, onChange = { cuisines = it })
-                    Step.KITCHEN -> KitchenStep(kitchenOptions, inKitchen, onToggle = onToggleKitchen, onAdd = onAddToKitchen)
+                    Step.KITCHEN -> ChipsStep(
+                        icon = AppIcons.Kitchen,
+                        title = "Already have it at home?",
+                        text = "Add things you keep stocked or get delivered, like a ButcherBox. " +
+                            "Lists won't suggest them, and recipes use them first.",
+                        options = kitchenOptions,
+                        added = inKitchen,
+                        onToggle = { onToggleKitchen(it, false) },
+                        onAdd = { onAddToKitchen(it, false) },
+                    )
+                    Step.PANTRY -> ChipsStep(
+                        icon = AppIcons.Leaf,
+                        title = "What's in your spice rack?",
+                        text = "Add the seasonings and sauces you keep around, like soy sauce or mirin. " +
+                            "Recipes use them for flavor, so you won't have to buy them again.",
+                        options = pantryOptions,
+                        added = inPantry,
+                        onToggle = { onToggleKitchen(it, true) },
+                        onAdd = { onAddToKitchen(it, true) },
+                    )
                 }
             }
         }
 
         Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
             Button(onClick = ::next, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Text(if (step == Step.KITCHEN) "Done" else "Continue")
+                Text(if (step == steps.last()) "Done" else "Continue")
             }
             if (step == Step.RECIPES && picksCuisines) {
                 TextButton(onClick = ::skip, modifier = Modifier.fillMaxWidth()) { Text("Skip") }
@@ -315,23 +348,23 @@ private fun ColumnScope.RecipesStep(picksCuisines: Boolean, cuisines: List<Strin
     }
 }
 
+/** Toggleable suggestions plus a field for anything else; used for the kitchen and pantry steps. */
 @Composable
-private fun ColumnScope.KitchenStep(
+private fun ColumnScope.ChipsStep(
+    icon: ImageVector,
+    title: String,
+    text: String,
     options: List<String>,
-    inKitchen: List<String>,
+    added: List<String>,
     onToggle: (String) -> Unit,
     onAdd: (String) -> Unit,
 ) {
-    Intro(
-        AppIcons.Kitchen,
-        "Already have it at home?",
-        "Add things you keep stocked or get delivered, like a ButcherBox. Lists won't suggest them, and recipes use them first.",
-    )
-    // The suggested staples, plus anything typed in, so added items stay visible as checked chips.
+    Intro(icon, title, text)
+    // The suggestions, plus anything typed in, so added items stay visible as checked chips.
     val suggested = options.mapTo(HashSet()) { itemKey(it) }
-    val kitchenKeys = inKitchen.mapTo(HashSet()) { itemKey(it) }
+    val kitchenKeys = added.mapTo(HashSet()) { itemKey(it) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        (options + inKitchen.filter { itemKey(it) !in suggested }).forEach { name ->
+        (options + added.filter { itemKey(it) !in suggested }).forEach { name ->
             val selected = itemKey(name) in kitchenKeys
             FilterChip(
                 selected = selected,
@@ -343,15 +376,15 @@ private fun ColumnScope.KitchenStep(
             )
         }
     }
-    var text by rememberSaveable { mutableStateOf("") }
+    var typed by rememberSaveable(title) { mutableStateOf("") }
     val submit = {
-        onAdd(text.trim())
-        text = ""
+        onAdd(typed.trim())
+        typed = ""
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
+            value = typed,
+            onValueChange = { typed = it },
             placeholder = { Text("Add something else") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
@@ -359,7 +392,7 @@ private fun ColumnScope.KitchenStep(
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(8.dp))
-        FilledIconButton(onClick = submit, enabled = text.isNotBlank()) {
+        FilledIconButton(onClick = submit, enabled = typed.isNotBlank()) {
             Icon(Icons.Default.Add, contentDescription = "Add")
         }
     }

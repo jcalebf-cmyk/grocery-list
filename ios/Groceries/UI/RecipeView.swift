@@ -19,7 +19,11 @@ struct RecipeView: View {
                     hero(recipe)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(recipe.title).font(.brand(28))
-                        Text("\(recipe.totalMinutes) min · \(recipe.ingredients.count) ingredients")
+                        if let description = recipe.description, !description.isEmpty {
+                            Text(description).padding(.bottom, 2)
+                        }
+                        Text(["\(recipe.totalMinutes) min", recipe.servings.map { "Serves \($0)" },
+                              "\(recipe.ingredients.count) ingredients"].compactMap { $0 }.joined(separator: " · "))
                             .font(.subheadline).foregroundStyle(.secondary)
                         if !recipe.usesHouseholdItems.isEmpty {
                             Text("Uses your usual \(recipe.usesHouseholdItems.joined(separator: ", "))")
@@ -40,6 +44,16 @@ struct RecipeView: View {
                             Text(step).padding(.top, 3)
                         }
                         .padding(.horizontal, 20).padding(.vertical, 6)
+                    }
+                    if let tip = recipe.tip, !tip.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Tip").font(.subheadline.weight(.semibold))
+                            Text(tip).font(.subheadline)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(Color.citrusContainer, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(.horizontal, 16).padding(.vertical, 16)
                     }
                 }
                 .padding(.bottom, 100)
@@ -139,24 +153,40 @@ struct RecipeView: View {
     }
 }
 
-/// "My kitchen": ingredients the household already has. Recipe ideas use them first.
+/// "My kitchen": ingredients the household already has, in two tabs. Ingredients are what recipes get
+/// built around; pantry seasonings and sauces just flavor them. List suggestions skip both.
 struct KitchenView: View {
     let data: HouseholdData
+    @State private var pantry = false
 
+    private var items: [OnHandItem] { data.onHand.filter { $0.isPantry == pantry } }
     private var quickAdds: [String] {
-        kitchenQuickAdds(data.stats, inKitchen: Set(data.onHand.map(\.key)), now: nowMillis())
+        let inKitchen = Set(data.onHand.map(\.key))
+        return pantry
+            ? pantryQuickAdds(cuisines: data.cuisinePrefs?.cuisines ?? [], inKitchen: inKitchen)
+            : kitchenQuickAdds(data.stats, inKitchen: inKitchen, now: nowMillis())
     }
 
     var body: some View {
         List {
-            Text("Things you already have, like a stocked freezer or a ButcherBox delivery. Lists won't suggest them, and recipes for you put them to use first.")
+            Picker("Kind", selection: $pantry) {
+                Text("Ingredients").tag(false)
+                Text("Pantry & seasonings").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
+            Text(pantry
+                 ? "Spices, sauces, and other flavor-makers, like soy sauce or mirin. Recipes use them freely without building a dish around them."
+                 : "Things you already have, like a stocked freezer or a ButcherBox delivery. Lists won't suggest them, and recipes for you put them to use first.")
                 .foregroundStyle(.secondary)
                 .listRowBackground(Color.clear)
             if !quickAdds.isEmpty {
                 Section("Quick add") {
                     FlowLayout {
                         ForEach(quickAdds, id: \.self) { name in
-                            Button { data.groceries.addOnHand(name, uid: data.user.id) } label: {
+                            Button { data.groceries.addOnHand(name, uid: data.user.id, pantry: pantry) } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "plus")
                                     Text(name)
@@ -171,9 +201,9 @@ struct KitchenView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 }
             }
-            if !data.onHand.isEmpty {
-                Section("In your kitchen") {
-                    ForEach(data.onHand) { item in
+            if !items.isEmpty {
+                Section(pantry ? "In your pantry" : "In your kitchen") {
+                    ForEach(items) { item in
                         Text(item.name)
                             .swipeActions { Button("Remove", systemImage: "trash", role: .destructive) { data.groceries.removeOnHand(item) } }
                     }
@@ -183,9 +213,12 @@ struct KitchenView: View {
         .scrollContentBackground(.hidden)
         .background(Color.warmBackground)
         .animation(.snappy, value: data.onHand)
+        .animation(.snappy, value: pantry)
         .navigationTitle("My kitchen")
         .safeAreaInset(edge: .bottom) {
-            AddItemBar(placeholder: "Add an ingredient") { data.groceries.addOnHand($0, uid: data.user.id) }
+            AddItemBar(placeholder: pantry ? "Add a seasoning or sauce" : "Add an ingredient") {
+                data.groceries.addOnHand($0, uid: data.user.id, pantry: pantry)
+            }
         }
     }
 }

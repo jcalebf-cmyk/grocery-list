@@ -13,7 +13,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +78,7 @@ import com.grocerylist.app.ui.Session
 import com.grocerylist.app.ui.StoreLogo
 import com.grocerylist.app.ui.CloseOutListDialog
 import com.grocerylist.app.ui.DeleteListDialog
+import com.grocerylist.app.ui.EditItemDialog
 import com.grocerylist.app.ui.AppIcons
 import androidx.compose.material.icons.filled.CheckCircle
 
@@ -90,6 +91,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmingFinish by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The list scrolls under a frosted top bar and a floating glass add bar.
     val haze = rememberHazeState()
@@ -192,6 +194,16 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                 onDismiss = { confirmingDelete = false },
             )
         }
+        state.items.firstOrNull { it.id == editingId }?.let { item ->
+            EditItemDialog(
+                name = item.name,
+                onSave = {
+                    editingId = null
+                    viewModel.rename(item, it)
+                },
+                onDismiss = { editingId = null },
+            )
+        }
         LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {
             if (state.suggestions.isNotEmpty()) {
                 item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add) }
@@ -228,6 +240,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                     editable = active,
                     onToggle = { viewModel.toggle(item) },
                     onDelete = { viewModel.delete(item) },
+                    onEdit = { editingId = item.id },
                     modifier = Modifier.animateItem(),
                 )
                 HorizontalDivider()
@@ -269,6 +282,7 @@ private fun GroceryRow(
     addedBy: String?,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -305,7 +319,16 @@ private fun GroceryRow(
     ) {
         val colors = MaterialTheme.colorScheme
         ListItem(
-            modifier = Modifier.clickable(enabled = editable, onClick = toggleWithFeel),
+            // Tap checks off; long-press edits the name.
+            modifier = Modifier.combinedClickable(
+                enabled = editable,
+                onLongClickLabel = "Edit item",
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onEdit()
+                },
+                onClick = toggleWithFeel,
+            ),
             leadingContent = {
                 Checkbox(
                     checked = item.checked,

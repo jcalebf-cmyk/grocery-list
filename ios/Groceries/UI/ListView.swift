@@ -7,6 +7,8 @@ struct ListView: View {
     @State private var items: [ListItem] = []
     @State private var confirmingFinish = false
     @State private var confirmingDelete = false
+    @State private var editing: ListItem?
+    @State private var editedName = ""
     @Environment(\.dismiss) private var dismiss
 
     private var active: Bool { list?.isActive == true }
@@ -52,6 +54,12 @@ struct ListView: View {
                     .swipeActions {
                         if active, let list {
                             Button("Delete", systemImage: "trash", role: .destructive) { data.groceries.deleteItem(item, from: list) }
+                            Button("Edit", systemImage: "pencil") { startEditing(item) }.tint(.gray)
+                        }
+                    }
+                    .contextMenu {
+                        if active {
+                            Button("Edit", systemImage: "pencil") { startEditing(item) }
                         }
                     }
                 }
@@ -90,6 +98,15 @@ struct ListView: View {
             Task { try? await groceries.deleteList(id) }
             dismiss()
         }
+        .alert("Edit item", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } }), presenting: editing) { item in
+            TextField("Item", text: $editedName)
+                .textInputAutocapitalization(.sentences)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                if let list { data.groceries.renameItem(item, in: list, to: editedName) }
+            }
+            .disabled(editedName.trimmed.isEmpty)
+        }
         .closeOutListAlert(isPresented: $confirmingFinish) {
             data.groceries.closeOut(listId)
             dismiss()
@@ -106,9 +123,14 @@ struct ListView: View {
         data.groceries.addItem(to: list, name: name, uid: data.user.id)
     }
 
+    private func startEditing(_ item: ListItem) {
+        editedName = item.name
+        editing = item
+    }
+
 }
 
-/// A list item: tap to check off (with a haptic and an animated strike-through).
+/// A list item: tap to check off (with a haptic and an animated strike-through); swipe or long-press to edit.
 /// Closed lists show faded, read-only rows.
 private struct ItemRow: View {
     let item: ListItem

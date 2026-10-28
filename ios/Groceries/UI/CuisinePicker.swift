@@ -55,7 +55,8 @@ struct CuisineSetupView: View {
     }
 }
 
-/// A sheet of cuisine chips with a confirm button, and an optional secondary action like "Back to usual".
+/// A sheet of cuisine chips with a confirm button, an optional secondary action like "Back to usual",
+/// and an optional `surprise` action that also gets the current picks.
 struct CuisineSheet: View {
     let title: String
     let subtitle: String
@@ -64,6 +65,7 @@ struct CuisineSheet: View {
     var max: Int?
     var requireSelection = false
     var secondary: (String, () -> Void)?
+    var surprise: (String, ([String]) -> Void)?
     let onConfirm: ([String]) -> Void
     @State private var selected: [String] = []
     @Environment(\.dismiss) private var dismiss
@@ -74,6 +76,13 @@ struct CuisineSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(subtitle).foregroundStyle(.secondary)
                     CuisineChips(selected: $selected, max: max)
+                    if let (label, action) = surprise {
+                        Button { action(selected) } label: {
+                            Label(label, systemImage: "shuffle").frame(maxWidth: .infinity, minHeight: 36)
+                        }
+                        .buttonStyle(.glass)
+                        .padding(.top, 4)
+                    }
                     if let (label, action) = secondary {
                         Button(label, action: action).frame(maxWidth: .infinity)
                     }

@@ -73,15 +73,20 @@ struct ItemStat: Codable, Identifiable {
     var id: String { key }
 }
 
-/// Something the household already has. Used for recipe ideas only.
+/// Something the household already has. Pantry items (seasonings and sauces) flavor recipes;
+/// the rest are what recipes get built around. Same document as Android's OnHandItem.
 struct OnHandItem: Codable, Identifiable, Hashable {
+    static let pantryKind = "pantry"
+
     @DocumentID var docId: String?
     var name: String = ""
     var key: String = ""
     var addedBy: String = ""
     var createdAt: Int64 = 0
+    var kind: String?
 
     var id: String { docId ?? "" }
+    var isPantry: Bool { kind == Self.pantryKind }
 }
 
 struct Ingredient: Codable, Hashable {
@@ -92,9 +97,13 @@ struct Ingredient: Codable, Hashable {
 struct Recipe: Codable, Identifiable, Hashable {
     var videoId: String
     var title: String
+    // Recipes from before 0.10 don't have a description, servings, or tip.
+    var description: String?
+    var servings: Int?
     var totalMinutes: Int
     var ingredients: [Ingredient]
     var steps: [String]
+    var tip: String?
     var usesHouseholdItems: [String]
     var videoUrl: String
     var channel: String

@@ -93,13 +93,15 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
     /** "Tonight I'm feeling…": new recipes from just these cuisines. Empty goes back to the usual mix. */
     fun setMood(cuisines: List<String>) = refreshWithMessages(mood = cuisines)
 
-    private suspend fun refresh(mood: List<String>?, force: Boolean) =
-        recipeRepo.refresh(stats.value, onHand.value, prefs.value?.cuisines.orEmpty(), mood, force)
+    /** "Surprise me": random dishes from these cuisines (or the favorites, if none), ignoring the kitchen. */
+    fun surprise(cuisines: List<String>) = refreshWithMessages(mood = cuisines, surprise = true)
 
-    private fun refreshWithMessages(mood: List<String>?) {
+    private suspend fun refresh(mood: List<String>?, force: Boolean, surprise: Boolean = false) =
+        recipeRepo.refresh(stats.value, onHand.value, prefs.value?.cuisines.orEmpty(), mood, force, surprise)
+
+    private fun refreshWithMessages(mood: List<String>?, surprise: Boolean = false) {
         viewModelScope.launch {
-            when (refresh(mood, force = true)) {
-                RefreshResult.NOT_ENOUGH_HISTORY -> messages.send("Add a few ingredients to My kitchen first")
+            when (refresh(mood, force = true, surprise)) {
                 RefreshResult.FAILED -> messages.send("Couldn't get new recipes. Try again in a bit.")
                 RefreshResult.RATE_LIMITED -> messages.send("That's all the new recipe ideas for today. Check back tomorrow.")
                 else -> Unit

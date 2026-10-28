@@ -59,4 +59,16 @@ class SuggestionsTest {
         assertEquals(1, result.count { itemKey(it) == "eggs" }) // a regular and a staple, shown once
         assertTrue(result.none { itemKey(it) == "rice" })
     }
+
+    @Test fun pantryQuickAddsTakeTurnsAcrossCuisines() {
+        val result = pantryQuickAdds(listOf("Japanese", "Mexican"), emptySet())
+        assertEquals(listOf("Soy sauce", "Cumin", "Mirin", "Chili powder"), result.take(4))
+        assertEquals(12, result.size)
+    }
+
+    @Test fun pantryQuickAddsSkipKitchenItemsAndFallBackToCommon() {
+        val result = pantryQuickAdds(emptyList(), inKitchen = setOf("soy sauce"))
+        assertEquals("Garlic powder", result.first())
+        assertTrue(result.none { itemKey(it) == "soy sauce" })
+    }
 }

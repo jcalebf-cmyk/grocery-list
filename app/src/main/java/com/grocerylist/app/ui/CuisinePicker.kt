@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -80,7 +82,10 @@ fun CuisineSetupScreen(onDone: (List<String>) -> Unit) {
     }
 }
 
-/** A bottom sheet of cuisine chips with a confirm button, and an optional secondary action like "Clear". */
+/**
+ * A bottom sheet of cuisine chips with a confirm button, an optional secondary action like "Clear",
+ * and an optional [surprise] action that also gets the current picks.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CuisineSheet(
@@ -93,6 +98,7 @@ fun CuisineSheet(
     max: Int? = null,
     requireSelection: Boolean = false,
     secondary: Pair<String, () -> Unit>? = null,
+    surprise: Pair<String, (List<String>) -> Unit>? = null,
 ) {
     var selected by rememberSaveable { mutableStateOf(initial) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -108,6 +114,13 @@ fun CuisineSheet(
                 Spacer(Modifier.weight(1f))
                 Button(onClick = { onConfirm(selected) }, enabled = !requireSelection || selected.isNotEmpty()) {
                     Text(confirm)
+                }
+            }
+            surprise?.let { (label, action) ->
+                OutlinedButton(onClick = { action(selected) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(AppIcons.Shuffle, contentDescription = null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(label)
                 }
             }
         }

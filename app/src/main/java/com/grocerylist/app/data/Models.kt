@@ -66,14 +66,25 @@ data class ItemStat(
     val storeCounts: Map<String, Long> = emptyMap(),
 )
 
-/** Something the household already has (stocked up, or from a subscription box). Used for recipe ideas only. */
+/**
+ * Something the household already has (stocked up, or from a subscription box). Used for recipe ideas only.
+ * Pantry items (seasonings and sauces) flavor recipes; the rest are what recipes get built around.
+ */
 data class OnHandItem(
     @DocumentId val id: String = "",
     val name: String = "",
     val key: String = "",
     val addedBy: String = "",
     val createdAt: Long = 0,
-)
+    val kind: String = KIND_KITCHEN,
+) {
+    val isPantry get() = kind == KIND_PANTRY
+
+    companion object {
+        const val KIND_KITCHEN = ""
+        const val KIND_PANTRY = "pantry"
+    }
+}
 
 /** "  Whole  Milk " and "whole milk" are the same item. Slashes aren't allowed in document IDs. */
 fun itemKey(name: String): String =

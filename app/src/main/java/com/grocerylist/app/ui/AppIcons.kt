@@ -63,6 +63,23 @@ object AppIcons {
         )
     }
 
+    /** Material's "eco" leaf, for seasonings. */
+    val Leaf: ImageVector by lazy {
+        icon(
+            "Leaf",
+            "M6.05 8.05c-2.73 2.73-2.73 7.15-.02 9.88 1.47-3.4 4.09-6.24 7.36-7.93-2.77 2.34-4.71 5.61-5.39 9.32" +
+                " 2.6 1.23 5.8.78 7.95-1.37C19.43 14.47 20 4 20 4S9.53 4.57 6.05 8.05z",
+        )
+    }
+
+    val Shuffle: ImageVector by lazy {
+        icon(
+            "Shuffle",
+            "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5z" +
+                "m.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z",
+        )
+    }
+
     private fun icon(name: String, path: String) =
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
             .addPath(addPathNodes(path), fill = SolidColor(Color.Black))

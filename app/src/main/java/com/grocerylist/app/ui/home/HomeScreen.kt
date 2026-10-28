@@ -240,7 +240,8 @@ fun HomeScreen(
     if (choosingMood) {
         CuisineSheet(
             title = "What are you in the mood for?",
-            subtitle = "Pick up to $MAX_MOOD_CUISINES and get recipes from just those tonight.",
+            subtitle = "Pick up to $MAX_MOOD_CUISINES for tonight's recipes, or tap Surprise me for random dishes " +
+                "that don't depend on your kitchen.",
             initial = state.mood,
             confirm = "Get recipes",
             max = MAX_MOOD_CUISINES,
@@ -250,6 +251,10 @@ fun HomeScreen(
                 viewModel.setMood(it)
             },
             onDismiss = { choosingMood = false },
+            surprise = "Surprise me" to {
+                choosingMood = false
+                viewModel.surprise(it)
+            },
             secondary = if (state.mood.isNotEmpty()) {
                 "Back to usual" to {
                     choosingMood = false

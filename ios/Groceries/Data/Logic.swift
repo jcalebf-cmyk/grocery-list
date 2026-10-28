@@ -45,6 +45,16 @@ func kitchenQuickAdds(_ stats: [ItemStat], inKitchen: Set<String>, now: Int64, l
     return (regulars + commonKitchenItems).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
 }
 
+/// Quick-add chips for the pantry: seasonings from the household's favorite cuisines, taking turns
+/// so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
+func pantryQuickAdds(cuisines picked: [String], inKitchen: Set<String>, limit: Int = 12) -> [String] {
+    let lists = picked.compactMap { cuisinePantry[$0] }
+    let longest = lists.map(\.count).max() ?? 0
+    let alternating = (0..<longest).flatMap { i in lists.compactMap { i < $0.count ? $0[i] : nil } }
+    var seen = inKitchen
+    return (alternating + commonPantry).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
+}
+
 /// Stores to offer under "Your stores": only ones the household has made a list for, most recent first.
 func storesInUse(_ stores: [Store], lists: [GroceryList]) -> [Store] {
     var lastUsed: [String: Int64] = [:]
@@ -151,3 +161,27 @@ let cuisines = [
 
 /// "Tonight I'm feeling x, y, or z."
 let maxMoodCuisines = 3
+
+/// Seasonings and sauces each cuisine leans on, for pantry quick adds. Same as `CUISINE_PANTRY` in Cuisines.kt.
+let cuisinePantry: [String: [String]] = [
+    "American": ["BBQ sauce", "Worcestershire sauce", "Garlic powder", "Paprika", "Mustard", "Ketchup"],
+    "Southern": ["Cajun seasoning", "Hot sauce", "Paprika", "Garlic powder", "Onion powder", "Cayenne"],
+    "Mexican": ["Cumin", "Chili powder", "Dried oregano", "Chipotles in adobo", "Salsa", "Taco seasoning"],
+    "Caribbean": ["Jerk seasoning", "Allspice", "Dried thyme", "Hot sauce", "Curry powder", "Coconut milk"],
+    "Italian": ["Dried oregano", "Dried basil", "Red pepper flakes", "Balsamic vinegar", "Canned tomatoes", "Parmesan"],
+    "French": ["Dijon mustard", "Dried thyme", "Herbes de Provence", "Red wine vinegar", "White wine", "Bay leaves"],
+    "Greek": ["Dried oregano", "Dried dill", "Red wine vinegar", "Kalamata olives", "Cinnamon", "Lemon pepper"],
+    "Middle Eastern": ["Cumin", "Za'atar", "Sumac", "Tahini", "Cinnamon", "Smoked paprika"],
+    "Indian": ["Garam masala", "Turmeric", "Cumin", "Curry powder", "Ground coriander", "Coconut milk"],
+    "Chinese": ["Soy sauce", "Oyster sauce", "Sesame oil", "Rice vinegar", "Hoisin sauce", "Shaoxing wine"],
+    "Japanese": ["Soy sauce", "Mirin", "Cooking sake", "Miso", "Rice vinegar", "Sesame oil"],
+    "Korean": ["Gochujang", "Soy sauce", "Sesame oil", "Gochugaru", "Rice vinegar", "Sesame seeds"],
+    "Thai": ["Fish sauce", "Red curry paste", "Coconut milk", "Soy sauce", "Sriracha", "Oyster sauce"],
+    "Vietnamese": ["Fish sauce", "Hoisin sauce", "Sriracha", "Rice vinegar", "Soy sauce", "Lemongrass paste"],
+]
+
+/// Pantry quick adds for households that haven't picked cuisines, and to fill out the row.
+let commonPantry = [
+    "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",
+    "Honey", "Dijon mustard", "Hot sauce", "Rice vinegar", "Chili powder", "Sesame oil",
+]

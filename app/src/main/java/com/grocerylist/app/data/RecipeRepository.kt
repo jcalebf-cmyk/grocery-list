@@ -19,12 +19,16 @@ import org.json.JSONObject
 
 data class Ingredient(val name: String, val quantity: String)
 
+/** Recipes from before 0.10 have no [description], [servings] (0), or [tip]. */
 data class Recipe(
     val videoId: String,
     val title: String,
+    val description: String,
+    val servings: Int,
     val totalMinutes: Int,
     val ingredients: List<Ingredient>,
     val steps: List<String>,
+    val tip: String,
     val usesHouseholdItems: List<String>,
     val videoUrl: String,
     val channel: String,
@@ -43,7 +47,7 @@ data class RecipeSet(
     val recipes: List<Recipe>,
 )
 
-enum class RefreshResult { UPDATED, STILL_FRESH, NOT_ENOUGH_HISTORY, BUSY, RATE_LIMITED, FAILED }
+enum class RefreshResult { UPDATED, STILL_FRESH, BUSY, RATE_LIMITED, FAILED }
 
 /**
  * Recipes are written by the Vercel server (Claude, plus a YouTube video of each dish) at most once a day per
@@ -77,7 +81,8 @@ class RecipeRepository(householdId: String) {
      * Asks the server for new recipes. Without [force], does nothing if today's recipes already exist
      * and were made with the same on-hand ingredients and favorite cuisines.
      * [mood] replaces tonight's cuisines (empty clears them); null keeps the current ones until the daily refresh.
-     * Needs either something on hand or a few regularly bought items, or the recipes are too generic.
+     * [surprise] ignores the kitchen and regular groceries: random dishes from the household's cuisines.
+     * With nothing in the kitchen and little history, recipes come from the cuisines alone.
      */
     suspend fun refresh(
         stats: List<ItemStat>,
@@ -85,14 +90,14 @@ class RecipeRepository(householdId: String) {
         favorites: List<String>,
         mood: List<String>?,
         force: Boolean,
+        surprise: Boolean = false,
     ): RefreshResult {
-        val onHandNames = onHand.map { it.name }
+        val (pantry, kitchen) = onHand.partition { it.isPantry }
         val onHandKeys = onHand.mapTo(HashSet()) { it.key }
         val onHandSignature = onHandKeys.sorted()
         val cuisines = favorites.sorted()
         val regulars = suggestItems(stats, storeId = "", alreadyOnList = onHandKeys, now = System.currentTimeMillis(), limit = 15)
             .map { it.displayName }
-        if (onHandNames.isEmpty() && regulars.size < MIN_REGULARS) return RefreshResult.NOT_ENOUGH_HISTORY
         if (!lock.tryLock()) return RefreshResult.BUSY
         _refreshing.value = true
         try {
@@ -107,9 +112,11 @@ class RecipeRepository(householdId: String) {
                 "/api/recipes",
                 JSONObject()
                     .put("items", JSONArray(regulars))
-                    .put("onHand", JSONArray(onHandNames.take(30)))
+                    .put("onHand", JSONArray(kitchen.map { it.name }.take(30)))
+                    .put("pantry", JSONArray(pantry.map { it.name }.take(40)))
                     .put("cuisines", JSONArray(cuisines))
-                    .put("mood", JSONArray(tonight)),
+                    .put("mood", JSONArray(tonight))
+                    .put("surprise", surprise),
                 readTimeoutMs = 120_000, // a Claude call, then a YouTube search per recipe
             ).getJSONArray("recipes")
             // An empty result (e.g. a server hiccup) shouldn't wipe out the current recipes.
@@ -141,6 +148,8 @@ class RecipeRepository(householdId: String) {
         mapOf(
             "videoId" to r.getString("videoId"),
             "title" to r.getString("title"),
+            "description" to r.optString("description"),
+            "servings" to r.optInt("servings"),
             "totalMinutes" to r.optInt("totalMinutes"),
             "ingredients" to r.getJSONArray("ingredients").let { arr ->
                 (0 until arr.length()).map { j ->
@@ -149,6 +158,7 @@ class RecipeRepository(householdId: String) {
                 }
             },
             "steps" to r.getJSONArray("steps").strings(),
+            "tip" to r.optString("tip"),
             "usesHouseholdItems" to r.optJSONArray("usesHouseholdItems").strings(),
             "videoUrl" to r.getString("videoUrl"),
             "channel" to r.optString("channel"),
@@ -169,11 +179,14 @@ class RecipeRepository(householdId: String) {
                 Recipe(
                     videoId = r["videoId"] as? String ?: "",
                     title = r["title"] as? String ?: "",
+                    description = r["description"] as? String ?: "",
+                    servings = (r["servings"] as? Number)?.toInt() ?: 0,
                     totalMinutes = (r["totalMinutes"] as? Number)?.toInt() ?: 0,
                     ingredients = (r["ingredients"] as? List<Map<String, Any?>>).orEmpty().map {
                         Ingredient(it["name"] as? String ?: "", it["quantity"] as? String ?: "")
                     },
                     steps = (r["steps"] as? List<String>).orEmpty(),
+                    tip = r["tip"] as? String ?: "",
                     usesHouseholdItems = (r["usesHouseholdItems"] as? List<String>).orEmpty(),
                     videoUrl = r["videoUrl"] as? String ?: "",
                     channel = r["channel"] as? String ?: "",
@@ -189,6 +202,5 @@ class RecipeRepository(householdId: String) {
     private companion object {
         const val TAG = "RecipeRepository"
         const val REFRESH_INTERVAL_MS = 24L * 60 * 60 * 1000
-        const val MIN_REGULARS = 3
     }
 }

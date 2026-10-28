@@ -1,22 +1,27 @@
 import SwiftUI
 
 /// The walkthrough after someone starts or joins a household: invite (new households only), recipes,
-/// then My kitchen. Each step teaches one thing the app does and can be skipped. Android: OnboardingScreen.kt.
+/// then My kitchen's ingredients and pantry. Each step teaches one thing the app does and can be skipped.
+/// Android: OnboardingScreen.kt.
 struct OnboardingView: View {
     let data: HouseholdData
     let start: OnboardingStart
     let onDone: () -> Void
 
-    private enum Step { case invite, recipes, kitchen }
+    private enum Step { case invite, recipes, kitchen, pantry }
 
     @State private var index = 0
     @State private var cuisines: [String] = []
     @State private var kitchenOptions: [String] = []
 
-    private var steps: [Step] { start == .created ? [.invite, .recipes, .kitchen] : [.recipes, .kitchen] }
+    private var steps: [Step] { start == .created ? [.invite, .recipes, .kitchen, .pantry] : [.recipes, .kitchen, .pantry] }
     private var step: Step { steps[index] }
     /// A household someone just started always picks cuisines; one they joined only does if nobody has yet.
     private var picksCuisines: Bool { start == .created || data.needsCuisines }
+    /// Seasonings for the cuisines picked a step earlier, or the household's if someone else already chose.
+    private var pantryOptions: [String] {
+        pantryQuickAdds(cuisines: picksCuisines ? cuisines : data.cuisinePrefs?.cuisines ?? [], inKitchen: [])
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,6 +32,7 @@ struct OnboardingView: View {
                     case .invite: invite
                     case .recipes: recipes
                     case .kitchen: kitchen
+                    case .pantry: pantry
                     }
                 }
                 .padding(.horizontal, 24)
@@ -90,17 +96,13 @@ struct OnboardingView: View {
     }
 
     private var primaryLabel: String {
-        switch step {
-        case .invite, .recipes: "Continue"
-        case .kitchen: "Done"
-        }
+        step == steps.last ? "Done" : "Continue"
     }
 
     private var secondaryLabel: String? {
         switch step {
         case .recipes: picksCuisines ? "Skip" : nil
-        case .invite: nil
-        case .kitchen: nil
+        case .invite, .kitchen, .pantry: nil
         }
     }
 
@@ -171,11 +173,25 @@ struct OnboardingView: View {
     @ViewBuilder private var kitchen: some View {
         intro("refrigerator.fill", "Already have it at home?",
               "Add things you keep stocked or get delivered, like a ButcherBox. Lists won't suggest them, and recipes use them first.")
+        chips(options: kitchenOptions, pantry: false)
+    }
+
+    @ViewBuilder private var pantry: some View {
+        intro("leaf.fill", "What's in your spice rack?",
+              "Add the seasonings and sauces you keep around, like soy sauce or mirin. Recipes use them for flavor, so you won't have to buy them again.")
+        chips(options: pantryOptions, pantry: true)
+    }
+
+    /// Toggleable suggestions plus anything typed in, so added items stay visible as checked chips.
+    /// Adding an item that's already on the other tab of My kitchen moves it here.
+    @ViewBuilder private func chips(options: [String], pantry: Bool) -> some View {
+        let added = data.onHand.filter { $0.isPantry == pantry }
+        let suggested = Set(options.map(itemKey))
         FlowLayout {
-            ForEach(kitchenChips, id: \.self) { name in
-                let item = data.onHand.first { $0.key == itemKey(name) }
+            ForEach(options + added.filter { !suggested.contains($0.key) }.map(\.name), id: \.self) { name in
+                let item = added.first { $0.key == itemKey(name) }
                 Button {
-                    if let item { data.groceries.removeOnHand(item) } else { data.groceries.addOnHand(name, uid: data.user.id) }
+                    if let item { data.groceries.removeOnHand(item) } else { data.groceries.addOnHand(name, uid: data.user.id, pantry: pantry) }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: item == nil ? "plus" : "checkmark")
@@ -188,14 +204,8 @@ struct OnboardingView: View {
         }
         .padding(.top, 4)
         .animation(.snappy, value: data.onHand)
-        AddItemBar(placeholder: "Add something else") { data.groceries.addOnHand($0, uid: data.user.id) }
+        AddItemBar(placeholder: "Add something else") { data.groceries.addOnHand($0, uid: data.user.id, pantry: pantry) }
         Text("You can change these anytime in My kitchen.").font(.footnote).foregroundStyle(.secondary)
-    }
-
-    /// The suggested staples, plus anything typed in, so added items stay visible as checked chips.
-    private var kitchenChips: [String] {
-        let suggested = Set(kitchenOptions.map(itemKey))
-        return kitchenOptions + data.onHand.filter { !suggested.contains($0.key) }.map(\.name)
     }
 }
 

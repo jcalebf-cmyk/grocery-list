@@ -55,8 +55,9 @@ final class HouseholdData {
         _ = await refreshRecipes(mood: nil, force: false)
     }
 
-    func refreshRecipes(mood: [String]?, force: Bool) async -> RefreshResult {
-        await recipeService.refresh(stats: stats, onHand: onHand, favorites: cuisinePrefs?.cuisines ?? [], mood: mood, force: force)
+    func refreshRecipes(mood: [String]?, force: Bool, surprise: Bool = false) async -> RefreshResult {
+        await recipeService.refresh(stats: stats, onHand: onHand, favorites: cuisinePrefs?.cuisines ?? [], mood: mood, force: force,
+                                    surprise: surprise)
     }
 
     func markInputsLoaded() async {
@@ -178,12 +179,13 @@ struct HomeView: View {
         .sheet(isPresented: $choosingMood) {
             CuisineSheet(
                 title: "What are you in the mood for?",
-                subtitle: "Pick up to \(maxMoodCuisines) and get recipes from just those tonight.",
+                subtitle: "Pick up to \(maxMoodCuisines) for tonight's recipes, or tap Surprise me for random dishes that don't depend on your kitchen.",
                 initial: data.mood,
                 confirm: "Get recipes",
                 max: maxMoodCuisines,
                 requireSelection: true,
                 secondary: data.mood.isEmpty ? nil : ("Back to usual", { choosingMood = false; Task { await newIdeas(mood: []) } }),
+                surprise: ("Surprise me", { picked in choosingMood = false; Task { await newIdeas(mood: picked, surprise: true) } }),
                 onConfirm: { picked in choosingMood = false; Task { await newIdeas(mood: picked) } }
             )
         }
@@ -272,9 +274,9 @@ struct HomeView: View {
     }
 
     /// `mood` nil keeps tonight's picks; empty goes back to the usual mix.
-    private func newIdeas(mood: [String]?) async {
-        switch await data.refreshRecipes(mood: mood, force: true) {
-        case .notEnoughHistory: show("Add a few ingredients to My kitchen first")
+    /// `surprise` picks random dishes from those cuisines (or the favorites), ignoring the kitchen.
+    private func newIdeas(mood: [String]?, surprise: Bool = false) async {
+        switch await data.refreshRecipes(mood: mood, force: true, surprise: surprise) {
         case .rateLimited: show("That's all the new recipe ideas for today. Check back tomorrow.")
         case .failed: show("Couldn't get new recipes. Try again in a bit.")
         default: break
