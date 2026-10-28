@@ -1,0 +1,13 @@
+Groceries 0.10
+
+ADDED
+• Edit items: swipe left on an item and tap Edit, or press and hold it, to fix its name. Fixing a typo also fixes it in your suggestions.
+• Surprise me: in "What are you in the mood for?", tap Surprise me for random dishes from your cuisines, whatever's in your kitchen.
+• Pantry & seasonings: My kitchen has a new tab for spices and sauces like soy sauce or mirin, with quick adds that match your cuisines. Recipes use them for flavor without building every dish around them. The welcome tour has a new step for them too.
+
+CHANGED
+• Recipe ideas no longer need anything in My kitchen. With nothing there, you'll get recipes from your favorite cuisines.
+• Recipes are more detailed: a short description, how many it serves, clearer steps with times and how to tell when something's done, and a tip at the end.
+• Nearby stores: the app now uses your exact location when you've allowed it, so the closest stores and their distances are more accurate, and distances update as you move around.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
