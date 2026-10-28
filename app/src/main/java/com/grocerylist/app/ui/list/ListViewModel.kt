@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.GroceryList
+import com.grocerylist.app.data.ItemSection
 import com.grocerylist.app.data.ItemStat
 import com.grocerylist.app.data.ListItem
+import com.grocerylist.app.data.groupByAisle
 import com.grocerylist.app.data.suggestItems
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,6 +21,8 @@ import kotlinx.coroutines.launch
 data class ListState(
     val list: GroceryList? = null,
     val items: List<ListItem> = emptyList(),
+    /** `items` grouped by store aisle, checked-off items last. */
+    val sections: List<ItemSection> = emptyList(),
     val suggestions: List<ItemStat> = emptyList(),
     /** Names of other household members by user ID, for marking items they added. Empty if you're the only member. */
     val otherMembers: Map<String, String> = emptyMap(),
@@ -44,6 +48,7 @@ class ListViewModel(householdId: String, private val listId: String, private val
             },
             list = list,
             items = items,
+            sections = groupByAisle(items),
             suggestions = if (list?.isActive == true) {
                 suggestItems(
                     stats,

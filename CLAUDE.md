@@ -24,7 +24,7 @@ owns it; testers are friends and family.
 Android and iOS mirror each other: same Firestore documents and field names (timestamps are device
 millis as Int64/Long), same rules, same logic (suggestion ranking, kitchen quick adds, "stores in use",
 ingredient matching, store brand logos). When changing behavior on one, change the other, or say why not.
-Android files to iOS files: `Suggestions.kt`/`IngredientMatch.kt`/`StoreBrands.kt` → `ios/Groceries/Data/Logic.swift`;
+Android files to iOS files: `Suggestions.kt`/`IngredientMatch.kt`/`StoreBrands.kt`/`Aisles.kt` → `ios/Groceries/Data/Logic.swift`;
 repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both.
 
 ## Backend facts

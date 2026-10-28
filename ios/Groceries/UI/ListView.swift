@@ -43,23 +43,25 @@ struct ListView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            Section {
-                if items.isEmpty && list != nil {
-                    Text(active ? "Nothing on this list yet" : "No items on this list").foregroundStyle(.secondary)
-                }
-                ForEach(sortedItems) { item in
-                    ItemRow(item: item, editable: active, addedBy: data.otherMembers[item.addedBy]) {
-                        data.groceries.setChecked(item, in: listId, !item.checked)
-                    }
-                    .swipeActions {
-                        if active, let list {
-                            Button("Delete", systemImage: "trash", role: .destructive) { data.groceries.deleteItem(item, from: list) }
-                            Button("Edit", systemImage: "pencil") { startEditing(item) }.tint(.gray)
+            if items.isEmpty && list != nil {
+                Text(active ? "Nothing on this list yet" : "No items on this list").foregroundStyle(.secondary)
+            }
+            ForEach(groupByAisle(sortedItems)) { section in
+                Section(section.aisle?.label ?? "Checked off") {
+                    ForEach(section.items) { item in
+                        ItemRow(item: item, editable: active, addedBy: data.otherMembers[item.addedBy]) {
+                            data.groceries.setChecked(item, in: listId, !item.checked)
                         }
-                    }
-                    .contextMenu {
-                        if active {
-                            Button("Edit", systemImage: "pencil") { startEditing(item) }
+                        .swipeActions {
+                            if active, let list {
+                                Button("Delete", systemImage: "trash", role: .destructive) { data.groceries.deleteItem(item, from: list) }
+                                Button("Edit", systemImage: "pencil") { startEditing(item) }.tint(.gray)
+                            }
+                        }
+                        .contextMenu {
+                            if active {
+                                Button("Edit", systemImage: "pencil") { startEditing(item) }
+                            }
                         }
                     }
                 }

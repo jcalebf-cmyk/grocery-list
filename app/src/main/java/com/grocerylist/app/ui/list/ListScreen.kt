@@ -233,20 +233,34 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                     }
                 }
             }
-            items(state.items, key = { it.id }) { item ->
-                GroceryRow(
-                    addedBy = state.otherMembers[item.addedBy],
-                    item = item,
-                    editable = active,
-                    onToggle = { viewModel.toggle(item) },
-                    onDelete = { viewModel.delete(item) },
-                    onEdit = { editingId = item.id },
-                    modifier = Modifier.animateItem(),
-                )
-                HorizontalDivider()
+            for (section in state.sections) {
+                val label = section.aisle?.label ?: "Checked off"
+                item(key = "section-$label") { SectionHeader(label, Modifier.animateItem()) }
+                items(section.items, key = { it.id }) { item ->
+                    GroceryRow(
+                        addedBy = state.otherMembers[item.addedBy],
+                        item = item,
+                        editable = active,
+                        onToggle = { viewModel.toggle(item) },
+                        onDelete = { viewModel.delete(item) },
+                        onEdit = { editingId = item.id },
+                        modifier = Modifier.animateItem(),
+                    )
+                    HorizontalDivider()
+                }
             }
         }
     }
+}
+
+@Composable
+private fun SectionHeader(label: String, modifier: Modifier = Modifier) {
+    Text(
+        label,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
+    )
 }
 
 @Composable
