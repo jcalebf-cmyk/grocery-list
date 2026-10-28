@@ -1,0 +1,9 @@
+Groceries 0.12
+
+ADDED
+• Lists sorted by aisle: items are grouped into sections like Produce, Bakery, Meat & seafood and Pantry, in the order you'd walk a typical store, with dairy and frozen last. Anything the app doesn't recognize goes under Other.
+
+CHANGED
+• Checked-off items now gather in their own "Checked off" section at the bottom of the list.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
