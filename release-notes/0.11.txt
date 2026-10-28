@@ -1,0 +1,10 @@
+Groceries 0.11
+
+CHANGED
+• Pantry & seasonings: salt and black pepper are now the first suggestions.
+
+FIXED
+• My kitchen: the "Pantry & seasonings" tab name is no longer cut off.
+• Favorite cuisines and "What are you in the mood for?": the sheet now opens all the way, so the Save and Get recipes buttons aren't hidden at the bottom.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
