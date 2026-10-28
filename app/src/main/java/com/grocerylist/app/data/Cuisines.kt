@@ -24,6 +24,9 @@ val CUISINE_PANTRY = mapOf(
     "Vietnamese" to listOf("Fish sauce", "Hoisin sauce", "Sriracha", "Rice vinegar", "Soy sauce", "Lemongrass paste"),
 )
 
+/** Every kitchen's basics, offered first. */
+val BASIC_PANTRY = listOf("Salt", "Black pepper")
+
 /** Pantry quick adds for households that haven't picked cuisines, and to fill out the row. */
 val COMMON_PANTRY = listOf(
     "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",

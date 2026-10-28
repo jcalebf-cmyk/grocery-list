@@ -62,13 +62,13 @@ class SuggestionsTest {
 
     @Test fun pantryQuickAddsTakeTurnsAcrossCuisines() {
         val result = pantryQuickAdds(listOf("Japanese", "Mexican"), emptySet())
-        assertEquals(listOf("Soy sauce", "Cumin", "Mirin", "Chili powder"), result.take(4))
+        assertEquals(listOf("Salt", "Black pepper", "Soy sauce", "Cumin", "Mirin", "Chili powder"), result.take(6))
         assertEquals(12, result.size)
     }
 
     @Test fun pantryQuickAddsSkipKitchenItemsAndFallBackToCommon() {
-        val result = pantryQuickAdds(emptyList(), inKitchen = setOf("soy sauce"))
-        assertEquals("Garlic powder", result.first())
+        val result = pantryQuickAdds(emptyList(), inKitchen = setOf("soy sauce", "salt"))
+        assertEquals(listOf("Black pepper", "Garlic powder"), result.take(2))
         assertTrue(result.none { itemKey(it) == "soy sauce" })
     }
 }

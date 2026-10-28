@@ -56,12 +56,12 @@ fun kitchenQuickAdds(
 }
 
 /**
- * Quick-add chips for the pantry: seasonings from the household's favorite cuisines, taking turns
- * so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
+ * Quick-add chips for the pantry: salt and pepper, then seasonings from the household's favorite cuisines,
+ * taking turns so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
  */
 fun pantryQuickAdds(cuisines: List<String>, inKitchen: Set<String>, limit: Int = 12): List<String> {
     val lists = cuisines.mapNotNull { CUISINE_PANTRY[it] }
     val alternating = (0 until (lists.maxOfOrNull { it.size } ?: 0)).flatMap { i -> lists.mapNotNull { it.getOrNull(i) } }
     val seen = HashSet(inKitchen)
-    return (alternating + COMMON_PANTRY).filter { seen.add(itemKey(it)) }.take(limit)
+    return (BASIC_PANTRY + alternating + COMMON_PANTRY).filter { seen.add(itemKey(it)) }.take(limit)
 }

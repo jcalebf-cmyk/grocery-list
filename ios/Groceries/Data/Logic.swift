@@ -45,14 +45,14 @@ func kitchenQuickAdds(_ stats: [ItemStat], inKitchen: Set<String>, now: Int64, l
     return (regulars + commonKitchenItems).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
 }
 
-/// Quick-add chips for the pantry: seasonings from the household's favorite cuisines, taking turns
-/// so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
+/// Quick-add chips for the pantry: salt and pepper, then seasonings from the household's favorite cuisines,
+/// taking turns so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
 func pantryQuickAdds(cuisines picked: [String], inKitchen: Set<String>, limit: Int = 12) -> [String] {
     let lists = picked.compactMap { cuisinePantry[$0] }
     let longest = lists.map(\.count).max() ?? 0
     let alternating = (0..<longest).flatMap { i in lists.compactMap { i < $0.count ? $0[i] : nil } }
     var seen = inKitchen
-    return (alternating + commonPantry).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
+    return (basicPantry + alternating + commonPantry).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
 }
 
 /// Stores to offer under "Your stores": only ones the household has made a list for, most recent first.
@@ -179,6 +179,9 @@ let cuisinePantry: [String: [String]] = [
     "Thai": ["Fish sauce", "Red curry paste", "Coconut milk", "Soy sauce", "Sriracha", "Oyster sauce"],
     "Vietnamese": ["Fish sauce", "Hoisin sauce", "Sriracha", "Rice vinegar", "Soy sauce", "Lemongrass paste"],
 ]
+
+/// Every kitchen's basics, offered first.
+let basicPantry = ["Salt", "Black pepper"]
 
 /// Pantry quick adds for households that haven't picked cuisines, and to fill out the row.
 let commonPantry = [

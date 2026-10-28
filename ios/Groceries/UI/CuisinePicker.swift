@@ -99,7 +99,8 @@ struct CuisineSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // Full height, so the buttons under the chips are never below the fold.
+        .presentationDetents([.large])
         .onAppear { selected = initial }
     }
 }

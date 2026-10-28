@@ -35,6 +35,9 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.LocalTextStyle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -106,11 +109,19 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
             item {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
                     listOf("Ingredients", "Pantry & seasonings").forEachIndexed { i, label ->
+                        // No checkmark, and the text shrinks to fit, so "Pantry & seasonings" isn't cut off on narrow phones.
                         SegmentedButton(
                             selected = pantry == (i == 1),
                             onClick = { pantry = i == 1 },
                             shape = SegmentedButtonDefaults.itemShape(i, 2),
-                        ) { Text(label, maxLines = 1) }
+                            icon = {},
+                        ) {
+                            Text(
+                                label,
+                                maxLines = 1,
+                                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = LocalTextStyle.current.fontSize),
+                            )
+                        }
                     }
                 }
             }
