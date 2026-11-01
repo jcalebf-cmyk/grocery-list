@@ -1,0 +1,9 @@
+Groceries 0.13
+
+ADDED
+• Stop suggesting an item: long-press a suggestion on a list and choose "Don't suggest". It stays hidden until someone in your household adds it again.
+
+CHANGED
+• Smarter suggestions: lists now only suggest things you've added at least 3 times, with the last time in the past 2 months, so one-off buys stop showing up.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
