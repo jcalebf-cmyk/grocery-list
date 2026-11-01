@@ -64,6 +64,8 @@ data class ItemStat(
     val count: Long = 0,
     val lastAdded: Long = 0,
     val storeCounts: Map<String, Long> = emptyMap(),
+    /** When someone chose "Don't suggest"; adding the item again brings it back. 0 if never. */
+    val dismissedAt: Long = 0,
 )
 
 /**

@@ -14,11 +14,25 @@ func itemKey(_ name: String) -> String {
 private let dayMs = 24.0 * 60 * 60 * 1000
 private let halfLifeDays = 21.0
 private let minTimesAdded: Int64 = 2
+private let listMinTimesAdded: Int64 = 3
+private let listMaxDaysSinceAdded = 60.0
+
+/// Suggestions for a list: the household's regulars (see `rankRegulars`) that were added at least 3 times,
+/// most recently within 60 days, and not dismissed since they were last added.
+func suggestItems(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64,
+                  onHand: [String] = [], limit: Int = 12) -> [ItemStat] {
+    rankRegulars(
+        stats.filter {
+            $0.count >= listMinTimesAdded && Double(now - $0.lastAdded) <= listMaxDaysSinceAdded * dayMs
+                && ($0.dismissedAt ?? 0) < $0.lastAdded
+        },
+        storeId: storeId, alreadyOnList: alreadyOnList, now: now, onHand: onHand, limit: limit)
+}
 
 /// Ranks items the household adds often, favoring recent habits and the store this list is for.
 /// Skips what's already on the list, and what's in My kitchen (`onHand` names), matched like recipe
 /// ingredients so "Chicken" in the kitchen also skips "Chicken breast".
-func suggestItems(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64,
+func rankRegulars(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64,
                   onHand: [String] = [], limit: Int = 12) -> [ItemStat] {
     stats
         .filter { $0.count >= minTimesAdded && !alreadyOnList.contains($0.key) && !isCoveredBy($0.displayName, onHand: onHand) }
@@ -40,7 +54,7 @@ private let commonKitchenItems = [
 
 /// Quick-add chips for My kitchen: the household's regulars first, then common staples.
 func kitchenQuickAdds(_ stats: [ItemStat], inKitchen: Set<String>, now: Int64, limit: Int = 12) -> [String] {
-    let regulars = suggestItems(stats, storeId: "", alreadyOnList: inKitchen, now: now, limit: 8).map(\.displayName)
+    let regulars = rankRegulars(stats, storeId: "", alreadyOnList: inKitchen, now: now, limit: 8).map(\.displayName)
     var seen = inKitchen
     return (regulars + commonKitchenItems).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
 }

@@ -82,6 +82,11 @@ struct GroceryService {
         batch.commit()
     }
 
+    /// Hides the item from list suggestions until someone adds it again.
+    func dismissSuggestion(_ stat: ItemStat) {
+        stats.document(stat.key).setData(["dismissedAt": nowMillis()], merge: true)
+    }
+
     func clearChecked(in listId: String, items: [ListItem]) {
         let batch = db.batch()
         for item in items where item.checked { batch.deleteDocument(lists.document(listId).collection("items").document(item.id)) }

@@ -88,6 +88,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
   active lists and deletes past ones, each after a confirmation; items in My kitchen are never suggested on lists;
   one show/hide toggle covers both password fields.
+- List suggestions: 3+ adds, last added within 60 days; long-press a chip → "Don't suggest" (`dismissedAt` on the
+  `itemStats` doc) until it's added again. Kitchen quick adds and recipe regulars keep the looser rules (2+ adds, no cutoff).
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 

@@ -96,7 +96,7 @@ class RecipeRepository(householdId: String) {
         val onHandKeys = onHand.mapTo(HashSet()) { it.key }
         val onHandSignature = onHandKeys.sorted()
         val cuisines = favorites.sorted()
-        val regulars = suggestItems(stats, storeId = "", alreadyOnList = onHandKeys, now = System.currentTimeMillis(), limit = 15)
+        val regulars = rankRegulars(stats, storeId = "", alreadyOnList = onHandKeys, now = System.currentTimeMillis(), limit = 15)
             .map { it.displayName }
         if (!lock.tryLock()) return RefreshResult.BUSY
         _refreshing.value = true

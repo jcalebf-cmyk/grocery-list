@@ -51,7 +51,7 @@ final class RecipeService {
         let onHandKeys = Set(onHand.map(\.key))
         let signature = onHandKeys.sorted()
         let favorites = favorites.sorted()
-        let regulars = suggestItems(stats, storeId: "", alreadyOnList: onHandKeys, now: nowMillis(), limit: 15).map(\.displayName)
+        let regulars = rankRegulars(stats, storeId: "", alreadyOnList: onHandKeys, now: nowMillis(), limit: 15).map(\.displayName)
         if refreshing { return .busy }
         refreshing = true
         defer { refreshing = false }

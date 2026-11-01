@@ -68,6 +68,8 @@ struct ItemStat: Codable, Identifiable {
     var count: Int64 = 0
     var lastAdded: Int64 = 0
     var storeCounts: [String: Int64]?
+    /// When someone chose "Don't suggest"; adding the item again brings it back.
+    var dismissedAt: Int64?
 
     var key: String { docId ?? "" }
     var id: String { key }
