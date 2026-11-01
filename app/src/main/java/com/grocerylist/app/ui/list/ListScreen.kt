@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -34,9 +35,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CheckboxDefaults
@@ -65,6 +67,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -206,7 +209,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
         }
         LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {
             if (state.suggestions.isNotEmpty()) {
-                item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add) }
+                item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add, onDismiss = viewModel::dismissSuggestion) }
             }
             if (state.items.isEmpty() && state.list != null) {
                 item(key = "empty") {
@@ -264,7 +267,7 @@ private fun SectionHeader(label: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SuggestionRow(suggestions: List<ItemStat>, onAdd: (String) -> Unit) {
+private fun SuggestionRow(suggestions: List<ItemStat>, onAdd: (String) -> Unit, onDismiss: (ItemStat) -> Unit) {
     Column(Modifier.padding(vertical = 8.dp)) {
         Text(
             "Suggested",
@@ -277,13 +280,44 @@ private fun SuggestionRow(suggestions: List<ItemStat>, onAdd: (String) -> Unit) 
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(suggestions, key = { it.key }) { stat ->
-                AssistChip(
-                    onClick = { onAdd(stat.displayName) },
-                    label = { Text(stat.displayName) },
-                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    modifier = Modifier.animateItem(),
-                )
+                SuggestedItemChip(stat, onAdd = { onAdd(stat.displayName) }, onDismiss = { onDismiss(stat) }, Modifier.animateItem())
             }
+        }
+    }
+}
+
+/** Looks like an AssistChip, which can't take a long press: that opens "Don't suggest". */
+@Composable
+private fun SuggestedItemChip(stat: ItemStat, onAdd: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val haptics = LocalHapticFeedback.current
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Surface(
+            shape = AssistChipDefaults.shape,
+            border = AssistChipDefaults.assistChipBorder(enabled = true),
+            modifier = Modifier.clip(AssistChipDefaults.shape).combinedClickable(
+                onLongClickLabel = "Don't suggest",
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    menuOpen = true
+                },
+                onClick = onAdd,
+            ),
+        ) {
+            Row(Modifier.height(32.dp).padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(stat.displayName, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("Don't suggest") },
+                leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    onDismiss()
+                },
+            )
         }
     }
 }

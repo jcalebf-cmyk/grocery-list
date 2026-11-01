@@ -67,6 +67,8 @@ class ListViewModel(householdId: String, private val listId: String, private val
         state.value.list?.let { repo.addItem(it, name, uid) }
     }
 
+    fun dismissSuggestion(stat: ItemStat) = repo.dismissSuggestion(stat)
+
     fun toggle(item: ListItem) = repo.setChecked(listId, item, !item.checked)
 
     fun delete(item: ListItem) {

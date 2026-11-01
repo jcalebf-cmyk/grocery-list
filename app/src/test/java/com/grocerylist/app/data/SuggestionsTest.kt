@@ -11,9 +11,26 @@ class SuggestionsTest {
     private fun stat(key: String, count: Long, daysAgo: Int, storeCounts: Map<String, Long> = emptyMap()) =
         ItemStat(key = key, displayName = key, count = count, lastAdded = now - daysAgo * day, storeCounts = storeCounts)
 
-    @Test fun skipsItemsAddedOnlyOnce() {
-        val result = suggestItems(listOf(stat("milk", 1, 0)), "s", emptySet(), now)
-        assertEquals(emptyList<ItemStat>(), result)
+    @Test fun skipsItemsAddedFewerThanThreeTimes() {
+        val result = suggestItems(listOf(stat("milk", 2, 0), stat("eggs", 3, 0)), "s", emptySet(), now)
+        assertEquals(listOf("eggs"), result.map { it.key })
+    }
+
+    @Test fun skipsItemsNotAddedInSixtyDays() {
+        val result = suggestItems(listOf(stat("walnuts", 9, 61), stat("eggs", 3, 59)), "s", emptySet(), now)
+        assertEquals(listOf("eggs"), result.map { it.key })
+    }
+
+    @Test fun skipsDismissedItemsUntilAddedAgain() {
+        val dismissed = stat("walnuts", 5, 2).copy(dismissedAt = now - day)
+        val addedSince = stat("broccoli", 5, 0).copy(dismissedAt = now - day)
+        val result = suggestItems(listOf(dismissed, addedSince), "s", emptySet(), now)
+        assertEquals(listOf("broccoli"), result.map { it.key })
+    }
+
+    @Test fun kitchenAndRecipeRegularsKeepTheLooserRules() {
+        val stats = listOf(stat("milk", 2, 90).copy(dismissedAt = now))
+        assertEquals(listOf("milk"), rankRegulars(stats, "", emptySet(), now).map { it.key })
     }
 
     @Test fun skipsItemsAlreadyOnTheList() {
@@ -29,7 +46,7 @@ class SuggestionsTest {
     }
 
     @Test fun recentHabitsOutrankOldOnes() {
-        val result = suggestItems(listOf(stat("old", 6, 60), stat("recent", 3, 1)), "s", emptySet(), now)
+        val result = suggestItems(listOf(stat("old", 6, 40), stat("recent", 3, 1)), "s", emptySet(), now)
         assertEquals(listOf("recent", "old"), result.map { it.key })
     }
 

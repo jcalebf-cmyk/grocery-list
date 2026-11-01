@@ -35,6 +35,9 @@ struct ListView: View {
                             ForEach(suggestions) { stat in
                                 Button { add(stat.displayName) } label: { Label(stat.displayName, systemImage: "plus") }
                                     .buttonStyle(.glass)
+                                    .contextMenu {
+                                        Button("Don't suggest", systemImage: "xmark") { data.groceries.dismissSuggestion(stat) }
+                                    }
                             }
                         }
                         .padding(.vertical, 4)

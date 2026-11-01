@@ -176,6 +176,11 @@ class GroceryRepository(householdId: String) {
         }.commit()
     }
 
+    /** Hides the item from list suggestions until someone adds it again. */
+    fun dismissSuggestion(stat: ItemStat) {
+        stats.document(stat.key).set(mapOf("dismissedAt" to System.currentTimeMillis()), SetOptions.merge())
+    }
+
     fun clearChecked(listId: String, items: List<ListItem>) {
         Firebase.firestore.batch().apply {
             items.filter { it.checked }.forEach { delete(lists.document(listId).collection("items").document(it.id)) }
