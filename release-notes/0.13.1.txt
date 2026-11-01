@@ -1,0 +1,6 @@
+Groceries 0.13.1
+
+FIXED
+• Suggestions: the suggested items have room to breathe again instead of crowding the "Suggested" heading, and they're easier to tap.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
