@@ -43,7 +43,13 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   `recipes/current` and last until cleared or the daily refresh. Cuisine list: `Cuisines.kt` ↔ `Logic.swift`.
   Endpoints require a Firebase ID token and have
   per-user daily limits (stores 20, recipes 8) in Vercel Runtime Cache.
-- Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down.
+- Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down. Since 0.9 the apps
+  send exact location (Android asks for precise; approximate still works) and re-measure saved stores' distances.
+- Instacart handoff: investigated (Oct 2026) sending a list's items to Instacart as a shoppable page via
+  Instacart's Developer Platform `products_link` endpoint. No OAuth needed and nothing to pin a list's store to
+  (confirmed: no `retailer_key`/store field in that API), so the design would've been a plain "Send to Instacart"
+  button, no onboarding step. Not built: Instacart's developer applications are closed with no waitlist
+  ("check back in the future") — don't restart this without checking instacart.com/company/business/developers first.
 - Auth emails (confirmation, password reset) come from the server, not Firebase: Firebase Admin makes the link,
   Resend sends it (designs in `server/lib/emailTemplates.ts`), and the link opens `householdgroceries.app/account`.
   Reset needs no sign-in and always answers ok immediately (limits: 5/day per address, 20/day per network).
@@ -51,20 +57,29 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   in an ESM-only `jose` that Vercel's runtime can't `require`.
 - Domain `householdgroceries.app` (bought in Vercel, jcalebf-cmyk; DNS in Vercel): Resend records, ImprovMX
   forwards `hello@` to Josh's Gmail, DMARC `p=none`. The bare domain redirects to `www` (Vercel default).
+  Homepage is `server/public/index.html` (an empty domain hurt deliverability); its screenshot `app-list.png`
+  came from a temporary iOS sample-data view with a made-up store, "Corner Market" (no real chain logos on the site).
+- Email deliverability (Oct 13): SPF, DKIM and DMARC all pass in Gmail; Resend click/open tracking are off
+  (keep them off). Some emails landing in spam is because the domain is new; testers mark them "Not spam".
 - The Vercel MCP connector is signed into a different account; use the `vercel` CLI (linked at the repo root).
+- Firestore listeners the rules refuse stop silently and never retry (Android's `snapshots()` wraps the error in
+  a cancellation; check `e.cause`). So the session only goes ready on the server's copy of the household
+  (not this phone's unsaved one), and a denial while a join is still saving waits for the saved profile.
 
 ## How to build and ship
 
 - **Deploys:** pushing to `main` auto-deploys the server (only when `server/` changes). Manual deploys must
   run from the **repo root** (`vercel deploy --prod --yes`), never from `server/` – the project's Root
   Directory is `server`, so deploying from inside it breaks production. `.vercelignore` keeps root deploys
-  under Vercel's upload limit. Check `/api/health` afterwards.
+  under Vercel's upload limit. Check `/api/health` afterwards. Claude's auto mode blocks running production
+  deploys, so Claude ships server changes by pushing to `main` (when Josh asks) or Josh runs the deploy.
 - **Android:** `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleRelease testDebugUnitTest`.
   Release signing key lives outside the repo in `../GroceryList-signing/` (backed up in Josh's LastPass);
   never commit it. Josh's Pixel has the release-signed app, so install release builds on it
   (`adb -s 47221FDAS000XD install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
   `gradlew installDebug` targets every connected device, Pixel included; for the emulator use `adb -e install -r`.
-- **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`).
+- **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`). Auto mode blocks
+  the Firebase upload (it emails testers) unless Josh asks for that step directly ("upload and send it").
 - **iPhone releases:** use the `release-ios` skill (archive → upload to TestFlight via `ios/ExportOptions.plist`).
 - **iOS:** Xcode 27, but `xcode-select` still points at Command Line Tools, so prefix commands with
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Run `xcodegen` in `ios/` after editing
@@ -73,6 +88,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   Apple team `6759US4CJM`; Josh's Mac is the team's registered development device (Apple won't issue any
   signing profile until one device exists). Xcode is signed into Josh's Apple account, so
   `-allowProvisioningUpdates` handles certificates and profiles.
+  If the TestFlight export fails with "PLA Update available" / no "iOS Distribution" certificate, Josh must
+  accept Apple's updated Program License Agreement at developer.apple.com/account, then rerun the export.
   Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme.
 - **Checking signed-in screens without an account:** temporarily swap `RootView()` (iOS) or `GroceryApp()`
   (Android) for a debug-only view with sample data, check it, then delete it before committing.
@@ -81,7 +98,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 ## Working with Josh
 
 - Run the `wrap-up` skill at the end of a task to keep this file current; keep this file short.
-- Commit and push **only when asked**. Before committing, check no config/key/signing files are staged.
+- Cloud sessions push straight to `main`; `git pull` on the Mac before building a release from their work.
+- Commit and push **only when asked** ("deploy" covers the Firebase/TestFlight uploads, not the release commit/tags). Before committing, check no config/key/signing files are staged.
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
@@ -93,21 +111,20 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Oct 12, 2026)
+## Status (Oct 31, 2026)
 
-- **Android:** 0.6 (code 6) is the latest release, on Firebase App Distribution and tagged `v0.6`
-  (no tester groups yet; it goes to every tester individually).
-- **iPhone:** 0.6 (build 5) is in TestFlight (internal group, automatic distribution on), tagged `ios-v0.6`;
-  `release-ios` sets "What to Test" and sends each build to external groups + Beta App Review automatically. Version numbers match across platforms (Josh's call).
-  The next upload must be build 6.
-- 0.5 = branded emails and link page, simpler close-out, swipe to close out. 0.6 = onboarding walkthrough,
-  kitchen items skipped in suggestions, version in Settings, readable iOS buttons.
-- Not yet tried with a real account: the onboarding flow, kitchen items dropping out of list suggestions,
-  swipes on real lists, and the confirmation email sent from the app.
-- Waiting on Josh: set the app name to "Groceries" in Google Auth Platform → Branding (Google sign-in still
-  shows "project-566834645408") and Firebase → Project settings → Public-facing name. Optional: make the bare
-  domain primary instead of `www`; point Firebase's email templates' action URL at `householdgroceries.app/account`
-  so emails sent by older app versions open the new page.
+- **Both platforms: 0.13** (Android code 13 on Firebase to all 3 testers, no groups yet; iOS build 11 in
+  TestFlight, submitted for Beta App Review, `WAITING_FOR_REVIEW`). Tagged `v0.13` / `ios-v0.13` with GitHub
+  pre-releases. Next iOS upload must be build 12. Versions match across platforms again.
+- Recent releases: 0.10 = edit list items, Surprise me, Pantry & seasonings tab, recipes without a kitchen,
+  richer recipes. 0.11 = salt and pepper first in pantry quick adds, sheet/tab-label fixes. 0.12 = list items
+  grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud
+  session; only unit-tested, not tried on a phone or simulator).
+- Not yet tried with real accounts: "Don't suggest", joining with a code, removal on Android, kitchen items
+  dropping out of list suggestions, swipes on real lists, the confirmation email.
+- App name "Groceries" is set in Google Auth Platform → Branding and Firebase's public-facing name.
+  Josh's call: `www` stays the primary domain, and Firebase's email template action URL stays as is
+  (don't suggest changing either).
 - "Clear checked items" removes checked items from the list; Josh wants it kept as is (name and trash icon).
 - Optional cleanups Josh may do: delete the unused `com.grocerylist.app` iOS app in Firebase (keep the
   Android app), and remove `com.joshfranzen.groceries` from Apple Identifiers if it was registered.
