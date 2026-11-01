@@ -58,6 +58,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -295,7 +296,7 @@ private fun SuggestedItemChip(stat: ItemStat, onAdd: () -> Unit, onDismiss: () -
         Surface(
             shape = AssistChipDefaults.shape,
             border = AssistChipDefaults.assistChipBorder(enabled = true),
-            modifier = Modifier.clip(AssistChipDefaults.shape).combinedClickable(
+            modifier = Modifier.minimumInteractiveComponentSize().clip(AssistChipDefaults.shape).combinedClickable(
                 onLongClickLabel = "Don't suggest",
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
