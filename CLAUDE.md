@@ -90,7 +90,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   `-allowProvisioningUpdates` handles certificates and profiles.
   If the TestFlight export fails with "PLA Update available" / no "iOS Distribution" certificate, Josh must
   accept Apple's updated Program License Agreement at developer.apple.com/account, then rerun the export.
-  Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme.
+  Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme. Hand-built clickable chips need
+  `Modifier.minimumInteractiveComponentSize()` (48dp, like stock chips) or they crowd what's around them.
 - **Checking signed-in screens without an account:** temporarily swap `RootView()` (iOS) or `GroceryApp()`
   (Android) for a debug-only view with sample data, check it, then delete it before committing.
 - Firebase App Distribution always serves the APK as `app.apk`; the file can't be renamed for testers.
@@ -113,9 +114,10 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 
 ## Status (Oct 31, 2026)
 
-- **Both platforms: 0.13** (Android code 13 on Firebase to all 3 testers, no groups yet; iOS build 11 in
-  TestFlight, submitted for Beta App Review, `WAITING_FOR_REVIEW`). Tagged `v0.13` / `ios-v0.13` with GitHub
-  pre-releases. Next iOS upload must be build 12. Versions match across platforms again.
+- **Android: 0.13.1** (code 14) on Firebase to all 3 testers (no groups yet), tagged `v0.13.1`. 0.13.1 = suggestion
+  chips spaced off the "Suggested" heading again (the custom long-press chip lacked the 48dp touch target).
+- **iPhone: 0.13** (build 11) in TestFlight, submitted for Beta App Review (`WAITING_FOR_REVIEW`), tagged
+  `ios-v0.13`. Next iOS upload must be build 12. iOS needed no 0.13.1 (its spacing didn't change).
 - Recent releases: 0.10 = edit list items, Surprise me, Pantry & seasonings tab, recipes without a kitchen,
   richer recipes. 0.11 = salt and pepper first in pantry quick adds, sheet/tab-label fixes. 0.12 = list items
   grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud
