@@ -1,0 +1,6 @@
+Groceries 0.13.1
+
+FIXED
+• Security: an urgent fix from Google that keeps your lists' connection to the server secure. Please update.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
