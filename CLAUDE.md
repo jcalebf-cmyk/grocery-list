@@ -81,8 +81,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`). Auto mode blocks
   the Firebase upload (it emails testers) unless Josh asks for that step directly ("upload and send it").
 - **iPhone releases:** use the `release-ios` skill (archive → upload to TestFlight via `ios/ExportOptions.plist`).
-- **iOS:** Xcode 27, but `xcode-select` still points at Command Line Tools, so prefix commands with
-  `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Run `xcodegen` in `ios/` after editing
+- **iOS:** Xcode 27; `xcode-select` points at Xcode since Nov 3 (the `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
+  prefix is harmless if it's ever reset). Run `xcodegen` in `ios/` after editing
   `project.yml`. Simulator builds must be signed locally (project default) or Firebase can't use the keychain.
   Firebase iOS SDK is pinned to 12.x because 13.x conflicts with GoogleSignIn 10 (App Check versions).
   Apple team `6759US4CJM`; Josh's Mac is the team's registered development device (Apple won't issue any
@@ -116,8 +116,9 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 
 - **Android: 0.13.1** (code 14) on Firebase to all 3 testers (no groups yet), tagged `v0.13.1`. 0.13.1 = suggestion
   chips spaced off the "Suggested" heading again (the custom long-press chip lacked the 48dp touch target).
-- **iPhone: 0.13** (build 11) in TestFlight, submitted for Beta App Review (`WAITING_FOR_REVIEW`), tagged
-  `ios-v0.13`. Next iOS upload must be build 12. iOS needed no 0.13.1 (its spacing didn't change).
+- **iPhone: 0.13.1** (build 12) in TestFlight, submitted for Beta App Review (`WAITING_FOR_REVIEW`), tagged
+  `ios-v0.13.1`. Next iOS upload must be build 13. 0.13.1 = Firebase 12.19.3, Google's urgent Firestore fix for the
+  compromised eMudhra CA certs (Nov 3 email; Apple SDK only, Android/server unaffected). Firebase must stay ≥ 12.19.3.
 - Recent releases: 0.10 = edit list items, Surprise me, Pantry & seasonings tab, recipes without a kitchen,
   richer recipes. 0.11 = salt and pepper first in pantry quick adds, sheet/tab-label fixes. 0.12 = list items
   grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud

@@ -6,7 +6,7 @@ description: Build and upload a new iPhone build of the Groceries app to TestFli
 # iPhone (TestFlight) release
 
 Run from `ios/`. Prefix every Xcode command with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
-(`xcode-select` still points at Command Line Tools).
+(harmless now that `xcode-select` points at Xcode, and safe if it's ever reset to Command Line Tools).
 
 1. **Find what changed** since the last iOS release: `git describe --tags --match 'ios-v*' --abbrev=0`
    (if there's no iOS tag yet, use the commit that added the app), then `git log --oneline <ref>..HEAD -- ios firestore.rules`.
