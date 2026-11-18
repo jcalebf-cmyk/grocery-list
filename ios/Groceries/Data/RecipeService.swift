@@ -80,17 +80,14 @@ final class RecipeService {
     }
     private struct ChatRequest: Encodable {
         let messages: [Turn]
-        let onHand: [String]
-        let pantry: [String]
     }
     private struct ChatResponse: Decodable {
         let reply: String
         let recipes: [Card]
     }
 
-    /// Sends the conversation (ending with the user's new message) and returns the AI's reply. The kitchen is
-    /// sent as background only: the server tells the AI not to limit suggestions to it.
-    func chat(_ messages: [ChatMessage], onHand: [OnHandItem]) async throws -> ChatMessage {
+    /// Sends the conversation (ending with the user's new message) and returns the AI's reply.
+    func chat(_ messages: [ChatMessage]) async throws -> ChatMessage {
         // The server takes up to 40 turns, starting with the user's.
         let recent = messages.suffix(40).drop { !$0.fromUser }
         let turns = recent.map { m in
@@ -98,9 +95,7 @@ final class RecipeService {
         }
         let response: ChatResponse = try await ServerAPI.post(
             "/api/recipe-chat",
-            body: ChatRequest(messages: turns,
-                              onHand: Array(onHand.filter { !$0.isPantry }.map(\.name).prefix(40)),
-                              pantry: Array(onHand.filter(\.isPantry).map(\.name).prefix(60))),
+            body: ChatRequest(messages: turns),
             timeout: 60)
         return ChatMessage(fromUser: false, text: response.reply, recipes: response.recipes.map { $0.recipe(source: .ai) })
     }

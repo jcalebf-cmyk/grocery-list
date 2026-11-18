@@ -75,22 +75,6 @@ struct ItemStat: Codable, Identifiable {
     var id: String { key }
 }
 
-/// Something the household already has: an ingredient, or a pantry seasoning or sauce. Same document as
-/// Android's OnHandItem.
-struct OnHandItem: Codable, Identifiable, Hashable {
-    static let pantryKind = "pantry"
-
-    @DocumentID var docId: String?
-    var name: String = ""
-    var key: String = ""
-    var addedBy: String = ""
-    var createdAt: Int64 = 0
-    var kind: String?
-
-    var id: String { docId ?? "" }
-    var isPantry: Bool { kind == Self.pantryKind }
-}
-
 struct Ingredient: Codable, Hashable {
     var name: String
     var quantity: String

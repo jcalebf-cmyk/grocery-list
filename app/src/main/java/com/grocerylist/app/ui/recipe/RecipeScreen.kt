@@ -1,5 +1,7 @@
 package com.grocerylist.app.ui.recipe
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,13 +25,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import android.content.Intent
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,12 +48,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -140,9 +140,8 @@ fun RecipeDetail(
     actions: @Composable () -> Unit = {},
 ) {
     val shopping by viewModel.shopping.collectAsStateWithLifecycle()
-    // Everything starts checked except what's on hand; the shopper unticks anything else they have.
-    val onHandIndices = remember(recipe, shopping.onHandNames) { recipe?.let(shopping::onHandIndices).orEmpty() }
-    var unchecked by remember(recipe?.ingredients, onHandIndices) { mutableStateOf(onHandIndices) }
+    // Everything starts checked; the shopper unticks what they already have.
+    var unchecked by remember(recipe?.ingredients) { mutableStateOf(emptySet<Int>()) }
     var pickingStore by rememberSaveable { mutableStateOf(false) }
     var showingOriginal by rememberSaveable { mutableStateOf(false) }
     // How many people to cook for; amounts scale from what the recipe serves.
@@ -169,9 +168,28 @@ fun RecipeDetail(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (recipe != null) {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                     item(key = "title") { RecipeTitle(recipe, people, onPeopleChange = { people = it }) }
-                    if (recipe.ingredients.isNotEmpty()) item { SectionTitle("Ingredients") }
+                    if (recipe.ingredients.isNotEmpty()) {
+                        item {
+                            // Sits with the ingredients rather than pinned to the screen, so it's there when
+                            // you're shopping and out of the way while you read or cook.
+                            Row(
+                                Modifier.fillMaxWidth().padding(end = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(Modifier.weight(1f)) { SectionTitle("Ingredients") }
+                                FilledTonalButton(
+                                    onClick = { pickingStore = true },
+                                    enabled = recipe.ingredients.size > unchecked.size,
+                                    modifier = Modifier.padding(top = 16.dp),
+                                ) {
+                                    Icon(Icons.Default.ShoppingCart, contentDescription = null, Modifier.size(18.dp))
+                                    Text("Add to list", Modifier.padding(start = 6.dp))
+                                }
+                            }
+                        }
+                    }
                     itemsIndexed(recipe.ingredients) { i, ingredient ->
                         val checked = i !in unchecked
                         val toggle = { unchecked = if (checked) unchecked + i else unchecked - i }
@@ -179,11 +197,6 @@ fun RecipeDetail(
                             modifier = Modifier.clickable(onClick = toggle),
                             leadingContent = { Checkbox(checked = checked, onCheckedChange = { toggle() }) },
                             headlineContent = { Text(ingredient.name.replaceFirstChar(Char::uppercase)) },
-                            supportingContent = if (i in onHandIndices) {
-                                { Text("In your kitchen", color = MaterialTheme.colorScheme.primary) }
-                            } else {
-                                null
-                            },
                             trailingContent = {
                                 if (ingredient.quantity.isNotBlank()) Text(scaleQuantity(ingredient.quantity, factor))
                             },
@@ -223,25 +236,6 @@ fun RecipeDetail(
                     }
                 }
 
-                val count = recipe.ingredients.size - unchecked.size
-                if (recipe.ingredients.isNotEmpty()) {
-                    Button(
-                        onClick = { pickingStore = true },
-                        enabled = count > 0,
-                        shape = MaterialTheme.shapes.extraLarge,
-                        contentPadding = PaddingValues(vertical = 16.dp),
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                            .padding(16.dp)
-                            .fillMaxWidth(),
-                    ) {
-                        Text(
-                            if (count == 1) "Add 1 item to a list" else "Add $count items to a list",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-                }
             }
         }
     }

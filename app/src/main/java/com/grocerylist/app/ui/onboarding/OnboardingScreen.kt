@@ -1,5 +1,7 @@
 package com.grocerylist.app.ui.onboarding
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,32 +26,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -59,23 +49,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.AppGraph
-import com.grocerylist.app.data.itemKey
-import com.grocerylist.app.data.kitchenQuickAdds
-import com.grocerylist.app.data.pantryQuickAdds
 import com.grocerylist.app.ui.AppIcons
 import com.grocerylist.app.ui.Session
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
 /** How someone got their household. Decides whether onboarding starts with the invite step. */
@@ -89,51 +73,27 @@ object Onboarding {
     val pending = MutableStateFlow<OnboardingStart?>(null)
 }
 
-class OnboardingViewModel(householdId: String, private val uid: String) : ViewModel() {
-    private val repo = AppGraph.groceries(householdId)
-
+class OnboardingViewModel(householdId: String) : ViewModel() {
     val household = AppGraph.households.observeHousehold(householdId)
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    val kitchen = repo.observeOnHand().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    /** Suggested staples, fixed when the screen opens so chips don't move as they're added. */
-    val kitchenOptions = flow { emit(kitchenQuickAdds(repo.observeStats().first(), emptySet(), System.currentTimeMillis())) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, kitchenQuickAdds(emptyList(), emptySet(), System.currentTimeMillis()))
-
-    fun addToKitchen(name: String, pantry: Boolean) {
-        if (name.isNotBlank()) repo.addOnHand(name, uid, pantry)
-    }
-
-    /** Adding an item that's already on the other tab moves it here. */
-    fun toggleKitchen(name: String, pantry: Boolean) {
-        val item = kitchen.value.firstOrNull { it.key == itemKey(name) && it.isPantry == pantry }
-        if (item != null) repo.removeOnHand(item) else repo.addOnHand(name, uid, pantry)
-    }
 }
 
-private enum class Step { INVITE, RECIPES, KITCHEN, PANTRY }
+private enum class Step { INVITE, RECIPES }
 
 /**
- * The walkthrough after someone starts or joins a household: invite (new households only), recipes,
- * then My kitchen's ingredients and pantry. Each step teaches one thing the app does and can be skipped.
+ * The walkthrough after someone starts or joins a household: invite (new households only), then the
+ * recipe box. Each step teaches one thing the app does.
  * iOS: OnboardingView.swift.
  */
 @Composable
 fun OnboardingScreen(session: Session.Ready, start: OnboardingStart, onDone: () -> Unit) {
-    val viewModel: OnboardingViewModel = viewModel { OnboardingViewModel(session.householdId, session.user.uid) }
+    val viewModel: OnboardingViewModel = viewModel { OnboardingViewModel(session.householdId) }
     val household by viewModel.household.collectAsStateWithLifecycle()
-    val kitchen by viewModel.kitchen.collectAsStateWithLifecycle()
-    val kitchenOptions by viewModel.kitchenOptions.collectAsStateWithLifecycle()
 
     OnboardingContent(
         start = start,
         householdName = household?.name,
         inviteCode = household?.inviteCode,
-        kitchenOptions = kitchenOptions,
-        inKitchen = kitchen.filterNot { it.isPantry }.map { it.name },
-        inPantry = kitchen.filter { it.isPantry }.map { it.name },
-        onToggleKitchen = viewModel::toggleKitchen,
-        onAddToKitchen = viewModel::addToKitchen,
         onDone = onDone,
     )
 }
@@ -144,21 +104,15 @@ fun OnboardingContent(
     start: OnboardingStart,
     householdName: String?,
     inviteCode: String?,
-    kitchenOptions: List<String>,
-    inKitchen: List<String>,
-    inPantry: List<String>,
-    onToggleKitchen: (name: String, pantry: Boolean) -> Unit,
-    onAddToKitchen: (name: String, pantry: Boolean) -> Unit,
     onDone: () -> Unit,
 ) {
     val steps = if (start == OnboardingStart.CREATED) {
-        listOf(Step.INVITE, Step.RECIPES, Step.KITCHEN, Step.PANTRY)
+        listOf(Step.INVITE, Step.RECIPES)
     } else {
-        listOf(Step.RECIPES, Step.KITCHEN, Step.PANTRY)
+        listOf(Step.RECIPES)
     }
     var index by rememberSaveable { mutableIntStateOf(0) }
     val step = steps[index]
-    val pantryOptions = remember { pantryQuickAdds(emptySet()) }
 
     fun next() {
         if (index + 1 < steps.size) index++ else onDone()
@@ -193,26 +147,6 @@ fun OnboardingContent(
                 when (shown) {
                     Step.INVITE -> InviteStep(householdName, inviteCode)
                     Step.RECIPES -> RecipesStep()
-                    Step.KITCHEN -> ChipsStep(
-                        icon = AppIcons.Kitchen,
-                        title = "Already have it at home?",
-                        text = "Add things you keep stocked or get delivered, like a ButcherBox. " +
-                            "Lists won't suggest them, and recipes won't add them to your list.",
-                        options = kitchenOptions,
-                        added = inKitchen,
-                        onToggle = { onToggleKitchen(it, false) },
-                        onAdd = { onAddToKitchen(it, false) },
-                    )
-                    Step.PANTRY -> ChipsStep(
-                        icon = AppIcons.Leaf,
-                        title = "What's in your spice rack?",
-                        text = "Add the seasonings and sauces you keep around, like soy sauce or mirin. " +
-                            "Recipes won't add them to your list, so you won't buy them twice.",
-                        options = pantryOptions,
-                        added = inPantry,
-                        onToggle = { onToggleKitchen(it, true) },
-                        onAdd = { onAddToKitchen(it, true) },
-                    )
                 }
             }
         }
@@ -299,60 +233,5 @@ private fun ColumnScope.RecipesStep() {
         "Save recipes in one place everyone can see. Paste one from a website, a message, or a YouTube video, " +
             "share one to Groceries from another app, or ask for one, like \"chicken thighs in the dutch oven\". " +
             "Then add what you're missing to a list in a tap.",
-    )
-}
-
-/** Toggleable suggestions plus a field for anything else; used for the kitchen and pantry steps. */
-@Composable
-private fun ColumnScope.ChipsStep(
-    icon: ImageVector,
-    title: String,
-    text: String,
-    options: List<String>,
-    added: List<String>,
-    onToggle: (String) -> Unit,
-    onAdd: (String) -> Unit,
-) {
-    Intro(icon, title, text)
-    // The suggestions, plus anything typed in, so added items stay visible as checked chips.
-    val suggested = options.mapTo(HashSet()) { itemKey(it) }
-    val kitchenKeys = added.mapTo(HashSet()) { itemKey(it) }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        (options + added.filter { itemKey(it) !in suggested }).forEach { name ->
-            val selected = itemKey(name) in kitchenKeys
-            FilterChip(
-                selected = selected,
-                onClick = { onToggle(name) },
-                label = { Text(name) },
-                leadingIcon = {
-                    Icon(if (selected) Icons.Default.Check else Icons.Default.Add, contentDescription = null, Modifier.size(18.dp))
-                },
-            )
-        }
-    }
-    var typed by rememberSaveable(title) { mutableStateOf("") }
-    val submit = {
-        onAdd(typed.trim())
-        typed = ""
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(
-            value = typed,
-            onValueChange = { typed = it },
-            placeholder = { Text("Add something else") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { submit() }),
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(8.dp))
-        FilledIconButton(onClick = submit, enabled = typed.isNotBlank()) {
-            Icon(Icons.Default.Add, contentDescription = "Add")
-        }
-    }
-    Text(
-        "You can change these anytime in My kitchen.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }

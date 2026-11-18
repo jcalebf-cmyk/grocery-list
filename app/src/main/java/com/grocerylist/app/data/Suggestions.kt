@@ -17,7 +17,6 @@ fun suggestItems(
     storeId: String,
     alreadyOnList: Set<String>,
     now: Long,
-    onHand: Collection<String> = emptyList(),
     limit: Int = 12,
 ): List<ItemStat> =
     rankRegulars(
@@ -26,25 +25,23 @@ fun suggestItems(
                 now - it.lastAdded <= LIST_MAX_DAYS_SINCE_ADDED * DAY_MS &&
                 it.dismissedAt < it.lastAdded
         },
-        storeId, alreadyOnList, now, onHand, limit,
+        storeId, alreadyOnList, now, limit,
     )
 
 /**
  * Ranks items the household adds often, favoring recent habits and the store this list is for.
  * An item added 10 times three weeks ago scores the same as one added 5 times today.
- * Skips what's already on the list, and what's in My kitchen ([onHand] names), matched like recipe
- * ingredients so "Chicken" in the kitchen also skips "Chicken breast".
+ * Skips what's already on the list.
  */
 fun rankRegulars(
     stats: List<ItemStat>,
     storeId: String,
     alreadyOnList: Set<String>,
     now: Long,
-    onHand: Collection<String> = emptyList(),
     limit: Int = 12,
 ): List<ItemStat> =
     stats
-        .filter { it.count >= MIN_TIMES_ADDED && it.key !in alreadyOnList && !isCoveredBy(it.displayName, onHand) }
+        .filter { it.count >= MIN_TIMES_ADDED && it.key !in alreadyOnList }
         .map { stat ->
             val daysSince = ((now - stat.lastAdded) / DAY_MS).coerceAtLeast(0.0)
             val recency = 0.5.pow(daysSince / HALF_LIFE_DAYS)
@@ -54,41 +51,3 @@ fun rankRegulars(
         .sortedByDescending { it.second }
         .take(limit)
         .map { it.first }
-
-// Common things people keep stocked or get from subscription boxes.
-private val COMMON_KITCHEN_ITEMS = listOf(
-    "Chicken breast", "Ground beef", "Salmon", "Steak", "Pork chops", "Eggs",
-    "Rice", "Pasta", "Potatoes", "Onions", "Black beans", "Frozen vegetables",
-)
-
-/**
- * Quick-add chips for My kitchen: the household's own regulars first (ranked like list suggestions,
- * but across all stores), then common staples to fill out the row. Skips anything already in the kitchen.
- */
-fun kitchenQuickAdds(
-    stats: List<ItemStat>,
-    inKitchen: Set<String>,
-    now: Long,
-    limit: Int = 12,
-    maxRegulars: Int = 8,
-): List<String> {
-    val regulars = rankRegulars(stats, storeId = "", alreadyOnList = inKitchen, now = now, limit = maxRegulars)
-        .map { it.displayName }
-    val seen = HashSet(inKitchen)
-    return (regulars + COMMON_KITCHEN_ITEMS).filter { seen.add(itemKey(it)) }.take(limit)
-}
-
-/** Every kitchen's basics, offered first. Same as `basicPantry` in Logic.swift. */
-val BASIC_PANTRY = listOf("Salt", "Black pepper")
-
-/** Common seasonings and sauces, after the basics. Same as `commonPantry` in Logic.swift. */
-val COMMON_PANTRY = listOf(
-    "Olive oil", "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",
-    "Honey", "Dijon mustard", "Hot sauce", "Rice vinegar", "Chili powder", "Sesame oil",
-)
-
-/** Quick-add chips for the pantry: salt and pepper, then common seasonings. Skips anything already in the kitchen. */
-fun pantryQuickAdds(inKitchen: Set<String>, limit: Int = 12): List<String> {
-    val seen = HashSet(inKitchen)
-    return (BASIC_PANTRY + COMMON_PANTRY).filter { seen.add(itemKey(it)) }.take(limit)
-}

@@ -50,7 +50,6 @@ struct RecipeDetail: View {
     /// How many people to cook for; amounts scale from what the recipe serves.
     @State private var people = 0
 
-    private var kitchenNames: [String] { data.onHand.map(\.name) }
     private var factor: Double { servingsFactor(servings: recipe?.servings ?? 0, people: people) }
 
     var body: some View {
@@ -79,7 +78,20 @@ struct RecipeDetail: View {
                     }
                     .padding(20)
 
-                    if !recipe.ingredients.isEmpty { sectionTitle("Ingredients") }
+                    if !recipe.ingredients.isEmpty {
+                        // Sits with the ingredients rather than pinned to the screen, so it's there when you're
+                        // shopping and out of the way while you read or cook.
+                        HStack(alignment: .firstTextBaseline) {
+                            sectionTitle("Ingredients")
+                            Spacer()
+                            Button { pickingStore = true } label: {
+                                Label("Add to list", systemImage: "cart").font(.subheadline.weight(.medium))
+                            }
+                            .buttonStyle(.glass)
+                            .disabled(recipe.ingredients.count == (unchecked ?? []).count)
+                            .padding(.trailing, 16)
+                        }
+                    }
                     ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, ingredient in
                         ingredientRow(index, ingredient)
                     }
@@ -122,28 +134,16 @@ struct RecipeDetail: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 100)
+                .padding(.bottom, 32)
             }
         }
         .background(Color.warmBackground)
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            if let recipe, !recipe.ingredients.isEmpty {
-                let count = recipe.ingredients.count - (unchecked ?? []).count
-                Button { pickingStore = true } label: {
-                    Text(count == 1 ? "Add 1 item to a list" : "Add \(count) items to a list")
-                        .font(.headline).frame(maxWidth: .infinity, minHeight: 36)
-                }
-                .prominentGlassButton()
-                .disabled(count == 0)
-                .padding(.horizontal, 16).padding(.bottom, 8)
-            }
-        }
-        // Everything starts checked except what's already in the kitchen; edits to the recipe start over.
+        // Everything starts checked; the shopper unticks what they already have. Edits to the recipe start over.
         .task(id: recipe?.servings) { people = recipe?.servings ?? 0 }
         .task(id: recipe?.ingredients) {
             if let recipe {
-                unchecked = Set(recipe.ingredients.indices.filter { isCoveredBy(recipe.ingredients[$0].name, onHand: kitchenNames) })
+                unchecked = []
             }
         }
         .fullScreenCover(isPresented: $pickingStore) {
@@ -180,7 +180,6 @@ struct RecipeDetail: View {
 
     private func ingredientRow(_ index: Int, _ ingredient: Ingredient) -> some View {
         let isChecked = !(unchecked ?? []).contains(index)
-        let inKitchen = isCoveredBy(ingredient.name, onHand: kitchenNames)
         return Button {
             var set = unchecked ?? []
             if isChecked { set.insert(index) } else { set.remove(index) }
@@ -189,10 +188,7 @@ struct RecipeDetail: View {
             HStack(spacing: 12) {
                 Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                     .font(.title3).foregroundStyle(isChecked ? Color.accentColor : .secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(ingredient.name.prefix(1).uppercased() + ingredient.name.dropFirst())
-                    if inKitchen { Text("In your kitchen").font(.caption).foregroundStyle(Color.accentColor) }
-                }
+                Text(ingredient.name.prefix(1).uppercased() + ingredient.name.dropFirst())
                 Spacer()
                 Text(scaleQuantity(ingredient.quantity, factor: factor)).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
             }
@@ -249,76 +245,6 @@ struct AllRecipesView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Paste a recipe", systemImage: "doc.on.clipboard", action: onPaste)
-            }
-        }
-    }
-}
-
-/// "My kitchen": ingredients the household already has, in two tabs: ingredients, and pantry seasonings and
-/// sauces. List suggestions skip both, and recipes leave them unchecked when adding ingredients to a list.
-struct KitchenView: View {
-    let data: HouseholdData
-    @State private var pantry = false
-
-    private var items: [OnHandItem] { data.onHand.filter { $0.isPantry == pantry } }
-    private var quickAdds: [String] {
-        let inKitchen = Set(data.onHand.map(\.key))
-        return pantry
-            ? pantryQuickAdds(inKitchen: inKitchen)
-            : kitchenQuickAdds(data.stats, inKitchen: inKitchen, now: nowMillis())
-    }
-
-    var body: some View {
-        List {
-            Picker("Kind", selection: $pantry) {
-                Text("Ingredients").tag(false)
-                Text("Pantry & seasonings").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
-            Text(pantry
-                 ? "Spices, sauces, and other flavor-makers, like soy sauce or mirin. Recipes won't add them to your list."
-                 : "Things you already have, like a stocked freezer or a ButcherBox delivery. Lists won't suggest them, and recipes won't add them to your list.")
-                .foregroundStyle(.secondary)
-                .listRowBackground(Color.clear)
-            if !quickAdds.isEmpty {
-                Section("Quick add") {
-                    FlowLayout {
-                        ForEach(quickAdds, id: \.self) { name in
-                            Button { data.groceries.addOnHand(name, uid: data.user.id, pantry: pantry) } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "plus")
-                                    Text(name)
-                                }
-                                .fixedSize()
-                            }
-                            .buttonStyle(.glass)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                }
-            }
-            if !items.isEmpty {
-                Section(pantry ? "In your pantry" : "In your kitchen") {
-                    ForEach(items) { item in
-                        Text(item.name)
-                            .swipeActions { Button("Remove", systemImage: "trash", role: .destructive) { data.groceries.removeOnHand(item) } }
-                    }
-                }
-            }
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.warmBackground)
-        .animation(.snappy, value: data.onHand)
-        .animation(.snappy, value: pantry)
-        .navigationTitle("My kitchen")
-        .safeAreaInset(edge: .bottom) {
-            AddItemBar(placeholder: pantry ? "Add a seasoning or sauce" : "Add an ingredient") {
-                data.groceries.addOnHand($0, uid: data.user.id, pantry: pantry)
             }
         }
     }

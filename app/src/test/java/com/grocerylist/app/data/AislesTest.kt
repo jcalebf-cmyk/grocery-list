@@ -58,12 +58,6 @@ class AislesTest {
         assertAisle(Aisle.OTHER, "Birthday card", "")
     }
 
-    @Test fun quickAddsAllHaveAnAisle() {
-        val quickAdds = BASIC_PANTRY + COMMON_PANTRY +
-            kitchenQuickAdds(emptyList(), emptySet(), 0, limit = 100)
-        for (name in quickAdds) assertNotEquals(name, Aisle.OTHER, aisleFor(name))
-    }
-
     @Test fun eachPhraseIsInOneAisle() {
         val phrases = AISLE_KEYWORDS.values.flatten()
         assertEquals(phrases.groupBy { it }.filterValues { it.size > 1 }.keys, emptySet<String>())

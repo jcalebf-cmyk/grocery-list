@@ -36,10 +36,9 @@ class ListViewModel(householdId: String, private val listId: String, private val
         repo.observeList(listId),
         repo.observeItems(listId),
         repo.observeStats(),
-        repo.observeOnHand(),
         AppGraph.households.observeHousehold(householdId)
             .flatMapLatest { AppGraph.households.observeMembers(it?.memberIds.orEmpty()) },
-    ) { list, items, stats, kitchen, members ->
+    ) { list, items, stats, members ->
         ListState(
             otherMembers = if (members.size > 1) {
                 members.filter { it.uid != uid }.associate { it.uid to it.displayName }
@@ -55,7 +54,6 @@ class ListViewModel(householdId: String, private val listId: String, private val
                     list.storeId,
                     items.mapTo(HashSet()) { it.key },
                     System.currentTimeMillis(),
-                    onHand = kitchen.map { it.name },
                 )
             } else {
                 emptyList()

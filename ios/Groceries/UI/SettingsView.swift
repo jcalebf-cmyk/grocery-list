@@ -234,7 +234,7 @@ private struct DeleteAccountSheet: View {
             Form {
                 Text(shared
                      ? "This permanently deletes your account and removes you from \(data.household?.name ?? "your household"). Its lists stay with the other members."
-                     : "This permanently deletes your account and \(data.household?.name ?? "your household"), including all of its lists, stores, kitchen items, and recipes. This can't be undone.")
+                     : "This permanently deletes your account and \(data.household?.name ?? "your household"), including all of its lists, stores, and recipes. This can't be undone.")
                 if needsNewOwner {
                     Picker("Who takes over?", selection: $newOwner) {
                         ForEach(others) { Text($0.displayName).tag(Optional($0)) }

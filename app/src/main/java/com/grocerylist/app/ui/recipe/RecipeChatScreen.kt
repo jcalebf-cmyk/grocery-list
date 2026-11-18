@@ -59,7 +59,7 @@ import com.grocerylist.app.ui.Session
 private val EXAMPLES = listOf(
     "Boneless chicken thighs in the dutch oven",
     "A quick vegetarian weeknight dinner",
-    "What can I make with what's in my kitchen?",
+    "Something quick with ground beef",
 )
 
 /** Chat with the AI for recipe ideas. iOS: RecipeChatView.swift. */

@@ -19,7 +19,6 @@ class GroceryRepository(householdId: String) {
     private val stores = household.collection("stores")
     private val lists = household.collection("lists")
     private val stats = household.collection("itemStats")
-    private val onHand = household.collection("onHand")
 
     fun observeStores(): Flow<List<Store>> =
         stores.orderBy("createdAt").snapshots().map { it.toObjects(Store::class.java) }
@@ -43,29 +42,6 @@ class GroceryRepository(householdId: String) {
     /** Removes the store from the picker. Its past and open lists keep the store's name. */
     fun removeStore(store: Store) {
         stores.document(store.id).delete()
-    }
-
-    fun observeOnHand(): Flow<List<OnHandItem>> =
-        onHand.orderBy("createdAt").snapshots().map { it.toObjects(OnHandItem::class.java) }
-
-    /** Not counted in item stats: on-hand items feed recipe ideas, not shopping suggestions. */
-    fun addOnHand(name: String, uid: String, pantry: Boolean = false) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        // Keyed by name so adding "Ground beef" twice doesn't create duplicates.
-        onHand.document(itemKey(trimmed)).set(
-            buildMap {
-                put("name", trimmed)
-                put("key", itemKey(trimmed))
-                put("addedBy", uid)
-                put("createdAt", System.currentTimeMillis())
-                if (pantry) put("kind", OnHandItem.KIND_PANTRY)
-            },
-        )
-    }
-
-    fun removeOnHand(item: OnHandItem) {
-        onHand.document(item.id).delete()
     }
 
     /** Returns the new store. Reuses an existing one with the same name instead of adding a duplicate. */

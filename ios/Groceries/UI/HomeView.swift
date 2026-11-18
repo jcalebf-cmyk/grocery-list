@@ -6,7 +6,6 @@ enum Route: Hashable {
     case recipes
     case recipeChat
     case pastLists
-    case kitchen
     case settings
 }
 
@@ -23,7 +22,6 @@ final class HouseholdData {
     var stores: [Store] = []
     var lists: [GroceryList] = []
     var stats: [ItemStat] = []
-    var onHand: [OnHandItem] = []
     /// Saved recipes, newest first.
     var recipes: [Recipe] = []
     var members: [UserProfile] = []
@@ -108,7 +106,6 @@ struct HomeView: View {
                 case .recipes: AllRecipesView(data: data, onPaste: { pasting = true })
                 case .recipeChat: RecipeChatView(data: data, onOpenList: { path = [.list($0)] })
                 case .pastLists: PastListsView(data: data)
-                case .kitchen: KitchenView(data: data)
                 case .settings: SettingsView(data: data)
                 }
             }
@@ -136,7 +133,6 @@ struct HomeView: View {
         .task { await consume(data.groceries.storesStream()) { v in data.stores = v } }
         .task { await consume(data.groceries.listsStream()) { v in data.lists = v } }
         .task { await consume(data.groceries.statsStream()) { v in data.stats = v } }
-        .task { await consume(data.groceries.onHandStream()) { v in data.onHand = v } }
         .task { await consume(data.recipeService.stream()) { v in data.recipes = v } }
         .task {
             await consume(HouseholdService.household(data.householdId)) { v in
@@ -179,10 +175,6 @@ struct HomeView: View {
                         .buttonStyle(.glass)
                     Button { pasting = true } label: { Label("Paste a recipe", systemImage: "doc.on.clipboard") }
                         .buttonStyle(.glass)
-                    NavigationLink(value: Route.kitchen) {
-                        Label(data.onHand.isEmpty ? "My kitchen" : "My kitchen · \(data.onHand.count)", systemImage: "refrigerator")
-                    }
-                    .buttonStyle(.glass)
                 }
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 20)

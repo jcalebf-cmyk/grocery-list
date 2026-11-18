@@ -25,9 +25,9 @@ owns it; testers are friends and family.
 ## Keep the platforms in step
 
 Android and iOS mirror each other: same Firestore documents and field names (timestamps are device
-millis as Int64/Long), same rules, same logic (suggestion ranking, kitchen quick adds, "stores in use",
-ingredient matching, store brand logos, servings scaling). When changing behavior on one, change the other, or say why not.
-Android files to iOS files: `Suggestions.kt`/`IngredientMatch.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt` → `ios/Groceries/Data/Logic.swift`;
+millis as Int64/Long), same rules, same logic (suggestion ranking, "stores in use",
+store brand logos, servings scaling, recipe search). When changing behavior on one, change the other, or say why not.
+Android files to iOS files: `Suggestions.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt` → `ios/Groceries/Data/Logic.swift`;
 repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both.
 
 ## Backend facts
@@ -37,8 +37,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   email confirmation is optional (a Settings row with Resend, never a sign-up blocker).
   Config files `app/google-services.json` and `ios/Groceries/App/GoogleService-Info.plist` are git-ignored.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
-  `itemStats`, `onHand`, `savedRecipes` (the recipe box); `inviteCodes/{code}`. The old suggestion docs
-  (`recipes/current`, `recipes/preferences`) are no longer read; account deletion still removes them.
+  `itemStats`, `savedRecipes` (the recipe box); `inviteCodes/{code}`. No longer read, but account deletion
+  still removes them: `onHand` (My kitchen, removed in 0.14) and the old suggestions (`recipes/current`, `/preferences`).
 - Server: https://grocery-recipes.vercel.app (Vercel project `grocery-recipes`, account jcalebf-cmyk).
   Env vars set by Josh in Vercel: `YOUTUBE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_PLACES_API_KEY`.
   Recipe box (replaced AI suggestions, cuisines and the "Tonight" picker in Nov 2026): households save recipes
@@ -115,14 +115,17 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
-- Recipe box, Josh's calls: the kitchen is background for the chat, never a limit on what it suggests;
-  pasted recipes keep the author's wording (only ingredients get structured); chats aren't saved; no cuisines.
-  The servings control scales ingredient amounts only (steps keep the original amounts, and say so).
+- Recipe box, Josh's calls: pasted recipes keep the author's wording (only ingredients get structured); chats
+  aren't saved; no cuisines; no My kitchen (Josh removed it: nobody keeps it up to date, and you untick what you
+  have before "Add to list"). The servings control scales ingredient amounts only (steps keep the original
+  amounts, and say so). "Add to list" sits by the Ingredients heading, never pinned to the screen (Josh found it nagging).
+- Home, Josh's calls: Shopping lists first (always a header; a "Start a list" card replaces the floating New list
+  button when none is going), then a "Past lists" row opening the history, then Recipes.
 - Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
-  active lists and deletes past ones, each after a confirmation; items in My kitchen are never suggested on lists;
+  active lists and deletes past ones (in Past lists), each after a confirmation;
   one show/hide toggle covers both password fields.
 - List suggestions: 3+ adds, last added within 60 days; long-press a chip → "Don't suggest" (`dismissedAt` on the
-  `itemStats` doc) until it's added again. Kitchen quick adds and recipe regulars keep the looser rules (2+ adds, no cutoff).
+  `itemStats` doc) until it's added again.
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
@@ -142,8 +145,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   richer recipes. 0.11 = salt and pepper first in pantry quick adds, sheet/tab-label fixes. 0.12 = list items
   grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud
   session; only unit-tested, not tried on a phone or simulator).
-- Not yet tried with real accounts: "Don't suggest", joining with a code, removal on Android, kitchen items
-  dropping out of list suggestions, swipes on real lists, the confirmation email.
+- Not yet tried with real accounts: "Don't suggest", joining with a code, removal on Android, swipes on real
+  lists, the confirmation email.
 - App name "Groceries" is set in Google Auth Platform → Branding and Firebase's public-facing name.
   Josh's call: `www` stays the primary domain, and Firebase's email template action URL stays as is
   (don't suggest changing either).

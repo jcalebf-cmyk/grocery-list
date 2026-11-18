@@ -32,7 +32,6 @@ import com.grocerylist.app.ui.home.PastListsScreen
 import com.grocerylist.app.ui.household.HouseholdSetupScreen
 import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
-import com.grocerylist.app.ui.onhand.OnHandScreen
 import androidx.compose.runtime.LaunchedEffect
 import com.grocerylist.app.data.SharedRecipe
 import com.grocerylist.app.ui.recipe.AllRecipesScreen
@@ -85,7 +84,6 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         onPasteRecipe = { nav.navigate("recipes/paste") },
                         onAllRecipes = { nav.navigate("recipes") },
                         onOpenPastLists = { nav.navigate("lists/past") },
-                        onOpenOnHand = { nav.navigate("onhand") },
                         onOpenSettings = { nav.navigate("settings") },
                     )
                 }
@@ -141,9 +139,6 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         onClose = { nav.popBackStack() },
                         onSaved = { nav.popBackStack() },
                     )
-                }
-                screen("onhand") {
-                    OnHandScreen(session = session, onBack = { nav.popBackStack() })
                 }
                 screen("settings") {
                     SettingsScreen(session = session, onBack = { nav.popBackStack() }, onSignOut = onSignOut)

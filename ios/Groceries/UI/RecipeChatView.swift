@@ -22,7 +22,7 @@ final class RecipeChat {
         sending = true
         defer { sending = false }
         do {
-            let reply = try await data.recipeService.chat(conversation, onHand: data.onHand)
+            let reply = try await data.recipeService.chat(conversation)
             messages.append(reply)
         } catch {
             // Take the message back off so the conversation still alternates, and put it back in the field.
@@ -52,7 +52,7 @@ struct RecipeChatView: View {
     private static let examples = [
         "Boneless chicken thighs in the dutch oven",
         "A quick vegetarian weeknight dinner",
-        "What can I make with what's in my kitchen?",
+        "Something quick with ground beef",
     ]
 
     var body: some View {

@@ -10,10 +10,8 @@ import com.grocerylist.app.data.ServerException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -23,8 +21,6 @@ import kotlinx.coroutines.launch
  */
 class RecipeChatViewModel(householdId: String, private val uid: String) : ViewModel() {
     private val recipes = AppGraph.recipes(householdId)
-    private val onHand = AppGraph.groceries(householdId).observeOnHand()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages
@@ -50,7 +46,7 @@ class RecipeChatViewModel(householdId: String, private val uid: String) : ViewMo
         _sending.value = true
         viewModelScope.launch {
             try {
-                val reply = recipes.chat(conversation, onHand.value)
+                val reply = recipes.chat(conversation)
                 _messages.update { it + reply }
             } catch (e: Exception) {
                 Log.w(TAG, "Recipe chat failed", e)

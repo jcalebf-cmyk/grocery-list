@@ -28,7 +28,7 @@ class SuggestionsTest {
         assertEquals(listOf("broccoli"), result.map { it.key })
     }
 
-    @Test fun kitchenAndRecipeRegularsKeepTheLooserRules() {
+    @Test fun regularsKeepTheLooserRules() {
         val stats = listOf(stat("milk", 2, 90).copy(dismissedAt = now))
         assertEquals(listOf("milk"), rankRegulars(stats, "", emptySet(), now).map { it.key })
     }
@@ -36,13 +36,6 @@ class SuggestionsTest {
     @Test fun skipsItemsAlreadyOnTheList() {
         val result = suggestItems(listOf(stat("milk", 5, 0), stat("eggs", 5, 0)), "s", setOf("milk"), now)
         assertEquals(listOf("eggs"), result.map { it.key })
-    }
-
-    @Test fun skipsItemsInTheKitchen() {
-        val stats = listOf(stat("Ground beef", 5, 0), stat("Chicken breast", 5, 0), stat("Rice vinegar", 5, 0), stat("Milk", 5, 0))
-        val result = suggestItems(stats, "s", emptySet(), now, onHand = listOf("ground beef", "Chicken", "Rice"))
-        // "Chicken" covers "Chicken breast", but "Rice" doesn't cover "Rice vinegar".
-        assertEquals(setOf("Rice vinegar", "Milk"), result.map { it.key }.toSet())
     }
 
     @Test fun recentHabitsOutrankOldOnes() {
@@ -62,30 +55,5 @@ class SuggestionsTest {
     @Test fun normalizesItemKeys() {
         assertEquals("whole milk", itemKey("  Whole   Milk "))
         assertEquals("salt-pepper", itemKey("Salt/Pepper"))
-    }
-
-    @Test fun kitchenQuickAddsPutRegularsFirst() {
-        val result = kitchenQuickAdds(listOf(stat("broccoli", 5, 0)), emptySet(), now)
-        assertEquals("broccoli", result.first())
-        assertEquals(12, result.size)
-    }
-
-    @Test fun kitchenQuickAddsSkipKitchenItemsAndDuplicates() {
-        val stats = listOf(ItemStat(key = "eggs", displayName = "Eggs", count = 4, lastAdded = now))
-        val result = kitchenQuickAdds(stats, inKitchen = setOf("rice"), now = now)
-        assertEquals(1, result.count { itemKey(it) == "eggs" }) // a regular and a staple, shown once
-        assertTrue(result.none { itemKey(it) == "rice" })
-    }
-
-    @Test fun pantryQuickAddsStartWithTheBasics() {
-        val result = pantryQuickAdds(emptySet())
-        assertEquals(listOf("Salt", "Black pepper", "Olive oil", "Soy sauce"), result.take(4))
-        assertEquals(12, result.size)
-    }
-
-    @Test fun pantryQuickAddsSkipKitchenItems() {
-        val result = pantryQuickAdds(inKitchen = setOf("soy sauce", "salt"))
-        assertEquals(listOf("Black pepper", "Olive oil", "Garlic powder"), result.take(3))
-        assertTrue(result.none { itemKey(it) == "soy sauce" })
     }
 }

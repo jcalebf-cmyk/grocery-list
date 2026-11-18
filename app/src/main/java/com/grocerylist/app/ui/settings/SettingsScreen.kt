@@ -648,7 +648,7 @@ private fun DeleteAccountDialog(
                             "Its lists stay with the other members."
                     } else {
                         "This permanently deletes your account and $householdName, including all of its " +
-                            "lists, stores, kitchen items, and recipes. This can't be undone."
+                            "lists, stores, and recipes. This can't be undone."
                     },
                 )
                 if (needsNewOwner) {

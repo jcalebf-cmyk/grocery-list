@@ -82,12 +82,8 @@ class RecipeRepository(householdId: String) {
         recipes.document(id).delete()
     }
 
-    /**
-     * Sends the conversation (ending with the user's new message) and returns the AI's reply. [onHand] is
-     * sent as background only: the server tells the AI not to limit suggestions to it.
-     */
-    suspend fun chat(messages: List<ChatMessage>, onHand: List<OnHandItem>): ChatMessage {
-        val (pantry, kitchen) = onHand.partition { it.isPantry }
+    /** Sends the conversation (ending with the user's new message) and returns the AI's reply. */
+    suspend fun chat(messages: List<ChatMessage>): ChatMessage {
         val turns = JSONArray(
             messages.takeLast(MAX_TURNS).dropWhile { !it.fromUser }.map { m ->
                 JSONObject()
@@ -98,10 +94,7 @@ class RecipeRepository(householdId: String) {
         )
         val reply = ServerApi.post(
             "/api/recipe-chat",
-            JSONObject()
-                .put("messages", turns)
-                .put("onHand", JSONArray(kitchen.map { it.name }.take(40)))
-                .put("pantry", JSONArray(pantry.map { it.name }.take(60))),
+            JSONObject().put("messages", turns),
             readTimeoutMs = 60_000,
         )
         val cards = reply.optJSONArray("recipes") ?: JSONArray()

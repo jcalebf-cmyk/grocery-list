@@ -1,5 +1,7 @@
 package com.grocerylist.app.ui.home
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.grocerylist.app.ui.onboarding.Onboarding
 import com.grocerylist.app.ui.onboarding.OnboardingScreen
 
@@ -32,19 +34,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,28 +52,21 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.GroceryList
-import com.grocerylist.app.data.Store
 import com.grocerylist.app.ui.Session
 import com.grocerylist.app.data.NearbyStores
 import com.grocerylist.app.ui.StoreLogo
@@ -104,7 +95,6 @@ fun HomeScreen(
     onPasteRecipe: () -> Unit,
     onAllRecipes: () -> Unit,
     onOpenPastLists: () -> Unit,
-    onOpenOnHand: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val viewModel: HomeViewModel = viewModel { HomeViewModel(session.householdId, session.user.uid) }
@@ -179,11 +169,9 @@ fun HomeScreen(
             item {
                 RecipesHeader(
                     hasRecipes = state.recipes.isNotEmpty(),
-                    kitchenCount = state.kitchenCount,
                     onAsk = onAskForRecipe,
                     onPaste = onPasteRecipe,
                     onSeeAll = onAllRecipes,
-                    onOpenKitchen = onOpenOnHand,
                 )
             }
             item {
@@ -431,11 +419,9 @@ private const val RECIPES_SHOWN = 10
 @Composable
 private fun RecipesHeader(
     hasRecipes: Boolean,
-    kitchenCount: Int,
     onAsk: () -> Unit,
     onPaste: () -> Unit,
     onSeeAll: () -> Unit,
-    onOpenKitchen: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 4.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -455,11 +441,6 @@ private fun RecipesHeader(
                 onClick = onPaste,
                 label = { Text("Paste a recipe") },
                 leadingIcon = { Icon(AppIcons.Paste, contentDescription = null, Modifier.size(18.dp)) },
-            )
-            AssistChip(
-                onClick = onOpenKitchen,
-                label = { Text(if (kitchenCount > 0) "My kitchen · $kitchenCount" else "My kitchen") },
-                leadingIcon = { Icon(AppIcons.Kitchen, contentDescription = null, Modifier.size(18.dp)) },
             )
         }
     }

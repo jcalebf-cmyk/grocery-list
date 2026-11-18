@@ -20,22 +20,21 @@ private let listMaxDaysSinceAdded = 60.0
 /// Suggestions for a list: the household's regulars (see `rankRegulars`) that were added at least 3 times,
 /// most recently within 60 days, and not dismissed since they were last added.
 func suggestItems(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64,
-                  onHand: [String] = [], limit: Int = 12) -> [ItemStat] {
+                  limit: Int = 12) -> [ItemStat] {
     rankRegulars(
         stats.filter {
             $0.count >= listMinTimesAdded && Double(now - $0.lastAdded) <= listMaxDaysSinceAdded * dayMs
                 && ($0.dismissedAt ?? 0) < $0.lastAdded
         },
-        storeId: storeId, alreadyOnList: alreadyOnList, now: now, onHand: onHand, limit: limit)
+        storeId: storeId, alreadyOnList: alreadyOnList, now: now, limit: limit)
 }
 
 /// Ranks items the household adds often, favoring recent habits and the store this list is for.
-/// Skips what's already on the list, and what's in My kitchen (`onHand` names), matched like recipe
-/// ingredients so "Chicken" in the kitchen also skips "Chicken breast".
+/// Skips what's already on the list.
 func rankRegulars(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<String>, now: Int64,
-                  onHand: [String] = [], limit: Int = 12) -> [ItemStat] {
+                  limit: Int = 12) -> [ItemStat] {
     stats
-        .filter { $0.count >= minTimesAdded && !alreadyOnList.contains($0.key) && !isCoveredBy($0.displayName, onHand: onHand) }
+        .filter { $0.count >= minTimesAdded && !alreadyOnList.contains($0.key) }
         .map { stat -> (ItemStat, Double) in
             let daysSince = max(0, Double(now - stat.lastAdded) / dayMs)
             let recency = pow(0.5, daysSince / halfLifeDays)
@@ -45,24 +44,6 @@ func rankRegulars(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<Strin
         .sorted { $0.1 > $1.1 }
         .prefix(limit)
         .map(\.0)
-}
-
-private let commonKitchenItems = [
-    "Chicken breast", "Ground beef", "Salmon", "Steak", "Pork chops", "Eggs",
-    "Rice", "Pasta", "Potatoes", "Onions", "Black beans", "Frozen vegetables",
-]
-
-/// Quick-add chips for My kitchen: the household's regulars first, then common staples.
-func kitchenQuickAdds(_ stats: [ItemStat], inKitchen: Set<String>, now: Int64, limit: Int = 12) -> [String] {
-    let regulars = rankRegulars(stats, storeId: "", alreadyOnList: inKitchen, now: now, limit: 8).map(\.displayName)
-    var seen = inKitchen
-    return (regulars + commonKitchenItems).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
-}
-
-/// Quick-add chips for the pantry: salt and pepper, then common seasonings. Skips anything already in the kitchen.
-func pantryQuickAdds(inKitchen: Set<String>, limit: Int = 12) -> [String] {
-    var seen = inKitchen
-    return (basicPantry + commonPantry).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
 }
 
 /// True if every word of `query` appears in the recipe's title or an ingredient. Same as `matchesRecipe` in AllRecipesScreen.kt.
@@ -78,31 +59,6 @@ func storesInUse(_ stores: [Store], lists: [GroceryList]) -> [Store] {
         lastUsed[list.storeId] = max(lastUsed[list.storeId] ?? 0, list.createdAt)
     }
     return stores.filter { lastUsed[$0.id] != nil }.sorted { lastUsed[$0.id]! > lastUsed[$1.id]! }
-}
-
-/// True if an on-hand item covers a recipe ingredient (every word of it appears, whole words only).
-/// An extra word that names a different product breaks the match: "rice" doesn't cover "rice vinegar".
-func isCoveredBy(_ ingredient: String, onHand: [String]) -> Bool {
-    let ingredientWords = words(ingredient)
-    return onHand.contains { item in
-        let w = words(item)
-        return !w.isEmpty && w.isSubset(of: ingredientWords) && ingredientWords.subtracting(w).isDisjoint(with: productWords)
-    }
-}
-
-// Words that make "<item> <word>" a different thing to buy than the item itself. Singular, since words()
-// drops a trailing "s". Keep in step with IngredientMatch.kt.
-private let productWords: Set<String> = [
-    "vinegar", "flour", "noodle", "wine", "paper", "cake", "cracker", "chip", "milk", "cream", "butter",
-    "cheese", "oil", "sauce", "paste", "powder", "flake", "broth", "stock", "bouillon", "soup", "starch",
-    "meal", "syrup", "extract", "jam", "jelly", "spread", "dressing", "seasoning", "bread",
-]
-
-private func words(_ text: String) -> Set<String> {
-    Set(itemKey(text).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map { word in
-        let s = String(word)
-        return s.hasSuffix("s") ? String(s.dropLast()) : s
-    })
 }
 
 /// Logos for common US grocery chains, matched by store name. Others get a lettered tile.
@@ -238,17 +194,6 @@ func scaleQuantity(_ quantity: String, factor: Double) -> String {
 func servingsFactor(servings: Int, people: Int) -> Double {
     servings > 0 && people > 0 ? Double(people) / Double(servings) : 1
 }
-
-// MARK: Pantry
-
-/// Every kitchen's basics, offered first. Same as `BASIC_PANTRY` in Suggestions.kt.
-let basicPantry = ["Salt", "Black pepper"]
-
-/// Common seasonings and sauces, after the basics. Same as `COMMON_PANTRY` in Suggestions.kt.
-let commonPantry = [
-    "Olive oil", "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",
-    "Honey", "Dijon mustard", "Hot sauce", "Rice vinegar", "Chili powder", "Sesame oil",
-]
 
 // MARK: Aisles
 

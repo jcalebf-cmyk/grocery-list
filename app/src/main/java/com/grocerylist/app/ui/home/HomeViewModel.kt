@@ -25,7 +25,6 @@ data class HomeState(
     val pastLists: List<GroceryList> = emptyList(),
     /** The household's saved recipes, newest first. */
     val recipes: List<Recipe> = emptyList(),
-    val kitchenCount: Int = 0,
 ) {
     val pastListCount get() = pastLists.size
 }
@@ -38,8 +37,7 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
     val state: StateFlow<HomeState> = combine(
         combine(AppGraph.households.observeHousehold(householdId), repo.observeStores(), repo.observeLists(), ::Triple),
         AppGraph.recipes(householdId).observeAll(),
-        repo.observeOnHand(),
-    ) { (household, stores, lists), recipes, kitchen ->
+    ) { (household, stores, lists), recipes ->
         HomeState(
             householdName = household?.name.orEmpty(),
             stores = stores,
@@ -47,7 +45,6 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
             activeLists = lists.filter { it.isActive },
             pastLists = lists.filterNot { it.isActive },
             recipes = recipes,
-            kitchenCount = kitchen.size,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())
 

@@ -9,7 +9,7 @@ import kotlinx.coroutines.tasks.await
 /**
  * Deletes the signed-in user's data and login. The caller must have just re-authenticated.
  *
- * - Only member: the whole household goes too (lists and their items, stores, stats, kitchen,
+ * - Only member: the whole household goes too (lists and their items, stores, stats, the old kitchen,
  *   saved recipes (plus the old suggestions in `recipes`), invite code), since nobody else could reach it.
  * - Shared household: the user leaves it (handing ownership to [newOwner] first if they're the
  *   owner); its lists stay with the other members.
