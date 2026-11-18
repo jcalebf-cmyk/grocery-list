@@ -40,6 +40,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Button
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
@@ -100,6 +103,7 @@ fun HomeScreen(
     onAskForRecipe: () -> Unit,
     onPasteRecipe: () -> Unit,
     onAllRecipes: () -> Unit,
+    onOpenPastLists: () -> Unit,
     onOpenOnHand: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -140,17 +144,34 @@ fun HomeScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        // With no list going, the Start a list card does this job instead.
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { pickingStore = true },
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("New list") },
-            )
+            if (state.activeLists.isNotEmpty()) {
+                ExtendedFloatingActionButton(
+                    onClick = { pickingStore = true },
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New list") },
+                )
+            }
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+            // Lists come first: they're what people open the app for.
+            item { SectionHeader("Shopping lists", top = 8.dp) }
+            if (state.activeLists.isEmpty()) {
+                item { StartListCard(onStart = { pickingStore = true }) }
+            }
+            items(state.activeLists, key = { it.id }) { list ->
+                SwipeAction(
+                    icon = Icons.Default.CheckCircle,
+                    label = "Close out",
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    onSwipe = { closingList = list },
+                ) { ListRow(list) { onOpenList(list.id) } }
+            }
             item {
                 RecipesHeader(
                     hasRecipes = state.recipes.isNotEmpty(),
@@ -172,37 +193,9 @@ fun HomeScreen(
                     )
                 }
             }
-            if (state.activeLists.isNotEmpty()) {
-                item { SectionHeader("Shopping lists") }
-                items(state.activeLists, key = { it.id }) { list ->
-                    SwipeAction(
-                        icon = Icons.Default.CheckCircle,
-                        label = "Close out",
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        onSwipe = { closingList = list },
-                    ) { ListRow(list) { onOpenList(list.id) } }
-                }
-            } else {
-                item {
-                    Text(
-                        "Tap New list and pick a store to start",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-            }
-            if (state.pastLists.isNotEmpty()) {
-                item { SectionHeader("Past lists") }
-                items(state.pastLists, key = { it.id }) { list ->
-                    SwipeAction(
-                        icon = Icons.Default.Delete,
-                        label = "Delete",
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        onSwipe = { deletingList = list },
-                    ) { ListRow(list) { onOpenList(list.id) } }
-                }
+            // Past lists stay out of the way: one row that opens the full history.
+            if (state.pastListCount > 0) {
+                item { PastListsRow(state.pastListCount, onClick = onOpenPastLists) }
             }
         }
     }
@@ -250,12 +243,119 @@ fun HomeScreen(
 }
 
 @Composable
-private fun SectionHeader(text: String) {
+private fun SectionHeader(text: String, top: androidx.compose.ui.unit.Dp = 24.dp) {
     Text(
         text,
         style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = 16.dp, top = top, bottom = 8.dp),
     )
+}
+
+/** Shown under Shopping lists when none is going, so starting one is the obvious next step. */
+@Composable
+private fun StartListCard(onStart: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+            }
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("No lists going", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Pick a store and start adding what you need.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp))
+            Text("Start a list", Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+/** "Past lists · 12 ›" at the bottom of Home. */
+@Composable
+private fun PastListsRow(count: Int, onClick: () -> Unit) {
+    ListItem(
+        modifier = Modifier
+            .padding(start = 16.dp, end = 16.dp, top = 24.dp)
+            .clip(MaterialTheme.shapes.large)
+            .clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        leadingContent = { Icon(AppIcons.History, contentDescription = null) },
+        headlineContent = { Text("Past lists") },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            }
+        },
+    )
+}
+
+/** Every closed-out list, newest first. Swipe left to delete one. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PastListsScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (String) -> Unit) {
+    val viewModel: HomeViewModel = viewModel(key = "past-lists") { HomeViewModel(session.householdId, session.user.uid) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var deletingList by remember { mutableStateOf<GroceryList?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) { viewModel.userMessages.collect { snackbar.showSnackbar(it) } }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Past lists") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+            items(state.pastLists, key = { it.id }) { list ->
+                SwipeAction(
+                    icon = Icons.Default.Delete,
+                    label = "Delete",
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    onSwipe = { deletingList = list },
+                ) { ListRow(list) { onOpenList(list.id) } }
+            }
+            if (state.pastLists.isEmpty()) {
+                item {
+                    Text(
+                        "Lists you close out show up here.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    deletingList?.let { list ->
+        DeleteListDialog(
+            onConfirm = {
+                deletingList = null
+                viewModel.deleteList(list)
+            },
+            onDismiss = { deletingList = null },
+        )
+    }
 }
 
 /**
@@ -337,7 +437,7 @@ private fun RecipesHeader(
     onSeeAll: () -> Unit,
     onOpenKitchen: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 4.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Recipes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             if (hasRecipes) TextButton(onClick = onSeeAll) { Text("See all") }

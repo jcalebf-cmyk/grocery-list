@@ -21,11 +21,14 @@ data class HomeState(
     val stores: List<Store> = emptyList(),
     val yourStores: List<Store> = emptyList(),
     val activeLists: List<GroceryList> = emptyList(),
+    /** Closed-out lists, newest first. Home shows only how many; Past lists shows them. */
     val pastLists: List<GroceryList> = emptyList(),
     /** The household's saved recipes, newest first. */
     val recipes: List<Recipe> = emptyList(),
     val kitchenCount: Int = 0,
-)
+) {
+    val pastListCount get() = pastLists.size
+}
 
 class HomeViewModel(householdId: String, private val uid: String) : ViewModel() {
     private val repo = AppGraph.groceries(householdId)
@@ -42,7 +45,7 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
             stores = stores,
             yourStores = storesInUse(stores, lists),
             activeLists = lists.filter { it.isActive },
-            pastLists = lists.filterNot { it.isActive }.take(PAST_LISTS_SHOWN),
+            pastLists = lists.filterNot { it.isActive },
             recipes = recipes,
             kitchenCount = kitchen.size,
         )
@@ -64,7 +67,4 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
 
     fun openListForNewStore(name: String): String = openListFor(repo.addStore(name, state.value.stores))
 
-    private companion object {
-        const val PAST_LISTS_SHOWN = 10
-    }
 }

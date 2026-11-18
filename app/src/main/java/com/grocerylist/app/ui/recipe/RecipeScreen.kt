@@ -97,8 +97,8 @@ fun RecipeScreen(
                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More") }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("Delete recipe") },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        text = { Text("Delete recipe", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                         onClick = {
                             menuOpen = false
                             deleting = true
@@ -119,7 +119,7 @@ fun RecipeScreen(
                     deleting = false
                     viewModel.delete(recipeId)
                     onBack()
-                }) { Text("Delete") }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancel") } },
         )

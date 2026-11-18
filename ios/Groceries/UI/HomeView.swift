@@ -5,6 +5,7 @@ enum Route: Hashable {
     case recipe(String)
     case recipes
     case recipeChat
+    case pastLists
     case kitchen
     case settings
 }
@@ -35,7 +36,8 @@ final class HouseholdData {
     }
 
     var activeLists: [GroceryList] { lists.filter(\.isActive) }
-    var pastLists: [GroceryList] { Array(lists.filter { !$0.isActive }.prefix(10)) }
+    /// Closed-out lists, newest first. Home shows only how many; Past lists shows them.
+    var pastLists: [GroceryList] { lists.filter { !$0.isActive } }
     var yourStores: [Store] { storesInUse(stores, lists: lists) }
     var isOwner: Bool { household?.ownerId == user.id }
     var otherMembers: [String: String] {
@@ -69,8 +71,10 @@ struct HomeView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    recipesSection
+                    // Lists come first: they're what people open the app for.
                     listsSection
+                    recipesSection
+                    pastListsRow
                 }
                 .padding(.bottom, 24)
             }
@@ -84,13 +88,16 @@ struct HomeView: View {
             }
             // Floats over the content rather than sitting in the bottom toolbar, which would shrink it
             // to an icon-only circle; it should read "New list".
+            // With no list going, the Start a list card does this job instead.
             .safeAreaInset(edge: .bottom) {
-                Button { pickingStore = true } label: {
-                    Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
+                if !data.activeLists.isEmpty {
+                    Button { pickingStore = true } label: {
+                        Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
+                    }
+                    .prominentGlassButton(foreground: .onCitrus)
+                    .tint(.citrus)
+                    .padding(.bottom, 4)
                 }
-                .prominentGlassButton(foreground: .onCitrus)
-                .tint(.citrus)
-                .padding(.bottom, 4)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -100,6 +107,7 @@ struct HomeView: View {
                         .navigationTransition(.zoom(sourceID: id, in: zoom))
                 case .recipes: AllRecipesView(data: data, onPaste: { pasting = true })
                 case .recipeChat: RecipeChatView(data: data, onOpenList: { path = [.list($0)] })
+                case .pastLists: PastListsView(data: data)
                 case .kitchen: KitchenView(data: data)
                 case .settings: SettingsView(data: data)
                 }
@@ -201,7 +209,7 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(.top, 8)
+        .padding(.top, 28)
     }
 
     private func show(_ text: String) {
@@ -215,28 +223,71 @@ struct HomeView: View {
     // MARK: Lists
 
     @ViewBuilder private var listsSection: some View {
-        sectionTitle("Shopping lists")
+        sectionTitle("Shopping lists", top: 8)
         if data.activeLists.isEmpty {
-            Text("Tap New list and pick a store to start").foregroundStyle(.secondary).padding(.horizontal, 20)
+            startListCard
         }
         ForEach(data.activeLists) { list in
             SwipeAction(label: "Close out", systemImage: "checkmark.circle", tint: .accentColor, iconColor: .onAccent, action: { closingList = list }) {
                 listRow(list)
             }
         }
-        if !data.pastLists.isEmpty {
-            sectionTitle("Past lists")
-            ForEach(data.pastLists) { list in
-                SwipeAction(label: "Delete", systemImage: "trash", tint: .red, action: { deletingList = list }) { listRow(list) }
+    }
+
+    /// Shown under Shopping lists when none is going, so starting one is the obvious next step.
+    private var startListCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                Image(systemName: "cart.fill").font(.title3).foregroundStyle(Color.onCitrus)
+                    .frame(width: 48, height: 48).background(Color.citrusContainer, in: .circle)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("No lists going").font(.headline)
+                    Text("Pick a store and start adding what you need.").font(.subheadline).foregroundStyle(.secondary)
+                }
             }
+            Button { pickingStore = true } label: {
+                Label("Start a list", systemImage: "plus").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
+            }
+            .prominentGlassButton()
+        }
+        .padding(16)
+        .background(Color.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
+    }
+
+    /// Past lists stay out of the way: one row at the bottom that opens the full history.
+    @ViewBuilder private var pastListsRow: some View {
+        if !data.pastLists.isEmpty {
+            NavigationLink(value: Route.pastLists) {
+                HStack(spacing: 14) {
+                    Image(systemName: "clock.arrow.circlepath").font(.title3).frame(width: 52, height: 40)
+                    Text("Past lists").font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Spacer()
+                    Text("\(data.pastLists.count)").foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+                .padding(12)
+                .background(Color.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.top, 28)
         }
     }
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text).font(.brand(22)).padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 8)
+    private func sectionTitle(_ text: String, top: CGFloat = 28) -> some View {
+        Text(text).font(.brand(22)).padding(.horizontal, 20).padding(.top, top).padding(.bottom, 8)
     }
 
-    private func listRow(_ list: GroceryList) -> some View {
+    private func listRow(_ list: GroceryList) -> some View { ListRowView(list: list) }
+}
+
+/// A shopping list on Home or in Past lists: store logo, name, and when it started or was closed out.
+struct ListRowView: View {
+    let list: GroceryList
+
+    var body: some View {
         NavigationLink(value: Route.list(list.id)) {
             HStack(spacing: 14) {
                 Group {
@@ -284,5 +335,37 @@ struct RecipeCard: View {
         .padding(14)
         .frame(width: 220, height: 128, alignment: .topLeading)
         .background(Color.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+/// Every closed-out list, newest first. Swipe left to delete one. Android: PastListsScreen.
+struct PastListsView: View {
+    let data: HouseholdData
+    @State private var deletingList: GroceryList?
+    @State private var failed = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(data.pastLists) { list in
+                    SwipeAction(label: "Delete", systemImage: "trash", tint: .red, action: { deletingList = list }) {
+                        ListRowView(list: list)
+                    }
+                }
+                if data.pastLists.isEmpty {
+                    Text("Lists you close out show up here.").foregroundStyle(.secondary).padding(20)
+                }
+            }
+            .padding(.vertical, 8)
+        }
+        .background(Color.warmBackground)
+        .navigationTitle("Past lists")
+        .deleteListAlert(isPresented: Binding(get: { deletingList != nil }, set: { if !$0 { deletingList = nil } })) {
+            guard let list = deletingList else { return }
+            Task {
+                do { try await data.groceries.deleteList(list.id) } catch { failed = true }
+            }
+        }
+        .alert("Couldn't delete that list. Try again.", isPresented: $failed) { Button("OK", role: .cancel) {} }
     }
 }

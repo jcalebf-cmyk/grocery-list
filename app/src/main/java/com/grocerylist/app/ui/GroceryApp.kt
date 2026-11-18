@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.grocerylist.app.ui.auth.SignInScreen
 import com.grocerylist.app.ui.home.HomeScreen
+import com.grocerylist.app.ui.home.PastListsScreen
 import com.grocerylist.app.ui.household.HouseholdSetupScreen
 import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
@@ -83,6 +84,7 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         onAskForRecipe = { nav.navigate("recipes/ask") },
                         onPasteRecipe = { nav.navigate("recipes/paste") },
                         onAllRecipes = { nav.navigate("recipes") },
+                        onOpenPastLists = { nav.navigate("lists/past") },
                         onOpenOnHand = { nav.navigate("onhand") },
                         onOpenSettings = { nav.navigate("settings") },
                     )
@@ -93,6 +95,9 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         listId = entry.arguments?.getString("listId").orEmpty(),
                         onBack = { nav.popBackStack() },
                     )
+                }
+                screen("lists/past") {
+                    PastListsScreen(session = session, onBack = { nav.popBackStack() }, onOpenList = { nav.navigate("list/$it") })
                 }
                 screen("recipes") {
                     AllRecipesScreen(
