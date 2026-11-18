@@ -73,8 +73,8 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // Lists come first: they're what people open the app for.
                     listsSection
-                    recipesSection
                     pastListsRow
+                    recipesSection
                 }
                 .padding(.bottom, 24)
             }
@@ -256,7 +256,7 @@ struct HomeView: View {
         .padding(.vertical, 4)
     }
 
-    /// Past lists stay out of the way: one row at the bottom that opens the full history.
+    /// Past lists stay out of the way: one row under the lists that opens the full history.
     @ViewBuilder private var pastListsRow: some View {
         if !data.pastLists.isEmpty {
             NavigationLink(value: Route.pastLists) {
@@ -272,7 +272,7 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 16)
-            .padding(.top, 28)
+            .padding(.vertical, 4)
         }
     }
 

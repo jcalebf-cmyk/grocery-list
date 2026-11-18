@@ -172,6 +172,10 @@ fun HomeScreen(
                     onSwipe = { closingList = list },
                 ) { ListRow(list) { onOpenList(list.id) } }
             }
+            // Past lists stay out of the way: one row under the lists that opens the full history.
+            if (state.pastListCount > 0) {
+                item { PastListsRow(state.pastListCount, onClick = onOpenPastLists) }
+            }
             item {
                 RecipesHeader(
                     hasRecipes = state.recipes.isNotEmpty(),
@@ -192,10 +196,6 @@ fun HomeScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
-            }
-            // Past lists stay out of the way: one row that opens the full history.
-            if (state.pastListCount > 0) {
-                item { PastListsRow(state.pastListCount, onClick = onOpenPastLists) }
             }
         }
     }
@@ -284,12 +284,12 @@ private fun StartListCard(onStart: () -> Unit) {
     }
 }
 
-/** "Past lists · 12 ›" at the bottom of Home. */
+/** "Past lists · 12 ›" under the shopping lists on Home. */
 @Composable
 private fun PastListsRow(count: Int, onClick: () -> Unit) {
     ListItem(
         modifier = Modifier
-            .padding(start = 16.dp, end = 16.dp, top = 24.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(MaterialTheme.shapes.large)
             .clickable(onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
