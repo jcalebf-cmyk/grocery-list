@@ -1,0 +1,7 @@
+Groceries 0.14.2
+
+CHANGED
+• Recipes: "Add to list" is now a smaller button next to Ingredients, instead of a big one that's always on screen.
+• My kitchen is gone. Recipes start with every ingredient checked; untick what you already have before adding them to a list.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
