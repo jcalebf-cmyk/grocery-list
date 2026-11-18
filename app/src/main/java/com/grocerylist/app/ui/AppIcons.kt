@@ -72,11 +72,22 @@ object AppIcons {
         )
     }
 
-    val Shuffle: ImageVector by lazy {
+    /** Material's "auto awesome" sparkles, for the AI chat. */
+    val Sparkle: ImageVector by lazy {
         icon(
-            "Shuffle",
-            "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5z" +
-                "m.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z",
+            "Sparkle",
+            "M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20" +
+                "l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z",
+        )
+    }
+
+    val Minus: ImageVector by lazy { icon("Minus", "M19 13H5v-2h14v2z") }
+
+    val Paste: ImageVector by lazy {
+        icon(
+            "Paste",
+            "M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2" +
+                "V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z",
         )
     }
 

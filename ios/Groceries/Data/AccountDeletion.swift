@@ -26,7 +26,7 @@ enum AccountDeletion {
     private static func deleteHousehold(_ household: Household, db: Firestore) async throws {
         let ref = db.collection("households").document(household.id)
         var docs: [DocumentReference] = []
-        for name in ["stores", "itemStats", "onHand", "recipes"] {
+        for name in ["stores", "itemStats", "onHand", "savedRecipes", "recipes"] {
             docs += try await ref.collection(name).getDocuments().documents.map(\.reference)
         }
         for list in try await ref.collection("lists").getDocuments().documents {

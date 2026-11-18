@@ -50,6 +50,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import com.grocerylist.app.ui.Session
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 class OnHandViewModel(householdId: String, private val uid: String) : ViewModel() {
@@ -61,9 +62,7 @@ class OnHandViewModel(householdId: String, private val uid: String) : ViewModel(
         kitchenQuickAdds(stats, kitchen.mapTo(HashSet()) { it.key }, System.currentTimeMillis())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val pantryQuickAdds = combine(repo.observeOnHand(), AppGraph.recipes(householdId).observePreferences()) { kitchen, prefs ->
-        pantryQuickAdds(prefs.cuisines, kitchen.mapTo(HashSet()) { it.key })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val pantryQuickAdds = repo.observeOnHand().map { kitchen -> pantryQuickAdds(kitchen.mapTo(HashSet()) { it.key }) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun add(name: String, pantry: Boolean) = repo.addOnHand(name, uid, pantry)
 
@@ -71,8 +70,8 @@ class OnHandViewModel(householdId: String, private val uid: String) : ViewModel(
 }
 
 /**
- * "My kitchen": ingredients the household already has, in two tabs. Ingredients are what recipes get
- * built around; pantry seasonings and sauces just flavor them. List suggestions skip both.
+ * "My kitchen": ingredients the household already has, in two tabs: ingredients, and pantry seasonings and
+ * sauces. List suggestions skip both, and recipes leave them unchecked when adding ingredients to a list.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,10 +128,10 @@ fun OnHandScreen(session: Session.Ready, onBack: () -> Unit) {
                 Text(
                     if (pantry) {
                         "Spices, sauces, and other flavor-makers, like soy sauce or mirin. " +
-                            "Recipes use them freely without building a dish around them."
+                            "Recipes won't add them to your list."
                     } else {
                         "Things you already have, like a stocked freezer or a ButcherBox delivery. " +
-                            "Lists won't suggest them, and recipes for you put them to use first."
+                            "Lists won't suggest them, and recipes won't add them to your list."
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),

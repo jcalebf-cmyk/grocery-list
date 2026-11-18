@@ -32,6 +32,9 @@ import com.grocerylist.app.ui.household.HouseholdSetupScreen
 import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
 import com.grocerylist.app.ui.onhand.OnHandScreen
+import com.grocerylist.app.ui.recipe.AllRecipesScreen
+import com.grocerylist.app.ui.recipe.RecipeChatScreen
+import com.grocerylist.app.ui.recipe.RecipeEditScreen
 import com.grocerylist.app.ui.recipe.RecipeScreen
 
 @Composable
@@ -70,6 +73,9 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         session = session,
                         onOpenList = { nav.navigate("list/$it") },
                         onOpenRecipe = { nav.navigate("recipe/$it") },
+                        onAskForRecipe = { nav.navigate("recipes/ask") },
+                        onPasteRecipe = { nav.navigate("recipes/paste") },
+                        onAllRecipes = { nav.navigate("recipes") },
                         onOpenOnHand = { nav.navigate("onhand") },
                         onOpenSettings = { nav.navigate("settings") },
                     )
@@ -81,14 +87,47 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         onBack = { nav.popBackStack() },
                     )
                 }
-                screen("recipe/{videoId}") { entry ->
+                screen("recipes") {
+                    AllRecipesScreen(
+                        session = session,
+                        onBack = { nav.popBackStack() },
+                        onOpenRecipe = { nav.navigate("recipe/$it") },
+                        onAsk = { nav.navigate("recipes/ask") },
+                        onPaste = { nav.navigate("recipes/paste") },
+                    )
+                }
+                screen("recipes/ask") {
+                    RecipeChatScreen(
+                        session = session,
+                        onBack = { nav.popBackStack() },
+                        onOpenList = { listId -> nav.navigate("list/$listId") },
+                    )
+                }
+                screen("recipes/paste") {
+                    RecipeEditScreen(
+                        session = session,
+                        recipeId = null,
+                        onClose = { nav.popBackStack() },
+                        // The pasted recipe replaces the paste screen, so Back from it goes where you came from.
+                        onSaved = { id -> nav.navigate("recipe/$id") { popUpTo("recipes/paste") { inclusive = true } } },
+                    )
+                }
+                screen("recipe/{recipeId}") { entry ->
+                    val recipeId = entry.arguments?.getString("recipeId").orEmpty()
                     RecipeScreen(
                         session = session,
-                        videoId = entry.arguments?.getString("videoId").orEmpty(),
+                        recipeId = recipeId,
                         onBack = { nav.popBackStack() },
-                        onOpenList = { listId ->
-                            nav.navigate("list/$listId") { popUpTo("home") }
-                        },
+                        onEdit = { nav.navigate("recipe/$recipeId/edit") },
+                        onOpenList = { listId -> nav.navigate("list/$listId") { popUpTo("home") } },
+                    )
+                }
+                screen("recipe/{recipeId}/edit") { entry ->
+                    RecipeEditScreen(
+                        session = session,
+                        recipeId = entry.arguments?.getString("recipeId").orEmpty(),
+                        onClose = { nav.popBackStack() },
+                        onSaved = { nav.popBackStack() },
                     )
                 }
                 screen("onhand") {

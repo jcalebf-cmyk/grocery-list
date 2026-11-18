@@ -59,7 +59,7 @@ class AislesTest {
     }
 
     @Test fun quickAddsAllHaveAnAisle() {
-        val quickAdds = BASIC_PANTRY + COMMON_PANTRY + CUISINE_PANTRY.values.flatten() +
+        val quickAdds = BASIC_PANTRY + COMMON_PANTRY +
             kitchenQuickAdds(emptyList(), emptySet(), 0, limit = 100)
         for (name in quickAdds) assertNotEquals(name, Aisle.OTHER, aisleFor(name))
     }

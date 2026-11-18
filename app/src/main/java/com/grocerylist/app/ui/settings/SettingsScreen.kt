@@ -2,7 +2,6 @@ package com.grocerylist.app.ui.settings
 
 import android.content.Intent
 import kotlinx.coroutines.flow.MutableStateFlow
-import com.grocerylist.app.ui.CuisineSheet
 import com.grocerylist.app.ui.auth.requestGoogleIdToken
 import com.grocerylist.app.data.NearbyStores
 import com.grocerylist.app.data.AccountDeletion
@@ -97,10 +96,6 @@ class SettingsViewModel(private val householdId: String, private val uid: String
         .flatMapLatest { households.observeMembers(it?.memberIds.orEmpty()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val recipes = AppGraph.recipes(householdId)
-    val cuisines = recipes.observePreferences()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
     private val errors = Channel<String>(Channel.BUFFERED)
     val errorMessages = errors.receiveAsFlow()
 
@@ -116,9 +111,6 @@ class SettingsViewModel(private val householdId: String, private val uid: String
         AppGraph.auth.sendEmailConfirmation()
         confirmationSent.value = true
     }
-
-    /** Recipes pick up the change when Home is next shown. */
-    fun saveCuisines(cuisines: List<String>) = recipes.savePreferences(cuisines)
 
     fun renameHousehold(name: String) = run("Couldn't rename the household") {
         households.renameHousehold(householdId, name)
@@ -214,8 +206,6 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
     var removing by remember { mutableStateOf<UserProfile?>(null) }
     var promoting by remember { mutableStateOf<UserProfile?>(null) }
     var confirmingDelete by rememberSaveable { mutableStateOf(false) }
-    val cuisines by viewModel.cuisines.collectAsStateWithLifecycle()
-    var editingCuisines by rememberSaveable { mutableStateOf(false) }
     val emailUnconfirmed by viewModel.emailUnconfirmed.collectAsStateWithLifecycle()
     val confirmationSent by viewModel.confirmationSent.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
@@ -325,15 +315,6 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                 }
             }
 
-            item { SectionTitle("Recipes") }
-            item {
-                SettingsRow(
-                    title = "Favorite cuisines",
-                    subtitle = cuisines?.cuisines?.joinToString(", ")?.ifEmpty { "Any" },
-                    trailing = { Icon(Icons.Default.Edit, contentDescription = "Change favorite cuisines") },
-                    onClick = { editingCuisines = true },
-                )
-            }
             item {
                 Text(
                     "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
@@ -346,19 +327,6 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
         }
     }
 
-    if (editingCuisines) {
-        CuisineSheet(
-            title = "Favorite cuisines",
-            subtitle = "Recipe ideas lean toward these, with a few others mixed in.",
-            initial = cuisines?.cuisines.orEmpty(),
-            confirm = "Save",
-            onConfirm = {
-                editingCuisines = false
-                viewModel.saveCuisines(it)
-            },
-            onDismiss = { editingCuisines = false },
-        )
-    }
     if (editingName) {
         TextInputDialog(
             title = "Your name",

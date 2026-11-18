@@ -44,7 +44,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,13 +71,11 @@ import com.grocerylist.app.data.itemKey
 import com.grocerylist.app.data.kitchenQuickAdds
 import com.grocerylist.app.data.pantryQuickAdds
 import com.grocerylist.app.ui.AppIcons
-import com.grocerylist.app.ui.CuisineChips
 import com.grocerylist.app.ui.Session
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** How someone got their household. Decides whether onboarding starts with the invite step. */
@@ -86,7 +83,7 @@ enum class OnboardingStart { CREATED, JOINED }
 
 /**
  * Set when someone starts or joins a household, so Home walks them through the app first. Kept in
- * memory: if the app closes partway, a new household still gets the cuisine picker on Home.
+ * memory: if the app closes partway, the walkthrough doesn't come back.
  */
 object Onboarding {
     val pending = MutableStateFlow<OnboardingStart?>(null)
@@ -94,21 +91,14 @@ object Onboarding {
 
 class OnboardingViewModel(householdId: String, private val uid: String) : ViewModel() {
     private val repo = AppGraph.groceries(householdId)
-    private val recipeRepo = AppGraph.recipes(householdId)
 
     val household = AppGraph.households.observeHousehold(householdId)
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val kitchen = repo.observeOnHand().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    private val prefs = recipeRepo.observePreferences()
-    val needsCuisines = prefs.map { it.chosen == false }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    /** For a household someone joined that already picked cuisines, so pantry chips match them. */
-    val savedCuisines = prefs.map { it.cuisines }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Suggested staples, fixed when the screen opens so chips don't move as they're added. */
     val kitchenOptions = flow { emit(kitchenQuickAdds(repo.observeStats().first(), emptySet(), System.currentTimeMillis())) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, kitchenQuickAdds(emptyList(), emptySet(), System.currentTimeMillis()))
-
-    fun saveCuisines(cuisines: List<String>) = recipeRepo.savePreferences(cuisines)
 
     fun addToKitchen(name: String, pantry: Boolean) {
         if (name.isNotBlank()) repo.addOnHand(name, uid, pantry)
@@ -133,20 +123,15 @@ fun OnboardingScreen(session: Session.Ready, start: OnboardingStart, onDone: () 
     val viewModel: OnboardingViewModel = viewModel { OnboardingViewModel(session.householdId, session.user.uid) }
     val household by viewModel.household.collectAsStateWithLifecycle()
     val kitchen by viewModel.kitchen.collectAsStateWithLifecycle()
-    val needsCuisines by viewModel.needsCuisines.collectAsStateWithLifecycle()
     val kitchenOptions by viewModel.kitchenOptions.collectAsStateWithLifecycle()
-    val savedCuisines by viewModel.savedCuisines.collectAsStateWithLifecycle()
 
     OnboardingContent(
         start = start,
         householdName = household?.name,
         inviteCode = household?.inviteCode,
-        needsCuisines = needsCuisines,
-        savedCuisines = savedCuisines,
         kitchenOptions = kitchenOptions,
         inKitchen = kitchen.filterNot { it.isPantry }.map { it.name },
         inPantry = kitchen.filter { it.isPantry }.map { it.name },
-        onSaveCuisines = viewModel::saveCuisines,
         onToggleKitchen = viewModel::toggleKitchen,
         onAddToKitchen = viewModel::addToKitchen,
         onDone = onDone,
@@ -159,12 +144,9 @@ fun OnboardingContent(
     start: OnboardingStart,
     householdName: String?,
     inviteCode: String?,
-    needsCuisines: Boolean,
-    savedCuisines: List<String>,
     kitchenOptions: List<String>,
     inKitchen: List<String>,
     inPantry: List<String>,
-    onSaveCuisines: (List<String>) -> Unit,
     onToggleKitchen: (name: String, pantry: Boolean) -> Unit,
     onAddToKitchen: (name: String, pantry: Boolean) -> Unit,
     onDone: () -> Unit,
@@ -175,25 +157,11 @@ fun OnboardingContent(
         listOf(Step.RECIPES, Step.KITCHEN, Step.PANTRY)
     }
     var index by rememberSaveable { mutableIntStateOf(0) }
-    var cuisines by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val step = steps[index]
-    // A household someone just started always picks cuisines; one they joined only does if nobody has yet.
-    val picksCuisines = start == OnboardingStart.CREATED || needsCuisines
-    val pantryOptions = remember(picksCuisines, cuisines, savedCuisines) {
-        pantryQuickAdds(if (picksCuisines) cuisines else savedCuisines, emptySet())
-    }
+    val pantryOptions = remember { pantryQuickAdds(emptySet()) }
 
-    fun advance() {
-        if (index + 1 < steps.size) index++ else onDone()
-    }
     fun next() {
-        if (step == Step.RECIPES && picksCuisines) onSaveCuisines(cuisines)
-        advance()
-    }
-    fun skip() {
-        // Skipping cuisines still counts as choosing, so the picker doesn't come back on Home.
-        if (step == Step.RECIPES && picksCuisines) onSaveCuisines(emptyList())
-        advance()
+        if (index + 1 < steps.size) index++ else onDone()
     }
 
     BackHandler(enabled = index > 0) { index-- }
@@ -224,12 +192,12 @@ fun OnboardingContent(
             ) {
                 when (shown) {
                     Step.INVITE -> InviteStep(householdName, inviteCode)
-                    Step.RECIPES -> RecipesStep(picksCuisines, cuisines, onChange = { cuisines = it })
+                    Step.RECIPES -> RecipesStep()
                     Step.KITCHEN -> ChipsStep(
                         icon = AppIcons.Kitchen,
                         title = "Already have it at home?",
                         text = "Add things you keep stocked or get delivered, like a ButcherBox. " +
-                            "Lists won't suggest them, and recipes use them first.",
+                            "Lists won't suggest them, and recipes won't add them to your list.",
                         options = kitchenOptions,
                         added = inKitchen,
                         onToggle = { onToggleKitchen(it, false) },
@@ -239,7 +207,7 @@ fun OnboardingContent(
                         icon = AppIcons.Leaf,
                         title = "What's in your spice rack?",
                         text = "Add the seasonings and sauces you keep around, like soy sauce or mirin. " +
-                            "Recipes use them for flavor, so you won't have to buy them again.",
+                            "Recipes won't add them to your list, so you won't buy them twice.",
                         options = pantryOptions,
                         added = inPantry,
                         onToggle = { onToggleKitchen(it, true) },
@@ -252,9 +220,6 @@ fun OnboardingContent(
         Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
             Button(onClick = ::next, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Text(if (step == steps.last()) "Done" else "Continue")
-            }
-            if (step == Step.RECIPES && picksCuisines) {
-                TextButton(onClick = ::skip, modifier = Modifier.fillMaxWidth()) { Text("Skip") }
             }
         }
     }
@@ -327,25 +292,13 @@ private fun ColumnScope.InviteStep(householdName: String?, code: String?) {
 }
 
 @Composable
-private fun ColumnScope.RecipesStep(picksCuisines: Boolean, cuisines: List<String>, onChange: (List<String>) -> Unit) {
+private fun ColumnScope.RecipesStep() {
     Intro(
         AppIcons.Restaurant,
-        "Recipes from what you buy",
-        if (picksCuisines) {
-            "As your household adds groceries, you'll get recipe ideas built around them. " +
-                "Pick a few cuisines you like and the ideas will lean that way."
-        } else {
-            "As your household adds groceries, you'll get recipe ideas built around them, right on the home screen."
-        },
+        "Your household's recipes",
+        "Save recipes in one place everyone can see. Paste one from a website or a message, or ask for one, " +
+            "like \"chicken thighs in the dutch oven\". Then add what you're missing to a list in a tap.",
     )
-    if (picksCuisines) {
-        CuisineChips(cuisines, onChange = onChange)
-        Text(
-            "You can change these in Settings.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }
 
 /** Toggleable suggestions plus a field for anything else; used for the kitchen and pantry steps. */

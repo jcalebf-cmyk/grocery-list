@@ -12,7 +12,7 @@ enum Session: Equatable {
 }
 
 /// Set when someone starts or joins a household, so Home walks them through the app first.
-/// Kept in memory: if the app is closed partway, a new household still gets the cuisine picker.
+/// Kept in memory: if the app is closed partway, the walkthrough doesn't come back.
 enum OnboardingStart { case created, joined }
 
 /// Follows Firebase Auth, the user's profile, and their household membership, the same way the

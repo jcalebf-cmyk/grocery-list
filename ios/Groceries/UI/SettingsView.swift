@@ -11,7 +11,6 @@ struct SettingsView: View {
     @State private var leaving = false
     @State private var deleting = false
     @State private var error: String?
-    @State private var editingCuisines = false
     @State private var emailUnconfirmed = false
     @State private var confirmationSent = false
     @Environment(\.scenePhase) private var scenePhase
@@ -115,13 +114,6 @@ struct SettingsView: View {
             }
 
             Section {
-                Button { editingCuisines = true } label: {
-                    LabeledContent("Favorite cuisines") {
-                        Text(data.cuisinePrefs.map { $0.cuisines.isEmpty ? "Any" : $0.cuisines.joined(separator: ", ") } ?? "")
-                    }
-                }
-            } header: {
-                Text("Recipes")
             } footer: {
                 Text("Version \(Self.appVersion)").frame(maxWidth: .infinity).padding(.top, 24)
             }
@@ -132,16 +124,6 @@ struct SettingsView: View {
         // Checked on every return to the app, since the link is tapped outside it.
         .task(id: scenePhase) {
             if scenePhase == .active { emailUnconfirmed = await AuthService.needsEmailConfirmation() }
-        }
-        // Recipes pick up the change when Home is next shown.
-        .sheet(isPresented: $editingCuisines) {
-            CuisineSheet(
-                title: "Favorite cuisines",
-                subtitle: "Recipe ideas lean toward these, with a few others mixed in.",
-                initial: data.cuisinePrefs?.cuisines ?? [],
-                confirm: "Save",
-                onConfirm: { picked in editingCuisines = false; data.recipeService.savePreferences(picked) }
-            )
         }
         .alert("Your name", isPresented: $editingName) {
             TextField("Name", text: $draft)
@@ -241,7 +223,6 @@ private struct DeleteAccountSheet: View {
     @State private var newOwner: UserProfile?
     @State private var working = false
     @State private var error: String?
-    @State private var editingCuisines = false
     @Environment(\.dismiss) private var dismiss
 
     private var shared: Bool { !others.isEmpty }

@@ -75,8 +75,8 @@ struct ItemStat: Codable, Identifiable {
     var id: String { key }
 }
 
-/// Something the household already has. Pantry items (seasonings and sauces) flavor recipes;
-/// the rest are what recipes get built around. Same document as Android's OnHandItem.
+/// Something the household already has: an ingredient, or a pantry seasoning or sauce. Same document as
+/// Android's OnHandItem.
 struct OnHandItem: Codable, Identifiable, Hashable {
     static let pantryKind = "pantry"
 
@@ -96,38 +96,86 @@ struct Ingredient: Codable, Hashable {
     var quantity: String
 }
 
+/// Where a saved recipe came from: written by AI (in the chat, or for a YouTube video that didn't come with
+/// the recipe), pasted text, or copied from a YouTube video's description or the creator's comment. Same as Android's RecipeSource.
+enum RecipeSource: String, Codable, Hashable {
+    case ai, pasted, youtube
+}
+
+/// A recipe in the household's recipe box (`households/{hid}/savedRecipes`), or one the AI chat just suggested
+/// (`id` empty until saved). `servings` and `totalMinutes` are 0 when the source didn't say. `originalText` keeps
+/// a pasted recipe's text as it was. A recipe from a YouTube link has the video in `sourceUrl` and its channel
+/// in `sourceName`. Same document as Android's Recipe.
 struct Recipe: Codable, Identifiable, Hashable {
-    var videoId: String
-    var title: String
-    // Recipes from before 0.10 don't have a description, servings, or tip.
-    var description: String?
-    var servings: Int?
-    var totalMinutes: Int
-    var ingredients: [Ingredient]
-    var steps: [String]
-    var tip: String?
-    var usesHouseholdItems: [String]
-    var videoUrl: String
-    var channel: String
-    var thumbnailUrl: String
+    var id = "" // the document ID, set when read; not a field
+    var title = ""
+    var description = ""
+    var servings = 0
+    var totalMinutes = 0
+    var ingredients: [Ingredient] = []
+    var steps: [String] = []
+    var notes = ""
+    var source: RecipeSource = .pasted
+    var originalText = ""
+    var sourceUrl = ""
+    var sourceName = ""
+    var createdBy = ""
+    var createdAt: Int64 = 0
+    var updatedAt: Int64 = 0
 
-    var id: String { videoId }
+    enum CodingKeys: String, CodingKey {
+        case title, description, servings, totalMinutes, ingredients, steps, notes, source, originalText, sourceUrl,
+             sourceName, createdBy, createdAt, updatedAt
+    }
 }
 
-/// `onHandKeys` and `cuisines` record the kitchen and favorite cuisines these were generated from, so
-/// changes trigger new ideas. `mood` is what the household picked for tonight, if anything.
-struct RecipeSet: Codable {
-    var generatedAt: Int64 = 0
-    var onHandKeys: [String]?
-    var cuisines: [String]?
-    var mood: [String]?
+extension Recipe {
+    /// Missing fields fall back to their defaults, and an unknown source reads as pasted.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
+        servings = try c.decodeIfPresent(Int.self, forKey: .servings) ?? 0
+        totalMinutes = try c.decodeIfPresent(Int.self, forKey: .totalMinutes) ?? 0
+        ingredients = try c.decodeIfPresent([Ingredient].self, forKey: .ingredients) ?? []
+        steps = try c.decodeIfPresent([String].self, forKey: .steps) ?? []
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        source = (try? c.decodeIfPresent(String.self, forKey: .source)).flatMap { $0 }.flatMap(RecipeSource.init) ?? .pasted
+        originalText = try c.decodeIfPresent(String.self, forKey: .originalText) ?? ""
+        sourceUrl = try c.decodeIfPresent(String.self, forKey: .sourceUrl) ?? ""
+        sourceName = try c.decodeIfPresent(String.self, forKey: .sourceName) ?? ""
+        createdBy = try c.decodeIfPresent(String.self, forKey: .createdBy) ?? ""
+        createdAt = try c.decodeIfPresent(Int64.self, forKey: .createdAt) ?? 0
+        updatedAt = try c.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? 0
+    }
+
+    /// "45 min · Serves 4 · 8 ingredients", leaving out what the recipe doesn't say.
+    var summary: String {
+        [totalMinutes > 0 ? "\(totalMinutes) min" : nil,
+         servings > 0 ? "Serves \(servings)" : nil,
+         ingredients.isEmpty ? nil : (ingredients.count == 1 ? "1 ingredient" : "\(ingredients.count) ingredients")]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// Where the recipe came from, when it matters. Same wording as `sourceNote` in RecipeScreen.kt.
+    var sourceNote: String? {
+        let channel = sourceName.isEmpty ? "" : " by \(sourceName)"
+        switch source {
+        case .youtube: return "From the creator's notes on a video\(channel)"
+        case .ai where !sourceUrl.isEmpty:
+            return "The video\(channel) didn't come with the recipe written out, so AI wrote this one for the same dish. It may differ from the video."
+        case .ai where !id.isEmpty: return "Suggested by AI"
+        default: return nil
+        }
+    }
+}
+
+/// One message in the recipe chat. Assistant messages can carry recipe cards.
+struct ChatMessage: Identifiable, Hashable {
+    let id = UUID()
+    var fromUser: Bool
+    var text: String
     var recipes: [Recipe] = []
-}
-
-/// The household's favorite cuisines. `chosen` is false until someone picks (or skips) them.
-struct CuisinePrefs: Equatable {
-    var cuisines: [String]
-    var chosen: Bool
 }
 
 func nowMillis() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }

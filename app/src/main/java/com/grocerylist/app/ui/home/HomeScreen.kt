@@ -5,32 +5,26 @@ import com.grocerylist.app.ui.onboarding.OnboardingScreen
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
-import com.grocerylist.app.ui.sharedElement
-import com.grocerylist.app.ui.photoGlass
-import dev.chrisbanes.haze.rememberHazeState
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.height
 import com.grocerylist.app.ui.AppIcons
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.AssistChip
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.size
 import com.grocerylist.app.data.Recipe
-import coil3.compose.AsyncImage
+import com.grocerylist.app.data.RecipeSource
+import com.grocerylist.app.ui.recipe.recipeSummary
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.Card
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -83,10 +78,6 @@ import com.grocerylist.app.data.NearbyStores
 import com.grocerylist.app.ui.StoreLogo
 import com.grocerylist.app.ui.rememberLocationPermissionState
 import com.grocerylist.app.ui.StorePicker
-import com.grocerylist.app.ui.CuisineSetupScreen
-import com.grocerylist.app.ui.CuisineSheet
-import com.grocerylist.app.data.MAX_MOOD_CUISINES
-import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import com.grocerylist.app.ui.CloseOutListDialog
@@ -106,6 +97,9 @@ fun HomeScreen(
     session: Session.Ready,
     onOpenList: (String) -> Unit,
     onOpenRecipe: (String) -> Unit,
+    onAskForRecipe: () -> Unit,
+    onPasteRecipe: () -> Unit,
+    onAllRecipes: () -> Unit,
     onOpenOnHand: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -113,8 +107,6 @@ fun HomeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pickingStore by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
-
-    LaunchedEffect(Unit) { viewModel.onShown() }
 
     // The store picker asks for location the first time it opens. Once allowed, nearby stores are
     // fetched here in the background so New list opens straight onto them.
@@ -125,18 +117,12 @@ fun HomeScreen(
     }
     LaunchedEffect(Unit) { viewModel.userMessages.collect { snackbar.showSnackbar(it) } }
 
-    // New members get the walkthrough. Otherwise a household that hasn't picked cuisines yet (say the app
-    // closed partway through) gets just that step.
+    // New members get the walkthrough first.
     val onboarding by Onboarding.pending.collectAsStateWithLifecycle()
     onboarding?.let { start ->
-        OnboardingScreen(session, start, onDone = { Onboarding.pending.value = null; viewModel.onShown() })
+        OnboardingScreen(session, start, onDone = { Onboarding.pending.value = null })
         return
     }
-    if (state.needsCuisines) {
-        CuisineSetupScreen(onDone = viewModel::saveCuisines)
-        return
-    }
-    var choosingMood by rememberSaveable { mutableStateOf(false) }
     var deletingList by remember { mutableStateOf<GroceryList?>(null) }
     var closingList by remember { mutableStateOf<GroceryList?>(null) }
 
@@ -167,19 +153,23 @@ fun HomeScreen(
         LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
             item {
                 RecipesHeader(
-                    updatedAt = state.recipesUpdatedAt.takeIf { state.recipes.isNotEmpty() },
-                    refreshing = state.refreshingRecipes,
+                    hasRecipes = state.recipes.isNotEmpty(),
                     kitchenCount = state.kitchenCount,
-                    mood = state.mood,
-                    onRefresh = viewModel::refreshRecipes,
+                    onAsk = onAskForRecipe,
+                    onPaste = onPasteRecipe,
+                    onSeeAll = onAllRecipes,
                     onOpenKitchen = onOpenOnHand,
-                    onChooseMood = { choosingMood = true },
                 )
             }
             item {
-                when {
-                    state.recipes.isNotEmpty() -> RecipeRow(state.recipes, onOpenRecipe)
-                    !state.refreshingRecipes -> KitchenPrompt(onOpenKitchen = onOpenOnHand)
+                if (state.recipes.isNotEmpty()) {
+                    RecipeRow(state.recipes.take(RECIPES_SHOWN), onOpenRecipe)
+                } else {
+                    Text(
+                        "Save recipes you like here: ask for one, or paste one from anywhere.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
                 }
             }
             if (state.activeLists.isNotEmpty()) {
@@ -234,35 +224,6 @@ fun HomeScreen(
                 viewModel.closeOut(list)
             },
             onDismiss = { closingList = null },
-        )
-    }
-
-    if (choosingMood) {
-        CuisineSheet(
-            title = "What are you in the mood for?",
-            subtitle = "Pick up to $MAX_MOOD_CUISINES for tonight's recipes, or tap Surprise me for random dishes " +
-                "that don't depend on your kitchen.",
-            initial = state.mood,
-            confirm = "Get recipes",
-            max = MAX_MOOD_CUISINES,
-            requireSelection = true,
-            onConfirm = {
-                choosingMood = false
-                viewModel.setMood(it)
-            },
-            onDismiss = { choosingMood = false },
-            surprise = "Surprise me" to {
-                choosingMood = false
-                viewModel.surprise(it)
-            },
-            secondary = if (state.mood.isNotEmpty()) {
-                "Back to usual" to {
-                    choosingMood = false
-                    viewModel.setMood(emptyList())
-                }
-            } else {
-                null
-            },
         )
     }
 
@@ -364,134 +325,82 @@ private fun ListRow(list: GroceryList, onClick: () -> Unit) {
     )
 }
 
+/** Home shows the newest few; the rest are a tap away. */
+private const val RECIPES_SHOWN = 10
+
 @Composable
 private fun RecipesHeader(
-    updatedAt: Long?,
-    refreshing: Boolean,
+    hasRecipes: Boolean,
     kitchenCount: Int,
-    mood: List<String>,
-    onRefresh: () -> Unit,
+    onAsk: () -> Unit,
+    onPaste: () -> Unit,
+    onSeeAll: () -> Unit,
     onOpenKitchen: () -> Unit,
-    onChooseMood: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
-        Text("Recipes for you", style = MaterialTheme.typography.titleLarge)
-        val status = when {
-            refreshing -> "Finding new recipes…"
-            updatedAt != null -> "Updated " + DateUtils.getRelativeTimeSpanString(
-                updatedAt,
-                System.currentTimeMillis(),
-                DateUtils.MINUTE_IN_MILLIS,
-            ).toString().replaceFirstChar(Char::lowercase)
-            else -> null
-        }
-        status?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Recipes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (hasRecipes) TextButton(onClick = onSeeAll) { Text("See all") }
         }
         Row(
-            Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+            Modifier.padding(top = 4.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            AssistChip(
+                onClick = onAsk,
+                label = { Text("Ask for a recipe") },
+                leadingIcon = { Icon(AppIcons.Sparkle, contentDescription = null, Modifier.size(18.dp)) },
+            )
+            AssistChip(
+                onClick = onPaste,
+                label = { Text("Paste a recipe") },
+                leadingIcon = { Icon(AppIcons.Paste, contentDescription = null, Modifier.size(18.dp)) },
+            )
             AssistChip(
                 onClick = onOpenKitchen,
                 label = { Text(if (kitchenCount > 0) "My kitchen · $kitchenCount" else "My kitchen") },
                 leadingIcon = { Icon(AppIcons.Kitchen, contentDescription = null, Modifier.size(18.dp)) },
             )
-            AssistChip(
-                onClick = onRefresh,
-                enabled = !refreshing,
-                label = { Text("New ideas") },
-                leadingIcon = {
-                    if (refreshing) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Default.Refresh, contentDescription = null, Modifier.size(18.dp))
-                    }
-                },
-            )
-            FilterChip(
-                selected = mood.isNotEmpty(),
-                onClick = onChooseMood,
-                enabled = !refreshing,
-                label = { Text(if (mood.isEmpty()) "Tonight…" else "Tonight: ${mood.joinToString(", ")}") },
-                leadingIcon = { Icon(AppIcons.Restaurant, contentDescription = null, Modifier.size(18.dp)) },
-            )
-        }
-    }
-}
-
-/** Shown before there are any recipes, pointing people at the kitchen list. */
-@Composable
-private fun KitchenPrompt(onOpenKitchen: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("What's in your kitchen?", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Add a few ingredients you already have and you'll get simple recipes that use them.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalButton(onClick = onOpenKitchen) { Text("Add ingredients") }
         }
     }
 }
 
 @Composable
 private fun RecipeRow(recipes: List<Recipe>, onOpen: (String) -> Unit) {
+    // A newly saved recipe goes first; without this the row stays on the card it showed and hides it.
+    val state = rememberLazyListState()
+    LaunchedEffect(recipes.first().id) { state.scrollToItem(0) }
     LazyRow(
+        state = state,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(recipes, key = { it.videoId }) { recipe -> RecipeCard(recipe, onClick = { onOpen(recipe.videoId) }) }
+        items(recipes, key = { it.id }) { recipe -> RecipeCard(recipe, onClick = { onOpen(recipe.id) }) }
     }
 }
 
-/** Full-bleed photo with the title on a frosted strip, so the food does the talking. */
 @Composable
 private fun RecipeCard(recipe: Recipe, onClick: () -> Unit) {
-    val haze = rememberHazeState()
-    val shape = MaterialTheme.shapes.large
-    Box(
-        Modifier
-            .width(280.dp)
-            .height(210.dp)
-            .clip(shape)
-            .clickable(onClick = onClick),
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        modifier = Modifier.width(220.dp).height(128.dp),
     ) {
-        AsyncImage(
-            model = recipe.thumbnailUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .sharedElement("recipe-image-${recipe.videoId}")
-                .hazeSource(haze),
-        )
-        Text(
-            "${recipe.totalMinutes} min",
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(10.dp)
-                .clip(CircleShape)
-                .hazeEffect(haze, style = photoGlass())
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-        )
-        Column(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .hazeEffect(haze, style = photoGlass())
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            Text(
-                recipe.title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(
+                when {
+                    recipe.sourceUrl.isNotBlank() -> Icons.Default.PlayArrow
+                    recipe.source == RecipeSource.AI -> AppIcons.Sparkle
+                    else -> AppIcons.Restaurant
+                },
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
             )
+            Text(recipe.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.weight(1f))
             Text(
-                "${recipe.ingredients.size} ingredients",
+                recipeSummary(recipe),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

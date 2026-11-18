@@ -3,6 +3,8 @@ import SwiftUI
 enum Route: Hashable {
     case list(String)
     case recipe(String)
+    case recipes
+    case recipeChat
     case kitchen
     case settings
 }
@@ -21,10 +23,9 @@ final class HouseholdData {
     var lists: [GroceryList] = []
     var stats: [ItemStat] = []
     var onHand: [OnHandItem] = []
-    var recipeSet: RecipeSet?
-    var cuisinePrefs: CuisinePrefs? // nil while loading
+    /// Saved recipes, newest first.
+    var recipes: [Recipe] = []
     var members: [UserProfile] = []
-    private var inputsLoaded = false
 
     init(user: UserProfile, householdId: String) {
         self.user = user
@@ -36,10 +37,6 @@ final class HouseholdData {
     var activeLists: [GroceryList] { lists.filter(\.isActive) }
     var pastLists: [GroceryList] { Array(lists.filter { !$0.isActive }.prefix(10)) }
     var yourStores: [Store] { storesInUse(stores, lists: lists) }
-    var recipes: [Recipe] { recipeSet?.recipes ?? [] }
-    var mood: [String] { recipeSet?.mood ?? [] }
-    /// True until the household picks (or skips) favorite cuisines.
-    var needsCuisines: Bool { cuisinePrefs?.chosen == false }
     var isOwner: Bool { household?.ownerId == user.id }
     var otherMembers: [String: String] {
         members.count > 1 ? Dictionary(uniqueKeysWithValues: members.filter { $0.id != user.id }.map { ($0.id, $0.displayName) }) : [:]
@@ -47,24 +44,6 @@ final class HouseholdData {
 
     func openList(for store: Store?) -> String { groceries.openList(for: store, uid: user.id, activeLists: activeLists).id }
     func openList(forNewStore name: String) -> String { openList(for: groceries.addStore(name, existing: stores)) }
-
-    /// Called once the first snapshots settle, and whenever Home reappears (e.g. after editing the kitchen
-    /// or cuisines). A new household picks cuisines first.
-    func refreshRecipesIfStale() async {
-        guard inputsLoaded, cuisinePrefs?.chosen == true else { return }
-        _ = await refreshRecipes(mood: nil, force: false)
-    }
-
-    func refreshRecipes(mood: [String]?, force: Bool, surprise: Bool = false) async -> RefreshResult {
-        await recipeService.refresh(stats: stats, onHand: onHand, favorites: cuisinePrefs?.cuisines ?? [], mood: mood, force: force,
-                                    surprise: surprise)
-    }
-
-    func markInputsLoaded() async {
-        try? await Task.sleep(for: .seconds(2)) // first snapshots can come from an empty local cache
-        inputsLoaded = true
-        await refreshRecipesIfStale()
-    }
 
     func refreshMembers() async {
         members = await HouseholdService.members(household?.memberIds ?? [])
@@ -76,7 +55,7 @@ struct HomeView: View {
     @State private var data: HouseholdData
     @State private var path: [Route] = []
     @State private var pickingStore = false
-    @State private var choosingMood = false
+    @State private var pasting = false
     @State private var deletingList: GroceryList?
     @State private var closingList: GroceryList?
     @State private var message: String?
@@ -117,11 +96,17 @@ struct HomeView: View {
                 switch route {
                 case .list(let id): ListView(data: data, listId: id)
                 case .recipe(let id):
-                    RecipeView(data: data, videoId: id, onOpenList: { path = [.list($0)] })
+                    RecipeView(data: data, recipeId: id, onOpenList: { path = [.list($0)] })
                         .navigationTransition(.zoom(sourceID: id, in: zoom))
+                case .recipes: AllRecipesView(data: data, onPaste: { pasting = true })
+                case .recipeChat: RecipeChatView(data: data, onOpenList: { path = [.list($0)] })
                 case .kitchen: KitchenView(data: data)
                 case .settings: SettingsView(data: data)
                 }
+            }
+            .sheet(isPresented: $pasting) {
+                // A pasted recipe opens once it's saved.
+                RecipeEditView(data: data, recipeId: nil, onSaved: { id in pasting = false; path.append(.recipe(id)) })
             }
             .fullScreenCover(isPresented: $pickingStore) {
                 StorePickerView(
@@ -144,27 +129,17 @@ struct HomeView: View {
         .task { await consume(data.groceries.listsStream()) { v in data.lists = v } }
         .task { await consume(data.groceries.statsStream()) { v in data.stats = v } }
         .task { await consume(data.groceries.onHandStream()) { v in data.onHand = v } }
-        .task { await consume(data.recipeService.stream()) { v in data.recipeSet = v } }
-        .task { await consume(data.recipeService.preferencesStream()) { v in if v != data.cuisinePrefs { data.cuisinePrefs = v } } }
+        .task { await consume(data.recipeService.stream()) { v in data.recipes = v } }
         .task {
             await consume(HouseholdService.household(data.householdId)) { v in
                 data.household = v
                 await data.refreshMembers()
             }
         }
-        .task { await data.markInputsLoaded() }
-        .onChange(of: path) { if path.isEmpty { Task { await data.refreshRecipesIfStale() } } }
-        .onChange(of: data.needsCuisines) { if !data.needsCuisines { Task { await data.refreshRecipesIfStale() } } }
-        // New members get the walkthrough. Otherwise a household that hasn't picked cuisines yet (say the
-        // app closed partway through) gets just that step.
-        .fullScreenCover(isPresented: .constant(session.onboarding != nil || data.needsCuisines)) {
+        // New members get the walkthrough first.
+        .fullScreenCover(isPresented: .constant(session.onboarding != nil)) {
             if let start = session.onboarding {
-                OnboardingView(data: data, start: start) {
-                    session.onboarding = nil
-                    Task { await data.refreshRecipesIfStale() }
-                }
-            } else {
-                CuisineSetupView { data.recipeService.savePreferences($0) }
+                OnboardingView(data: data, start: start) { session.onboarding = nil }
             }
         }
         .deleteListAlert(isPresented: Binding(get: { deletingList != nil }, set: { if !$0 { deletingList = nil } })) {
@@ -176,48 +151,30 @@ struct HomeView: View {
         .closeOutListAlert(isPresented: Binding(get: { closingList != nil }, set: { if !$0 { closingList = nil } })) {
             if let list = closingList { data.groceries.closeOut(list.id) }
         }
-        .sheet(isPresented: $choosingMood) {
-            CuisineSheet(
-                title: "What are you in the mood for?",
-                subtitle: "Pick up to \(maxMoodCuisines) for tonight's recipes, or tap Surprise me for random dishes that don't depend on your kitchen.",
-                initial: data.mood,
-                confirm: "Get recipes",
-                max: maxMoodCuisines,
-                requireSelection: true,
-                secondary: data.mood.isEmpty ? nil : ("Back to usual", { choosingMood = false; Task { await newIdeas(mood: []) } }),
-                surprise: ("Surprise me", { picked in choosingMood = false; Task { await newIdeas(mood: picked, surprise: true) } }),
-                onConfirm: { picked in choosingMood = false; Task { await newIdeas(mood: picked) } }
-            )
-        }
     }
 
     // MARK: Recipes
 
     private var recipesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Recipes for you").font(.brand(24))
-                if let status = recipeStatus {
-                    Text(status).font(.footnote).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recipes").font(.brand(24))
+                Spacer()
+                if !data.recipes.isEmpty {
+                    NavigationLink("See all", value: Route.recipes).font(.subheadline.weight(.medium))
                 }
             }
             .padding(.horizontal, 20)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
+                    NavigationLink(value: Route.recipeChat) { Label("Ask for a recipe", systemImage: "sparkles") }
+                        .buttonStyle(.glass)
+                    Button { pasting = true } label: { Label("Paste a recipe", systemImage: "doc.on.clipboard") }
+                        .buttonStyle(.glass)
                     NavigationLink(value: Route.kitchen) {
                         Label(data.onHand.isEmpty ? "My kitchen" : "My kitchen · \(data.onHand.count)", systemImage: "refrigerator")
                     }
                     .buttonStyle(.glass)
-                    Button { Task { await newIdeas() } } label: {
-                        if data.recipeService.refreshing {
-                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("New ideas") }
-                        } else {
-                            Label("New ideas", systemImage: "arrow.clockwise")
-                        }
-                    }
-                    .buttonStyle(.glass)
-                    .disabled(data.recipeService.refreshing)
-                    moodButton
                 }
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 20)
@@ -225,62 +182,26 @@ struct HomeView: View {
             }
             .scrollClipDisabled()
 
-            if !data.recipes.isEmpty {
+            if data.recipes.isEmpty {
+                Text("Save recipes you like here: ask for one, or paste one from anywhere.")
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20)
+            } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
-                        ForEach(data.recipes) { recipe in
-                            NavigationLink(value: Route.recipe(recipe.videoId)) { RecipeCard(recipe: recipe) }
+                        // Home shows the newest few; the rest are under See all.
+                        ForEach(data.recipes.prefix(10)) { recipe in
+                            NavigationLink(value: Route.recipe(recipe.id)) { RecipeCard(recipe: recipe) }
                                 .buttonStyle(.plain)
-                                .matchedTransitionSource(id: recipe.videoId, in: zoom)
+                                .matchedTransitionSource(id: recipe.id, in: zoom)
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 4)
                 }
-            } else if !data.recipeService.refreshing {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("What's in your kitchen?").font(.headline)
-                    Text("Add a few ingredients you already have and you'll get simple recipes that use them.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    NavigationLink("Add ingredients", value: Route.kitchen).prominentGlassButton()
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .padding(.horizontal, 20)
             }
         }
         .padding(.top, 8)
-    }
-
-    private var recipeStatus: String? {
-        if data.recipeService.refreshing { return "Finding new recipes…" }
-        guard !data.recipes.isEmpty, let generated = data.recipeSet?.generatedAt else { return nil }
-        let date = Date(timeIntervalSince1970: TimeInterval(generated) / 1000)
-        return "Updated " + date.formatted(.relative(presentation: .named))
-    }
-
-    private func newIdeas() async {
-        await newIdeas(mood: nil)
-    }
-
-    /// "Tonight" button: highlighted while the recipes are for tonight's picks.
-    @ViewBuilder private var moodButton: some View {
-        let button = Button { choosingMood = true } label: {
-            Label(data.mood.isEmpty ? "Tonight…" : "Tonight: \(data.mood.joined(separator: ", "))", systemImage: "fork.knife")
-        }
-        .disabled(data.recipeService.refreshing)
-        if data.mood.isEmpty { button.buttonStyle(.glass) } else { button.prominentGlassButton() }
-    }
-
-    /// `mood` nil keeps tonight's picks; empty goes back to the usual mix.
-    /// `surprise` picks random dishes from those cuisines (or the favorites), ignoring the kitchen.
-    private func newIdeas(mood: [String]?, surprise: Bool = false) async {
-        switch await data.refreshRecipes(mood: mood, force: true, surprise: surprise) {
-        case .rateLimited: show("That's all the new recipe ideas for today. Check back tomorrow.")
-        case .failed: show("Couldn't get new recipes. Try again in a bit.")
-        default: break
-        }
     }
 
     private func show(_ text: String) {
@@ -344,52 +265,24 @@ struct HomeView: View {
     }
 }
 
-/// The recipe's video thumbnail, filling whatever frame it's given. YouTube's standard thumbnail has
-/// black bars baked in, so this asks for the widescreen version first and falls back if there isn't one.
-struct RecipePhoto: View {
-    let recipe: Recipe
-    @State private var useFallback = false
-
-    private var url: URL? {
-        useFallback ? URL(string: recipe.thumbnailUrl) : URL(string: "https://i.ytimg.com/vi/\(recipe.videoId)/maxresdefault.jpg")
-    }
-
-    var body: some View {
-        AsyncImage(url: url) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFill()
-            } else if phase.error != nil {
-                Color.card.onAppear { useFallback = true }
-            } else {
-                Color.card
-            }
-        }
-    }
-}
-
-/// Full-bleed photo with the title on frosted glass, so the food does the talking.
+/// A saved recipe on Home: its title and the basics, with an icon for where it came from.
 struct RecipeCard: View {
     let recipe: Recipe
 
+    private var icon: String {
+        if !recipe.sourceUrl.isEmpty { return "play.rectangle" }
+        return recipe.source == .ai ? "sparkles" : "fork.knife"
+    }
+
     var body: some View {
-        Color.card
-        .frame(width: 280, height: 210)
-        .overlay { RecipePhoto(recipe: recipe) }
-        .overlay(alignment: .topLeading) {
-            Text("\(recipe.totalMinutes) min").font(.caption.weight(.semibold))
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .glassEffect(in: .capsule)
-                .padding(10)
+        VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: icon).font(.subheadline).foregroundStyle(Color.accentColor)
+            Text(recipe.title).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+            Text(recipe.summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
-        .overlay(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(recipe.title).font(.headline).lineLimit(2)
-                Text("\(recipe.ingredients.count) ingredients").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .glassEffect(.regular, in: UnevenRoundedRectangle(bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(14)
+        .frame(width: 220, height: 128, alignment: .topLeading)
+        .background(Color.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }

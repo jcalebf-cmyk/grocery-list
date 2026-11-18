@@ -1,8 +1,11 @@
 {
   "cleanUrls": true,
   "functions": {
-    "api/recipes.ts": {
-      "maxDuration": 120
+    "api/recipe-chat.ts": {
+      "maxDuration": 60
+    },
+    "api/recipe-import.ts": {
+      "maxDuration": 60
     }
   }
 }

@@ -1,6 +1,6 @@
 # Groceries – project notes for Claude
 
-Shared household grocery list with smart suggestions, nearby stores, and AI recipe ideas.
+Shared household grocery list with smart suggestions, nearby stores, and a shared recipe box.
 Android (Kotlin/Compose) and iPhone (SwiftUI) apps share one Firebase project and one Vercel server,
 so households, lists, and recipes are shared across platforms. Josh (product, not a full-time developer)
 owns it; testers are friends and family.
@@ -11,7 +11,7 @@ owns it; testers are friends and family.
 - `ios/` – iPhone app, SwiftUI, iOS 26+ (Liquid Glass). Bundle ID **`com.householdgroceries.app`**
   (`com.grocerylist.app` was taken on the App Store; Josh doesn't want their name in the ID). Android keeps
   `com.grocerylist.app`. Project generated from `ios/project.yml` by XcodeGen; `Groceries.xcodeproj` isn't committed.
-- `server/` – Vercel functions (TypeScript): `/api/recipes`, `/api/stores`, `/api/send-verification`,
+- `server/` – Vercel functions (TypeScript): `/api/recipe-chat`, `/api/recipe-import`, `/api/stores`, `/api/send-verification`,
   `/api/send-password-reset`, `/api/health`; `public/account.html` is the page email links open.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
   Rules); after changing them, copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy < firestore.rules`) and also paste the full
@@ -23,8 +23,8 @@ owns it; testers are friends and family.
 
 Android and iOS mirror each other: same Firestore documents and field names (timestamps are device
 millis as Int64/Long), same rules, same logic (suggestion ranking, kitchen quick adds, "stores in use",
-ingredient matching, store brand logos). When changing behavior on one, change the other, or say why not.
-Android files to iOS files: `Suggestions.kt`/`IngredientMatch.kt`/`StoreBrands.kt`/`Aisles.kt` → `ios/Groceries/Data/Logic.swift`;
+ingredient matching, store brand logos, servings scaling). When changing behavior on one, change the other, or say why not.
+Android files to iOS files: `Suggestions.kt`/`IngredientMatch.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt` → `ios/Groceries/Data/Logic.swift`;
 repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both.
 
 ## Backend facts
@@ -34,15 +34,20 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   email confirmation is optional (a Settings row with Resend, never a sign-up blocker).
   Config files `app/google-services.json` and `ios/Groceries/App/GoogleService-Info.plist` are git-ignored.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
-  `itemStats`, `onHand`, `recipes/current`, `recipes/preferences`; `inviteCodes/{code}`.
+  `itemStats`, `onHand`, `savedRecipes` (the recipe box); `inviteCodes/{code}`. The old suggestion docs
+  (`recipes/current`, `recipes/preferences`) are no longer read; account deletion still removes them.
 - Server: https://grocery-recipes.vercel.app (Vercel project `grocery-recipes`, account jcalebf-cmyk).
   Env vars set by Josh in Vercel: `YOUTUBE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_PLACES_API_KEY`.
-  Recipes: Claude Haiku 5.5 (Josh chose it for cost) writes them, then each gets a YouTube video of a similar
-  dish (~600 of 10,000 daily quota units per request; apps key recipes by `videoId`). Favorite cuisines live in
-  `recipes/preferences` (missing = household hasn't done cuisine setup yet); "Tonight" picks are `mood` on
-  `recipes/current` and last until cleared or the daily refresh. Cuisine list: `Cuisines.kt` ↔ `Logic.swift`.
-  Endpoints require a Firebase ID token and have
-  per-user daily limits (stores 20, recipes 8) in Vercel Runtime Cache.
+  Recipe box (replaced AI suggestions, cuisines and the "Tonight" picker in Nov 2026): households save recipes
+  three ways. `/api/recipe-chat`: a stateless chat (the app sends the whole conversation each turn and keeps
+  it only while the screen is open); replies are a short message plus 0–3 recipe cards. `/api/recipe-import`:
+  pasted text is sorted into ingredients and steps keeping the author's wording; a YouTube link reads the
+  video's description and the creator's own comments (pinned recipes live there) through the YouTube Data API
+  (2 quota units), copies the recipe if the creator posted it (`source: youtube`), else Claude writes one
+  for the dish in the title (`source: ai`, labeled as possibly differing from the video). Transcripts aren't
+  used: YouTube blocks them from cloud servers. All on Claude Haiku 5.5 (Josh chose it for cost).
+  Endpoints require a Firebase ID token and have per-user daily limits (stores 20, chat 40, import 20) in
+  Vercel Runtime Cache.
 - Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down. Since 0.9 the apps
   send exact location (Android asks for precise; approximate still works) and re-measure saved stores' distances.
 - Instacart handoff: investigated (Oct 2026) sending a list's items to Instacart as a shoppable page via
@@ -104,6 +109,9 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
+- Recipe box, Josh's calls: the kitchen is background for the chat, never a limit on what it suggests;
+  pasted recipes keep the author's wording (only ingredients get structured); chats aren't saved; no cuisines.
+  The servings control scales ingredient amounts only (steps keep the original amounts, and say so).
 - Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
   active lists and deletes past ones, each after a confirmation; items in My kitchen are never suggested on lists;
   one show/hide toggle covers both password fields.
@@ -112,13 +120,18 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Oct 31, 2026)
+## Status (Nov 18, 2026)
 
-- **Android: 0.13.1** (code 14) on Firebase to all 3 testers (no groups yet), tagged `v0.13.1`. 0.13.1 = suggestion
-  chips spaced off the "Suggested" heading again (the custom long-press chip lacked the 48dp touch target).
-- **iPhone: 0.13.1** (build 12) in TestFlight, submitted for Beta App Review (`WAITING_FOR_REVIEW`), tagged
-  `ios-v0.13.1`. Next iOS upload must be build 13. 0.13.1 = Firebase 12.19.3, Google's urgent Firestore fix for the
-  compromised eMudhra CA certs (Nov 3 email; Apple SDK only, Android/server unaffected). Firebase must stay ≥ 12.19.3.
+- **In progress, uncommitted: the recipe box** (both apps + server), replacing AI recipe suggestions. Builds and
+  unit tests pass; screens checked in the emulator and simulator with temporary sample data only. Not yet run
+  against the real server: the chat and import prompts have never been called (no local Claude key), so the
+  first real test needs the server deployed. Deploying removes `/api/recipes`, so 0.13 apps lose "New ideas".
+  Ship as 0.14 on both (iOS build 13). Keep `YOUTUBE_API_KEY` in Vercel (now used for video links).
+- Idea Josh raised, not built: a "Share to Groceries" target (Android share intent; iOS Share Extension or a
+  Shortcuts action) so recipes from the Claude/Gemini apps open straight in the paste screen.
+- **Android: 0.13.1** (code 14) on Firebase to all 3 testers (no groups yet), tagged `v0.13.1`.
+- **iPhone: 0.13.1** (build 12) in TestFlight, submitted for Beta App Review, tagged `ios-v0.13.1`.
+  0.13.1 = Firebase 12.19.3 (Google's urgent Firestore cert fix); Firebase must stay ≥ 12.19.3.
 - Recent releases: 0.10 = edit list items, Surprise me, Pantry & seasonings tab, recipes without a kitchen,
   richer recipes. 0.11 = salt and pepper first in pantry quick adds, sheet/tab-label fixes. 0.12 = list items
   grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud

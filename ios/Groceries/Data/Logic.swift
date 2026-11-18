@@ -59,14 +59,16 @@ func kitchenQuickAdds(_ stats: [ItemStat], inKitchen: Set<String>, now: Int64, l
     return (regulars + commonKitchenItems).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
 }
 
-/// Quick-add chips for the pantry: salt and pepper, then seasonings from the household's favorite cuisines,
-/// taking turns so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
-func pantryQuickAdds(cuisines picked: [String], inKitchen: Set<String>, limit: Int = 12) -> [String] {
-    let lists = picked.compactMap { cuisinePantry[$0] }
-    let longest = lists.map(\.count).max() ?? 0
-    let alternating = (0..<longest).flatMap { i in lists.compactMap { i < $0.count ? $0[i] : nil } }
+/// Quick-add chips for the pantry: salt and pepper, then common seasonings. Skips anything already in the kitchen.
+func pantryQuickAdds(inKitchen: Set<String>, limit: Int = 12) -> [String] {
     var seen = inKitchen
-    return (basicPantry + alternating + commonPantry).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
+    return (basicPantry + commonPantry).filter { seen.insert(itemKey($0)).inserted }.prefix(limit).map { $0 }
+}
+
+/// True if every word of `query` appears in the recipe's title or an ingredient. Same as `matchesRecipe` in AllRecipesScreen.kt.
+func matchesRecipe(_ recipe: Recipe, query: String) -> Bool {
+    let haystack = itemKey(([recipe.title] + recipe.ingredients.map(\.name)).joined(separator: " "))
+    return itemKey(query).split(separator: " ").allSatisfy { haystack.contains($0) }
 }
 
 /// Stores to offer under "Your stores": only ones the household has made a list for, most recent first.
@@ -165,41 +167,86 @@ enum StoreBrands {
     }
 }
 
-// MARK: Cuisines
+// MARK: Servings
 
-/// Cuisines offered as favorites and for "Tonight". Same list and order as `CUISINES` in Cuisines.kt.
-let cuisines = [
-    "American", "Southern", "Mexican", "Caribbean", "Italian", "French", "Greek",
-    "Middle Eastern", "Indian", "Chinese", "Japanese", "Korean", "Thai", "Vietnamese",
-]
+// Scales a recipe's ingredient amounts for a different number of servings. Same as Scaling.kt.
 
-/// "Tonight I'm feeling x, y, or z."
-let maxMoodCuisines = 3
+private let fractionChars: [Character: Double] = ["½": 0.5, "⅓": 1.0 / 3, "⅔": 2.0 / 3, "¼": 0.25, "¾": 0.75, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875]
 
-/// Seasonings and sauces each cuisine leans on, for pantry quick adds. Same as `CUISINE_PANTRY` in Cuisines.kt.
-let cuisinePantry: [String: [String]] = [
-    "American": ["BBQ sauce", "Worcestershire sauce", "Garlic powder", "Paprika", "Mustard", "Ketchup"],
-    "Southern": ["Cajun seasoning", "Hot sauce", "Paprika", "Garlic powder", "Onion powder", "Cayenne"],
-    "Mexican": ["Cumin", "Chili powder", "Dried oregano", "Chipotles in adobo", "Salsa", "Taco seasoning"],
-    "Caribbean": ["Jerk seasoning", "Allspice", "Dried thyme", "Hot sauce", "Curry powder", "Coconut milk"],
-    "Italian": ["Dried oregano", "Dried basil", "Red pepper flakes", "Balsamic vinegar", "Canned tomatoes", "Parmesan"],
-    "French": ["Dijon mustard", "Dried thyme", "Herbes de Provence", "Red wine vinegar", "White wine", "Bay leaves"],
-    "Greek": ["Dried oregano", "Dried dill", "Red wine vinegar", "Kalamata olives", "Cinnamon", "Lemon pepper"],
-    "Middle Eastern": ["Cumin", "Za'atar", "Sumac", "Tahini", "Cinnamon", "Smoked paprika"],
-    "Indian": ["Garam masala", "Turmeric", "Cumin", "Curry powder", "Ground coriander", "Coconut milk"],
-    "Chinese": ["Soy sauce", "Oyster sauce", "Sesame oil", "Rice vinegar", "Hoisin sauce", "Shaoxing wine"],
-    "Japanese": ["Soy sauce", "Mirin", "Cooking sake", "Miso", "Rice vinegar", "Sesame oil"],
-    "Korean": ["Gochujang", "Soy sauce", "Sesame oil", "Gochugaru", "Rice vinegar", "Sesame seeds"],
-    "Thai": ["Fish sauce", "Red curry paste", "Coconut milk", "Soy sauce", "Sriracha", "Oyster sauce"],
-    "Vietnamese": ["Fish sauce", "Hoisin sauce", "Sriracha", "Rice vinegar", "Soy sauce", "Lemongrass paste"],
-]
+/// A whole number with a fraction ("1 1/2", "1½"), a fraction, a decimal, or a whole number.
+private let numberPattern = #"(?:\d+\s+\d+/\d+|\d+/\d+|\d+\s?[½⅓⅔¼¾⅛⅜⅝⅞]|\d*\.\d+|\d+|[½⅓⅔¼¾⅛⅜⅝⅞])"#
+/// The amount at the start of a quantity, optionally a range ("2-3", "2 to 3").
+private let leadingAmount = try! NSRegularExpression(pattern: "^\\s*(\(numberPattern))(\\s*(?:-|–|to)\\s*(\(numberPattern)))?")
 
-/// Every kitchen's basics, offered first.
+/// Fractions people cook with, for rounding scaled amounts.
+private let niceFractions: [(Double, String)] = [(0, ""), (0.125, "⅛"), (0.25, "¼"), (1.0 / 3, "⅓"), (0.375, "⅜"), (0.5, "½"), (0.625, "⅝"), (2.0 / 3, "⅔"), (0.75, "¾"), (0.875, "⅞"), (1, "")]
+
+private func parseAmount(_ text: String) -> Double? {
+    let t = text.trimmingCharacters(in: .whitespaces)
+    if let last = t.last, let frac = fractionChars[last] {
+        let whole = t.dropLast().trimmingCharacters(in: .whitespaces)
+        if whole.isEmpty { return frac }
+        guard let w = Double(whole) else { return nil }
+        return w + frac
+    }
+    let parts = t.split(whereSeparator: \.isWhitespace)
+    if parts.count == 2 {
+        guard let w = Double(parts[0]), let f = parseAmount(String(parts[1])) else { return nil }
+        return w + f
+    }
+    if t.contains("/") {
+        let nd = t.split(separator: "/").compactMap { Double($0) }
+        guard nd.count == 2, nd[1] != 0 else { return nil }
+        return nd[0] / nd[1]
+    }
+    return Double(t)
+}
+
+private func formatAmount(_ value: Double, decimal: Bool) -> String {
+    if decimal {
+        var text = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+    var whole = Int(value.rounded(.down))
+    let (frac, symbol) = niceFractions.min { abs($0.0 - (value - Double(whole))) < abs($1.0 - (value - Double(whole))) }!
+    if frac == 1 { whole += 1 }
+    // Never round an amount away to nothing.
+    if whole == 0 && symbol.isEmpty { return "⅛" }
+    return whole == 0 ? symbol : "\(whole)\(symbol)"
+}
+
+/// `quantity` with its leading amount (or range) multiplied by `factor`: "1 1/2 lb" × 2 is "3 lb", "2-3 cloves"
+/// × 2 is "4–6 cloves". Amounts round to cooking fractions (⅛ to ⅞); decimals stay decimals. Quantities without
+/// a leading number ("to taste", "a pinch") come back unchanged.
+func scaleQuantity(_ quantity: String, factor: Double) -> String {
+    guard factor != 1 else { return quantity }
+    let ns = quantity as NSString
+    guard let match = leadingAmount.firstMatch(in: quantity, range: NSRange(location: 0, length: ns.length)),
+          let low = parseAmount(ns.substring(with: match.range(at: 1))) else { return quantity }
+    let decimal = ns.substring(with: match.range).contains(".")
+    var scaled = formatAmount(low * factor, decimal: decimal)
+    if match.range(at: 3).location != NSNotFound {
+        guard let high = parseAmount(ns.substring(with: match.range(at: 3))) else { return quantity }
+        scaled += "–" + formatAmount(high * factor, decimal: decimal)
+    }
+    return scaled + ns.substring(from: match.range.location + match.range.length)
+}
+
+/// The factor for serving `people` from a recipe that serves `servings`, or 1 if it doesn't say.
+func servingsFactor(servings: Int, people: Int) -> Double {
+    servings > 0 && people > 0 ? Double(people) / Double(servings) : 1
+}
+
+// MARK: Pantry
+
+/// Every kitchen's basics, offered first. Same as `BASIC_PANTRY` in Suggestions.kt.
 let basicPantry = ["Salt", "Black pepper"]
 
-/// Pantry quick adds for households that haven't picked cuisines, and to fill out the row.
+/// Common seasonings and sauces, after the basics. Same as `COMMON_PANTRY` in Suggestions.kt.
 let commonPantry = [
-    "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",
+    "Olive oil", "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",
     "Honey", "Dijon mustard", "Hot sauce", "Rice vinegar", "Chili powder", "Sesame oil",
 ]
 

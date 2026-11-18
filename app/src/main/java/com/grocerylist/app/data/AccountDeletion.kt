@@ -10,7 +10,7 @@ import kotlinx.coroutines.tasks.await
  * Deletes the signed-in user's data and login. The caller must have just re-authenticated.
  *
  * - Only member: the whole household goes too (lists and their items, stores, stats, kitchen,
- *   recipes, invite code), since nobody else could reach it.
+ *   saved recipes (plus the old suggestions in `recipes`), invite code), since nobody else could reach it.
  * - Shared household: the user leaves it (handing ownership to [newOwner] first if they're the
  *   owner); its lists stay with the other members.
  */
@@ -41,7 +41,7 @@ object AccountDeletion {
     private suspend fun deleteHousehold(household: Household) {
         val ref = db.collection("households").document(household.id)
         val docs = mutableListOf<DocumentReference>()
-        for (name in listOf("stores", "itemStats", "onHand", "recipes")) {
+        for (name in listOf("stores", "itemStats", "onHand", "savedRecipes", "recipes")) {
             ref.collection(name).get().await().documents.mapTo(docs) { it.reference }
         }
         for (list in ref.collection("lists").get().await().documents) {

@@ -1,9 +1,9 @@
 # Grocery List
 
-An Android grocery list app for households, plus a small server that suggests recipes.
+An Android grocery list app for households, plus a small server behind its recipe box.
 
 - **`app/`** – Android app (Kotlin, Jetpack Compose). Sign-in, households, per-store lists, and item suggestions run on Firebase Auth and Firestore.
-- **`server/`** – Vercel function where Claude Haiku 5.5 writes simple recipe cards from a household's regular and on-hand items, then attaches a YouTube video of a similar dish to each. Deploys automatically from `main`.
+- **`server/`** – Vercel functions for the recipe box: `/api/recipe-chat` (Claude Haiku 5.5 suggests recipes in a chat) and `/api/recipe-import` (sorts a pasted recipe into ingredients and steps, or reads a YouTube video's description and the creator's comments). Deploys automatically from `main`.
 - **`ios/`** – iPhone app (SwiftUI, iOS 26+, Liquid Glass) on the same Firebase project and server.
 - **`firestore.rules`** – Firestore security rules. Paste into Firebase console → Firestore Database → Rules after changing them.
 

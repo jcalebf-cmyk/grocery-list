@@ -78,13 +78,17 @@ fun kitchenQuickAdds(
     return (regulars + COMMON_KITCHEN_ITEMS).filter { seen.add(itemKey(it)) }.take(limit)
 }
 
-/**
- * Quick-add chips for the pantry: salt and pepper, then seasonings from the household's favorite cuisines,
- * taking turns so each cuisine gets its essentials in early, then common ones. Skips anything already in the kitchen.
- */
-fun pantryQuickAdds(cuisines: List<String>, inKitchen: Set<String>, limit: Int = 12): List<String> {
-    val lists = cuisines.mapNotNull { CUISINE_PANTRY[it] }
-    val alternating = (0 until (lists.maxOfOrNull { it.size } ?: 0)).flatMap { i -> lists.mapNotNull { it.getOrNull(i) } }
+/** Every kitchen's basics, offered first. Same as `basicPantry` in Logic.swift. */
+val BASIC_PANTRY = listOf("Salt", "Black pepper")
+
+/** Common seasonings and sauces, after the basics. Same as `commonPantry` in Logic.swift. */
+val COMMON_PANTRY = listOf(
+    "Olive oil", "Soy sauce", "Garlic powder", "Paprika", "Cumin", "Dried oregano", "Red pepper flakes",
+    "Honey", "Dijon mustard", "Hot sauce", "Rice vinegar", "Chili powder", "Sesame oil",
+)
+
+/** Quick-add chips for the pantry: salt and pepper, then common seasonings. Skips anything already in the kitchen. */
+fun pantryQuickAdds(inKitchen: Set<String>, limit: Int = 12): List<String> {
     val seen = HashSet(inKitchen)
-    return (BASIC_PANTRY + alternating + COMMON_PANTRY).filter { seen.add(itemKey(it)) }.take(limit)
+    return (BASIC_PANTRY + COMMON_PANTRY).filter { seen.add(itemKey(it)) }.take(limit)
 }

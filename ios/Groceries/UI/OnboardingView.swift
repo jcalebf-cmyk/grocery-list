@@ -11,17 +11,11 @@ struct OnboardingView: View {
     private enum Step { case invite, recipes, kitchen, pantry }
 
     @State private var index = 0
-    @State private var cuisines: [String] = []
     @State private var kitchenOptions: [String] = []
 
     private var steps: [Step] { start == .created ? [.invite, .recipes, .kitchen, .pantry] : [.recipes, .kitchen, .pantry] }
     private var step: Step { steps[index] }
-    /// A household someone just started always picks cuisines; one they joined only does if nobody has yet.
-    private var picksCuisines: Bool { start == .created || data.needsCuisines }
-    /// Seasonings for the cuisines picked a step earlier, or the household's if someone else already chose.
-    private var pantryOptions: [String] {
-        pantryQuickAdds(cuisines: picksCuisines ? cuisines : data.cuisinePrefs?.cuisines ?? [], inKitchen: [])
-    }
+    private let pantryOptions = pantryQuickAdds(inKitchen: [])
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,9 +81,6 @@ struct OnboardingView: View {
                 Text(primaryLabel).font(.headline).frame(maxWidth: .infinity, minHeight: 36)
             }
             .prominentGlassButton()
-            if let secondary = secondaryLabel {
-                Button(secondary, action: skip).padding(.vertical, 8)
-            }
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 8)
@@ -99,25 +90,7 @@ struct OnboardingView: View {
         step == steps.last ? "Done" : "Continue"
     }
 
-    private var secondaryLabel: String? {
-        switch step {
-        case .recipes: picksCuisines ? "Skip" : nil
-        case .invite, .kitchen, .pantry: nil
-        }
-    }
-
     private func next() {
-        if step == .recipes && picksCuisines { data.recipeService.savePreferences(cuisines) }
-        advance()
-    }
-
-    private func skip() {
-        // Skipping cuisines still counts as choosing, so the picker doesn't come back on Home.
-        if step == .recipes && picksCuisines { data.recipeService.savePreferences([]) }
-        advance()
-    }
-
-    private func advance() {
         if index + 1 < steps.count { withAnimation(.snappy) { index += 1 } } else { onDone() }
     }
 
@@ -160,25 +133,19 @@ struct OnboardingView: View {
     }
 
     @ViewBuilder private var recipes: some View {
-        intro("fork.knife", "Recipes from what you buy",
-              picksCuisines
-                  ? "As your household adds groceries, you'll get recipe ideas built around them. Pick a few cuisines you like and the ideas will lean that way."
-                  : "As your household adds groceries, you'll get recipe ideas built around them, right on the home screen.")
-        if picksCuisines {
-            CuisineChips(selected: $cuisines).padding(.top, 4)
-            Text("You can change these in Settings.").font(.footnote).foregroundStyle(.secondary)
-        }
+        intro("fork.knife", "Your household's recipes",
+              "Save recipes in one place everyone can see. Paste one from a website, a message, or a YouTube video, or ask for one, like \"chicken thighs in the dutch oven\". Then add what you're missing to a list in a tap.")
     }
 
     @ViewBuilder private var kitchen: some View {
         intro("refrigerator.fill", "Already have it at home?",
-              "Add things you keep stocked or get delivered, like a ButcherBox. Lists won't suggest them, and recipes use them first.")
+              "Add things you keep stocked or get delivered, like a ButcherBox. Lists won't suggest them, and recipes won't add them to your list.")
         chips(options: kitchenOptions, pantry: false)
     }
 
     @ViewBuilder private var pantry: some View {
         intro("leaf.fill", "What's in your spice rack?",
-              "Add the seasonings and sauces you keep around, like soy sauce or mirin. Recipes use them for flavor, so you won't have to buy them again.")
+              "Add the seasonings and sauces you keep around, like soy sauce or mirin. Recipes won't add them to your list, so you won't buy them twice.")
         chips(options: pantryOptions, pantry: true)
     }
 
