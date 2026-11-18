@@ -111,7 +111,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 
 - Run the `wrap-up` skill at the end of a task to keep this file current; keep this file short.
 - Cloud sessions push straight to `main`; `git pull` on the Mac before building a release from their work.
-- Commit and push **only when asked** ("deploy" covers the Firebase/TestFlight uploads, not the release commit/tags). Before committing, check no config/key/signing files are staged.
+- Commit and push **only when asked**, except release commits and tags: the release skills always commit, tag and
+  publish the GitHub release after a successful upload (Josh's call). Before committing, check no config/key/signing files are staged.
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
@@ -131,19 +132,16 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 
 ## Status (Nov 18, 2026)
 
-- **Committed, not released: the recipe box** (both apps + server, deployed), replacing AI recipe suggestions. Builds and
-  unit tests pass; screens checked in the emulator and simulator with temporary sample data only. Not yet run
-  against the real server: the chat and import prompts have never been called (no local Claude key), so the
-  first real test is on a phone. The deploy removed `/api/recipes`, so 0.13 apps lose "New ideas".
-  Ship as 0.14 on both (iOS build 13). Keep `YOUTUBE_API_KEY` in Vercel (now used for video links).
-- Also in 0.14: "Share to Groceries" on both apps. The iPhone extension and the sign-in move into the shared
-  keychain group are untested with a real account (simulator has none); check a tester stays signed in after updating.
-- **Android: 0.13.1** (code 14) on Firebase to all 3 testers (no groups yet), tagged `v0.13.1`.
-- **iPhone: 0.13.1** (build 12) in TestFlight, submitted for Beta App Review, tagged `ios-v0.13.1`.
-  0.13.1 = Firebase 12.19.3 (Google's urgent Firestore cert fix); Firebase must stay ≥ 12.19.3.
-- Recent releases: 0.10 = edit list items, Surprise me, Pantry & seasonings tab, recipes without a kitchen,
-  richer recipes. 0.11 = salt and pepper first in pantry quick adds, sheet/tab-label fixes. 0.12 = list items
-  grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud
+- **Android: 0.14.2** (code 17) on Firebase to all 3 testers, tagged `v0.14.2` (0.14 and 0.14.1 went out the
+  same day). **iPhone: 0.14** (build 13) uploaded; the TestFlight script sets What to Test and submits it for
+  Beta App Review. Tagged `ios-v0.14`.
+  Next iOS upload must be build 14. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- 0.14 = recipe box (AI chat, paste text or YouTube link, Share to Groceries, servings scaling), lists-first Home
+  with Past lists in its own screen, no My kitchen. Never run end to end with a real account: the chat and import
+  prompts (no local Claude key), the iPhone share extension and the sign-in move into the shared keychain group
+  (check a tester stays signed in after updating). The server deploy removed `/api/recipes`, so 0.13 apps lose
+  "New ideas". Keep `YOUTUBE_API_KEY` in Vercel (video links).
+- Recent releases: 0.12 = list items grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud
   session; only unit-tested, not tried on a phone or simulator).
 - Not yet tried with real accounts: "Don't suggest", joining with a code, removal on Android, swipes on real
   lists, the confirmation email.

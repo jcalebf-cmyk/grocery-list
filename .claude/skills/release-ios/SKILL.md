@@ -50,5 +50,7 @@ Run from `ios/`. Prefix every Xcode command with `DEVELOPER_DIR=/Applications/Xc
    of an approved version). Review needs App Store Connect's **Test Information** (contact, sign-in account)
    filled in; if the submission is rejected for missing info, tell Josh what to fill in.
 
-8. **Only when Josh asks:** commit `ios/project.yml` and the notes ("Release iOS X.Y (N)"), push, tag
-   `ios-vX.Y`, and create a GitHub pre-release with the notes and no binaries.
+8. **Always, right after a successful upload** (Josh's standing instruction; no need to ask): commit
+   `ios/project.yml` and the notes ("Release iOS X.Y (N)"), push, tag `ios-vX.Y` (for a rebuild of a release
+   already tagged, `ios-vX.Y-N`), push the tag, and create a GitHub pre-release with the notes and no binaries
+   (`gh release create <tag> --verify-tag --title "Groceries X.Y (iPhone)" --notes-file release-notes/ios-X.Y.txt --prerelease`).
