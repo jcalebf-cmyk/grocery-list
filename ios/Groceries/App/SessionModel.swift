@@ -25,8 +25,10 @@ final class SessionModel {
     private var authHandle: AuthStateDidChangeListenerHandle?
     private var watch: Task<Void, Never>?
 
-    func start() {
+    func start() async {
         guard FirebaseApp.app() != nil else { session = .notConfigured; return }
+        guard authHandle == nil else { return }
+        await SharedSignIn.use() // before reading the user, so the share extension sees the same sign-in
         guard authHandle == nil else { return }
         authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in self?.follow(user) }

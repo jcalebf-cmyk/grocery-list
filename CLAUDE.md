@@ -11,6 +11,9 @@ owns it; testers are friends and family.
 - `ios/` – iPhone app, SwiftUI, iOS 26+ (Liquid Glass). Bundle ID **`com.householdgroceries.app`**
   (`com.grocerylist.app` was taken on the App Store; Josh doesn't want their name in the ID). Android keeps
   `com.grocerylist.app`. Project generated from `ios/project.yml` by XcodeGen; `Groceries.xcodeproj` isn't committed.
+  Share extension `GroceriesShare` (`ios/ShareExtension/`, bundle `com.householdgroceries.app.share`) shares the
+  Firebase sign-in through keychain group `6759US4CJM.com.householdgroceries.shared` (`ios/Shared/SharedSignIn.swift`,
+  both targets' entitlements); the app moves an existing sign-in into it on launch.
 - `server/` – Vercel functions (TypeScript): `/api/recipe-chat`, `/api/recipe-import`, `/api/stores`, `/api/send-verification`,
   `/api/send-password-reset`, `/api/health`; `public/account.html` is the page email links open.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
@@ -46,6 +49,9 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   (2 quota units), copies the recipe if the creator posted it (`source: youtube`), else Claude writes one
   for the dish in the title (`source: ai`, labeled as possibly differing from the video). Transcripts aren't
   used: YouTube blocks them from cloud servers. All on Claude Haiku 5.5 (Josh chose it for cost).
+  "Share to Groceries": Android's share target opens the paste screen with the text (review, then save); the
+  iPhone share extension can't open the app, so it sends `save: true` and the server writes the recipe to the
+  user's household with Firebase Admin (checking membership itself, since Admin skips the rules).
   Endpoints require a Firebase ID token and have per-user daily limits (stores 20, chat 40, import 20) in
   Vercel Runtime Cache.
 - Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down. Since 0.9 the apps
@@ -122,13 +128,13 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 
 ## Status (Nov 18, 2026)
 
-- **In progress, uncommitted: the recipe box** (both apps + server), replacing AI recipe suggestions. Builds and
+- **Committed, not released: the recipe box** (both apps + server, deployed), replacing AI recipe suggestions. Builds and
   unit tests pass; screens checked in the emulator and simulator with temporary sample data only. Not yet run
   against the real server: the chat and import prompts have never been called (no local Claude key), so the
-  first real test needs the server deployed. Deploying removes `/api/recipes`, so 0.13 apps lose "New ideas".
+  first real test is on a phone. The deploy removed `/api/recipes`, so 0.13 apps lose "New ideas".
   Ship as 0.14 on both (iOS build 13). Keep `YOUTUBE_API_KEY` in Vercel (now used for video links).
-- Idea Josh raised, not built: a "Share to Groceries" target (Android share intent; iOS Share Extension or a
-  Shortcuts action) so recipes from the Claude/Gemini apps open straight in the paste screen.
+- Also in 0.14: "Share to Groceries" on both apps. The iPhone extension and the sign-in move into the shared
+  keychain group are untested with a real account (simulator has none); check a tester stays signed in after updating.
 - **Android: 0.13.1** (code 14) on Firebase to all 3 testers (no groups yet), tagged `v0.13.1`.
 - **iPhone: 0.13.1** (build 12) in TestFlight, submitted for Beta App Review, tagged `ios-v0.13.1`.
   0.13.1 = Firebase 12.19.3 (Google's urgent Firestore cert fix); Firebase must stay ≥ 12.19.3.

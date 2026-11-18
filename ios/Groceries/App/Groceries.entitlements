@@ -6,5 +6,12 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- The app's own group stays first (the default for keychain items); the shared one holds the
+	     sign-in the share extension uses (SharedSignIn.swift). -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.householdgroceries.app</string>
+		<string>$(AppIdentifierPrefix)com.householdgroceries.shared</string>
+	</array>
 </dict>
 </plist>

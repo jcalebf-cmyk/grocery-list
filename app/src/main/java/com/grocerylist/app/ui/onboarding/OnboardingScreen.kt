@@ -296,8 +296,9 @@ private fun ColumnScope.RecipesStep() {
     Intro(
         AppIcons.Restaurant,
         "Your household's recipes",
-        "Save recipes in one place everyone can see. Paste one from a website or a message, or ask for one, " +
-            "like \"chicken thighs in the dutch oven\". Then add what you're missing to a list in a tap.",
+        "Save recipes in one place everyone can see. Paste one from a website, a message, or a YouTube video, " +
+            "share one to Groceries from another app, or ask for one, like \"chicken thighs in the dutch oven\". " +
+            "Then add what you're missing to a list in a tap.",
     )
 }
 

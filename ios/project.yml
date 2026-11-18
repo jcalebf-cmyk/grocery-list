@@ -26,6 +26,7 @@ targets:
     platform: iOS
     sources:
       - path: Groceries
+      - path: Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.householdgroceries.app  # com.grocerylist.app was taken on the App Store
@@ -51,3 +52,31 @@ targets:
         product: FirebaseFirestore
       - package: GoogleSignIn
         product: GoogleSignIn
+      - target: GroceriesShare
+  # "Share to Groceries": a recipe or YouTube link shared from another app is read and saved to the recipe box.
+  GroceriesShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+      - path: Shared
+      - path: Groceries/Data/ServerAPI.swift
+      - path: Groceries/Resources/Assets.xcassets
+      - path: Groceries/App/GoogleService-Info.plist  # git-ignored, like the app's
+        optional: true
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.householdgroceries.app.share
+        PRODUCT_NAME: GroceriesShare
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/GroceriesShare.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Groceries
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth

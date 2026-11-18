@@ -134,7 +134,7 @@ struct OnboardingView: View {
 
     @ViewBuilder private var recipes: some View {
         intro("fork.knife", "Your household's recipes",
-              "Save recipes in one place everyone can see. Paste one from a website, a message, or a YouTube video, or ask for one, like \"chicken thighs in the dutch oven\". Then add what you're missing to a list in a tap.")
+              "Save recipes in one place everyone can see. Paste one from a website, a message, or a YouTube video, share one to Groceries from another app, or ask for one, like \"chicken thighs in the dutch oven\". Then add what you're missing to a list in a tap.")
     }
 
     @ViewBuilder private var kitchen: some View {

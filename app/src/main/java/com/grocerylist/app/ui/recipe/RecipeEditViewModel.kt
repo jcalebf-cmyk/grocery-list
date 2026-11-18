@@ -11,6 +11,7 @@ import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.Ingredient
 import com.grocerylist.app.data.Recipe
 import com.grocerylist.app.data.ServerException
+import com.grocerylist.app.data.SharedRecipe
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -63,6 +64,18 @@ class RecipeEditViewModel(householdId: String, private val recipeId: String?, pr
     var notes by mutableStateOf("")
 
     init {
+        if (recipeId == null) {
+            // Text shared from another app, now or while this screen is open, is read right away.
+            viewModelScope.launch {
+                SharedRecipe.pending.filterNotNull().collect {
+                    SharedRecipe.take()
+                    if (phase == Phase.PASTE) {
+                        pasted = it
+                        read()
+                    }
+                }
+            }
+        }
         if (recipeId != null) {
             viewModelScope.launch {
                 fill(recipes.observe(recipeId).filterNotNull().first())

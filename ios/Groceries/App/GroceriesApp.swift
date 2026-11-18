@@ -19,7 +19,7 @@ struct GroceriesApp: App {
                 .environment(session)
                 .tint(.accentColor)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
-                .task { session.start() }
+                .task { await session.start() }
         }
     }
 }

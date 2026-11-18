@@ -32,6 +32,8 @@ import com.grocerylist.app.ui.household.HouseholdSetupScreen
 import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
 import com.grocerylist.app.ui.onhand.OnHandScreen
+import androidx.compose.runtime.LaunchedEffect
+import com.grocerylist.app.data.SharedRecipe
 import com.grocerylist.app.ui.recipe.AllRecipesScreen
 import com.grocerylist.app.ui.recipe.RecipeChatScreen
 import com.grocerylist.app.ui.recipe.RecipeEditScreen
@@ -65,6 +67,11 @@ fun GroceryApp(sessionViewModel: SessionViewModel = viewModel()) {
 @Composable
 private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
     val nav = rememberNavController()
+    // A recipe shared from another app opens the paste screen, which reads it right away.
+    val shared by SharedRecipe.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(shared) {
+        if (shared != null) nav.navigate("recipes/paste") { launchSingleTop = true }
+    }
     SharedTransitionLayout {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {
             NavHost(nav, startDestination = "home") {
