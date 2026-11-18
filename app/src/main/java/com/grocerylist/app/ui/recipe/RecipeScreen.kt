@@ -140,8 +140,8 @@ fun RecipeDetail(
     actions: @Composable () -> Unit = {},
 ) {
     val shopping by viewModel.shopping.collectAsStateWithLifecycle()
-    // Everything starts checked; the shopper unticks what they already have.
-    var unchecked by remember(recipe?.ingredients) { mutableStateOf(emptySet<Int>()) }
+    // Nothing starts ticked: the shopper ticks what they need, then adds those to a list.
+    var checked by remember(recipe?.ingredients) { mutableStateOf(emptySet<Int>()) }
     var pickingStore by rememberSaveable { mutableStateOf(false) }
     var showingOriginal by rememberSaveable { mutableStateOf(false) }
     // How many people to cook for; amounts scale from what the recipe serves.
@@ -181,21 +181,21 @@ fun RecipeDetail(
                                 Box(Modifier.weight(1f)) { SectionTitle("Ingredients") }
                                 FilledTonalButton(
                                     onClick = { pickingStore = true },
-                                    enabled = recipe.ingredients.size > unchecked.size,
+                                    enabled = checked.isNotEmpty(),
                                     modifier = Modifier.padding(top = 16.dp),
                                 ) {
                                     Icon(Icons.Default.ShoppingCart, contentDescription = null, Modifier.size(18.dp))
-                                    Text("Add to list", Modifier.padding(start = 6.dp))
+                                    Text(if (checked.isEmpty()) "Add to list" else "Add ${checked.size} to list", Modifier.padding(start = 6.dp))
                                 }
                             }
                         }
                     }
                     itemsIndexed(recipe.ingredients) { i, ingredient ->
-                        val checked = i !in unchecked
-                        val toggle = { unchecked = if (checked) unchecked + i else unchecked - i }
+                        val isChecked = i in checked
+                        val toggle = { checked = if (isChecked) checked - i else checked + i }
                         ListItem(
                             modifier = Modifier.clickable(onClick = toggle),
-                            leadingContent = { Checkbox(checked = checked, onCheckedChange = { toggle() }) },
+                            leadingContent = { Checkbox(checked = isChecked, onCheckedChange = { toggle() }) },
                             headlineContent = { Text(ingredient.name.replaceFirstChar(Char::uppercase)) },
                             trailingContent = {
                                 if (ingredient.quantity.isNotBlank()) Text(scaleQuantity(ingredient.quantity, factor))
@@ -241,7 +241,7 @@ fun RecipeDetail(
     }
 
     if (pickingStore && recipe != null) {
-        val chosen = { recipe.ingredients.filterIndexed { i, _ -> i !in unchecked } }
+        val chosen = { recipe.ingredients.filterIndexed { i, _ -> i in checked } }
         StorePicker(
             stores = shopping.yourStores,
             title = "Add to which list?",

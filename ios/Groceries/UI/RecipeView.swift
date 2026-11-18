@@ -44,7 +44,8 @@ struct RecipeDetail: View {
     let data: HouseholdData
     let recipe: Recipe?
     let onOpenList: (String) -> Void
-    @State private var unchecked: Set<Int>?
+    /// Ingredients ticked to add to a list. Nothing starts ticked.
+    @State private var checked: Set<Int> = []
     @State private var pickingStore = false
     @State private var showingOriginal = false
     /// How many people to cook for; amounts scale from what the recipe serves.
@@ -85,10 +86,11 @@ struct RecipeDetail: View {
                             sectionTitle("Ingredients")
                             Spacer()
                             Button { pickingStore = true } label: {
-                                Label("Add to list", systemImage: "cart").font(.subheadline.weight(.medium))
+                                Label(checked.isEmpty ? "Add to list" : "Add \(checked.count) to list", systemImage: "cart")
+                                    .font(.subheadline.weight(.medium))
                             }
                             .buttonStyle(.glass)
-                            .disabled(recipe.ingredients.count == (unchecked ?? []).count)
+                            .disabled(checked.isEmpty)
                             .padding(.trailing, 16)
                         }
                     }
@@ -139,13 +141,9 @@ struct RecipeDetail: View {
         }
         .background(Color.warmBackground)
         .navigationBarTitleDisplayMode(.inline)
-        // Everything starts checked; the shopper unticks what they already have. Edits to the recipe start over.
         .task(id: recipe?.servings) { people = recipe?.servings ?? 0 }
-        .task(id: recipe?.ingredients) {
-            if let recipe {
-                unchecked = []
-            }
-        }
+        // Nothing starts ticked: the shopper ticks what they need. Edits to the recipe start over.
+        .task(id: recipe?.ingredients) { checked = [] }
         .fullScreenCover(isPresented: $pickingStore) {
             StorePickerView(
                 data: data,
@@ -179,11 +177,9 @@ struct RecipeDetail: View {
     }
 
     private func ingredientRow(_ index: Int, _ ingredient: Ingredient) -> some View {
-        let isChecked = !(unchecked ?? []).contains(index)
+        let isChecked = checked.contains(index)
         return Button {
-            var set = unchecked ?? []
-            if isChecked { set.insert(index) } else { set.remove(index) }
-            unchecked = set
+            if isChecked { checked.remove(index) } else { checked.insert(index) }
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
@@ -201,7 +197,7 @@ struct RecipeDetail: View {
 
     private func addAndOpen(_ list: GroceryList) {
         guard let recipe else { return }
-        for (index, ingredient) in recipe.ingredients.enumerated() where !(unchecked ?? []).contains(index) {
+        for (index, ingredient) in recipe.ingredients.enumerated() where checked.contains(index) {
             data.groceries.addItem(to: list, name: ingredient.name.prefix(1).uppercased() + ingredient.name.dropFirst(), uid: data.user.id)
         }
         pickingStore = false
