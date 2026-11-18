@@ -117,9 +117,10 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
 - Recipe box, Josh's calls: pasted recipes keep the author's wording (only ingredients get structured); chats
-  aren't saved; no cuisines; no My kitchen (Josh removed it: nobody keeps it up to date, and you untick what you
-  have before "Add to list"). The servings control scales ingredient amounts only (steps keep the original
-  amounts, and say so). "Add to list" sits by the Ingredients heading, never pinned to the screen (Josh found it nagging).
+  aren't saved; no cuisines; no My kitchen (Josh removed it: nobody keeps it up to date, and you tick only what
+  you need before "Add to list"). The servings control scales ingredient amounts only (steps keep the original
+  amounts, and say so). Ingredients start unticked (Josh's call); "Add to list" sits by the Ingredients heading, never pinned
+  to the screen (Josh found it nagging).
 - Home, Josh's calls: Shopping lists first (always a header; a "Start a list" card replaces the floating New list
   button when none is going), then a "Past lists" row opening the history, then Recipes.
 - Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
@@ -132,10 +133,10 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 
 ## Status (Nov 18, 2026)
 
-- **Android: 0.14.2** (code 17) on Firebase to all 3 testers, tagged `v0.14.2` (0.14 and 0.14.1 went out the
-  same day). **iPhone: 0.14** (build 13) uploaded; the TestFlight script sets What to Test and submits it for
-  Beta App Review. Tagged `ios-v0.14`.
-  Next iOS upload must be build 14. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- **Android: 0.14.3** (code 18) on Firebase to all 3 testers, tagged `v0.14.3` (0.14–0.14.2 went out the same
+  day). **iPhone: 0.14** (build 14) in TestFlight, waiting for Beta App Review, tagged `ios-v0.14-14`
+  (build 13 was superseded before review).
+  Next iOS upload must be build 15. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
 - 0.14 = recipe box (AI chat, paste text or YouTube link, Share to Groceries, servings scaling), lists-first Home
   with Past lists in its own screen, no My kitchen. Never run end to end with a real account: the chat and import
   prompts (no local Claude key), the iPhone share extension and the sign-in move into the shared keychain group

@@ -45,6 +45,9 @@ Run from `ios/`. Prefix every Xcode command with `DEVELOPER_DIR=/Applications/Xc
    `--internal-only` skips the external groups and review. If setting the text fails, copy the notes
    (`LANG=en_US.UTF-8 pbcopy`) and have Josh paste them into App Store Connect → TestFlight → the build →
    **What to Test**, then rerun the script (it skips what's already done).
+   A 404 ("There is no resource of type 'builds'") when adding the build to a group, right after processing
+   ends, is Apple's API lagging: wait a minute or two and rerun the script (it skips what's done), or run it in a
+   retry loop.
    Internal testers get the build by automatic distribution once processing ends; external testers only
    get it after review approves it (usually under a day for a new version, often minutes for a later build
    of an approved version). Review needs App Store Connect's **Test Information** (contact, sign-in account)
