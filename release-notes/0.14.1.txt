@@ -1,0 +1,8 @@
+Groceries 0.14.1
+
+CHANGED
+• Home: Past lists now sits right under your shopping lists, instead of below Recipes.
+
+New in 0.14: a recipe box you can fill by asking AI, pasting a recipe or a YouTube link, or sharing from another app, with servings that adjust the amounts.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
