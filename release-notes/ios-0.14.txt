@@ -10,6 +10,6 @@ ADDED
 
 CHANGED
 • Home: shopping lists come first, with a "Start a list" button when none is going. Past lists are tucked into one row under your lists.
-• Daily recipe ideas, favorite cuisines, "Tonight", and My kitchen are gone, replaced by the recipe box. Untick what you already have before adding a recipe's ingredients to a list.
+• Daily recipe ideas, favorite cuisines, "Tonight", and My kitchen are gone, replaced by the recipe box. Recipe ingredients start unticked: tick the ones you need, then tap "Add to list".
 
 Found a bug or have an idea? Let Josh know – a screenshot helps a lot.

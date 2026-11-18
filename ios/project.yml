@@ -9,7 +9,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"  # Swift 6 compiler, Swift 5 language mode
     MARKETING_VERSION: "0.14"
-    CURRENT_PROJECT_VERSION: "13"
+    CURRENT_PROJECT_VERSION: "14"
     DEVELOPMENT_TEAM: 6759US4CJM
 packages:
   Firebase:
