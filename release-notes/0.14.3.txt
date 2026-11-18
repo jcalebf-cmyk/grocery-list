@@ -1,0 +1,6 @@
+Groceries 0.14.3
+
+CHANGED
+• Recipes: ingredients start unticked. Tick the ones you need, then tap "Add to list" to add just those.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
