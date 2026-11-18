@@ -1,0 +1,15 @@
+Groceries 0.14
+
+ADDED
+• Recipe box: save your household's recipes in one place everyone can see, and add what you need to a list in a tap.
+• Ask for a recipe: chat with AI for ideas, like "chicken thighs in the dutch oven", ask for changes, and save the ones you like.
+• Paste a recipe: paste one from a website, a message, or a note. It's sorted into ingredients and steps, keeping the original wording.
+• YouTube links: paste a link to a cooking video and the recipe comes from the creator's description or pinned comment.
+• Share to Groceries: share a recipe or a video from another app (Claude, Gemini, YouTube, Safari) and it's saved straight to your recipes.
+• Servings: change how many people a recipe serves and the ingredient amounts adjust.
+
+CHANGED
+• Home: shopping lists come first, with a "Start a list" button when none is going. Past lists are tucked into one row under your lists.
+• Daily recipe ideas, favorite cuisines, "Tonight", and My kitchen are gone, replaced by the recipe box. Untick what you already have before adding a recipe's ingredients to a list.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
