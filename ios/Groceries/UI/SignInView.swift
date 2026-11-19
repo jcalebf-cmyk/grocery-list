@@ -246,66 +246,172 @@ struct SignInView: View {
     }
 }
 
-/// Start a household or join one with an invite code: the first onboarding step. The rest
+/// Start a household or join one with an invite code: the first onboarding step. It asks which first,
+/// then shows just that one field, so nobody starts a second household by mistake. The rest
 /// (OnboardingView) follows on Home once the household is set.
+/// Android: HouseholdSetupScreen.kt.
 struct HouseholdSetupView: View {
     let user: UserProfile
     @Environment(SessionModel.self) private var session
+
+    private enum Step { case choose, join, start }
+
+    @State private var step = Step.choose
     @State private var householdName = ""
     @State private var code = ""
     @State private var busy = false
     @State private var error: String?
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Image(systemName: "person.2.fill")
-                    .font(.title2)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 52, height: 52)
-                    .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .accessibilityHidden(true)
-                    .padding(.top, 24)
-                Text("Welcome, \(user.displayName)").font(.brand(30))
-                Text("Groceries keeps one shared list for your whole household, updated live as anyone adds or checks off items. Start a household, or join one with an invite code.")
-                    .foregroundStyle(.secondary)
-
-                card(title: "Start a household") {
-                    TextField("Household name, like The Smiths", text: $householdName).textInputAutocapitalization(.words)
-                        .padding(12).background(Color.warmBackground, in: RoundedRectangle(cornerRadius: 12))
-                    Button { run(.created) { try await HouseholdService.createHousehold(uid: user.id, name: householdName) } } label: {
-                        Text("Create household").frame(maxWidth: .infinity)
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch step {
+                    case .choose: choose
+                    case .join: join
+                    case .start: start
                     }
-                    .prominentGlassButton().disabled(busy || householdName.trimmed.isEmpty)
                 }
-                card(title: "Have an invite code?") {
-                    TextField("6-character code", text: $code)
-                        .textInputAutocapitalization(.characters).autocorrectionDisabled()
-                        .onChange(of: code) { code = String(code.uppercased().prefix(6)) }
-                        .padding(12).background(Color.warmBackground, in: RoundedRectangle(cornerRadius: 12))
-                    Button {
-                        run(.joined) { if try await !HouseholdService.joinHousehold(uid: user.id, code: code) { error = "No household uses that code. Check it and try again." } }
-                    } label: {
-                        Text("Join household").frame(maxWidth: .infinity)
-                    }
-                    .prominentGlassButton().disabled(busy || code.count != 6)
-                }
-                if let error { Text(error).foregroundStyle(.red) }
-                Button("Sign out") { AuthService.signOut() }.frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .id(step) // each step slides in fresh
+                // The choice screen always sits to the left of the step it leads to.
+                .transition(.move(edge: step == .choose ? .leading : .trailing).combined(with: .opacity))
             }
-            .padding(24)
+            .scrollBounceBehavior(.basedOnSize)
         }
         .background(Color.warmBackground)
     }
 
-    private func card<Content: View>(title: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.headline)
-            content()
+    private func go(to next: Step) {
+        error = nil
+        if next == .start && householdName.isEmpty { householdName = suggestedHouseholdName(user.displayName) }
+        withAnimation(.snappy) { step = next }
+        if next != .choose {
+            Task { try? await Task.sleep(for: .milliseconds(350)); fieldFocused = true }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // MARK: Chrome
+
+    private var header: some View {
+        HStack {
+            Button { go(to: .choose) } label: {
+                Image(systemName: "chevron.left").font(.body.weight(.semibold)).frame(width: 36, height: 36)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .opacity(step == .choose ? 0 : 1)
+            .disabled(step == .choose || busy)
+            .accessibilityLabel("Back")
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private func intro(_ systemImage: String, _ title: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 52, height: 52)
+                .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .accessibilityHidden(true)
+            Text(title).font(.brand(30))
+            Text(text).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Steps
+
+    @ViewBuilder private var choose: some View {
+        intro("person.2.fill", "Welcome, \(user.displayName)",
+              "Groceries keeps one shared list for your whole household, updated live as anyone adds or checks off items.")
+        Text("Is someone in your household already using Groceries?")
+            .font(.headline)
+            .padding(.top, 8)
+        choice("person.2.fill", "Join my household", "Yes, someone sent me an invite code") { go(to: .join) }
+        choice("house.fill", "Start a new household", "No, I'm the first one here") { go(to: .start) }
+        Button("Sign out") { AuthService.signOut() }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+    }
+
+    private func choice(_ systemImage: String, _ title: String, _ subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: systemImage)
+                    .font(.title3)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 44, height: 44)
+                    .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline).foregroundStyle(.primary)
+                    Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder private var join: some View {
+        intro("person.2.fill", "Join your household",
+              "Ask anyone already in your household for the invite code. They'll find it in Settings.")
+        TextField("6-character invite code", text: $code)
+            .font(.system(.title3, design: .monospaced))
+            .textInputAutocapitalization(.characters).autocorrectionDisabled()
+            .submitLabel(.go)
+            .focused($fieldFocused)
+            .onChange(of: code) { code = String(code.uppercased().filter { $0.isLetter || $0.isNumber }.prefix(6)) }
+            .onSubmit { if canJoin { joinHousehold() } }
+            .padding(14)
+            .background(Color.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.top, 8)
+        if let error { Text(error).foregroundStyle(.red) }
+        Button(action: joinHousehold) {
+            Text("Join household").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
+        }
+        .prominentGlassButton().disabled(!canJoin)
+    }
+
+    @ViewBuilder private var start: some View {
+        intro("house.fill", "Name your household",
+              "Everyone you invite sees this name. You can change it in Settings later.")
+        TextField("Household name, like The Smiths", text: $householdName)
+            .textInputAutocapitalization(.words)
+            .submitLabel(.done)
+            .focused($fieldFocused)
+            .onSubmit { if canCreate { createHousehold() } }
+            .padding(14)
+            .background(Color.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.top, 8)
+        if let error { Text(error).foregroundStyle(.red) }
+        Button(action: createHousehold) {
+            Text("Create household").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
+        }
+        .prominentGlassButton().disabled(!canCreate)
+    }
+
+    private var canJoin: Bool { !busy && code.count == 6 }
+    private var canCreate: Bool { !busy && !householdName.trimmed.isEmpty }
+
+    private func joinHousehold() {
+        run(.joined) { if try await !HouseholdService.joinHousehold(uid: user.id, code: code) { error = "No household uses that code. Check it and try again." } }
+    }
+
+    private func createHousehold() {
+        run(.created) { try await HouseholdService.createHousehold(uid: user.id, name: householdName) }
     }
 
     /// Marks onboarding first: once the household is set, the session moves straight on to Home, which

@@ -3,6 +3,13 @@ import Foundation
 // Pure logic shared in spirit with the Android app (Suggestions.kt, IngredientMatch.kt,
 // StoreBrands.kt, Models.kt, Aisles.kt). Keep the two in step so both platforms behave the same.
 
+/// A starting household name from someone's name: "Josh Franzen" → "Franzen household". Empty for a
+/// one-word name (often an email's first half), which leaves the field empty with its example.
+func suggestedHouseholdName(_ displayName: String) -> String {
+    let words = displayName.split(whereSeparator: \.isWhitespace)
+    return words.count >= 2 ? "\(words.last!) household" : ""
+}
+
 /// "  Whole  Milk " and "whole milk" are the same item. Slashes aren't allowed in document IDs.
 func itemKey(_ name: String) -> String {
     name.trimmingCharacters(in: .whitespacesAndNewlines)
