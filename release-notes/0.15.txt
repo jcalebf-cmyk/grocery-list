@@ -1,0 +1,6 @@
+Groceries 0.15
+
+CHANGED
+• Getting started: new members are asked first whether someone in their household already uses Groceries, then see just one step: enter the invite code to join, or name a new household (filled in from your name, like "Franzen household").
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
