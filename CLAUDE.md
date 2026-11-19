@@ -123,6 +123,7 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   to the screen (Josh found it nagging).
 - Home, Josh's calls: Shopping lists first (always a header; a "Start a list" card replaces the floating New list
   button when none is going), then a "Past lists" row opening the history, then Recipes.
+- Household setup, Josh's call: ask start-or-join first (Join card above Start), never both forms on one screen.
 - Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
   active lists and deletes past ones (in Past lists), each after a confirmation;
   one show/hide toggle covers both password fields.
@@ -131,12 +132,14 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Nov 18, 2026)
+## Status (Nov 19, 2026)
 
-- **Android: 0.14.3** (code 18) on Firebase to all 3 testers, tagged `v0.14.3` (0.14–0.14.2 went out the same
-  day). **iPhone: 0.14** (build 14) in TestFlight, waiting for Beta App Review, tagged `ios-v0.14-14`
-  (build 13 was superseded before review).
-  Next iOS upload must be build 15. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- **Android: 0.15** (code 19) on Firebase to all 3 testers, tagged `v0.15`. **iPhone: 0.15** (build 15)
+  uploaded to TestFlight and submitted for Beta App Review, tagged `ios-v0.15` (0.14 build 14 was still
+  waiting for review). Next iOS upload must be build 16. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- 0.15 = household setup asks "Is someone in your household already using Groceries?" first (Join / Start
+  cards), then one screen with one field; the name is prefilled "<Last name> household". Checked with sample
+  data in the emulator and simulator only; creating/joining wasn't run with a real account.
 - 0.14 = recipe box (AI chat, paste text or YouTube link, Share to Groceries, servings scaling), lists-first Home
   with Past lists in its own screen, no My kitchen. Never run end to end with a real account: the chat and import
   prompts (no local Claude key), the iPhone share extension and the sign-in move into the shared keychain group
