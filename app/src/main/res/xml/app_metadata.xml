@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What assistants like Gemini are told about Groceries' AppFunctions (voice/GroceriesAppFunctions.kt). -->
+<AppFunctionAppMetadata xmlns:appfn="http://schemas.android.com/apk/androidx.appfunctions"
+    appfn:instructions="Groceries is a household's shared grocery lists and recipe box. Each store (like Costco or Trader Joe's) has at most one open list; one more list can be open that isn't for any store, called the shopping list.
+Operational patterns:
+  - Pass the store the user names as 'store' (e.g. 'Costco'); leave it empty when they don't name one.
+  - If a function says 'Which list: ...?', ask the user that question and call it again with the store they pick.
+  - To add several items, pass them in one call, separated by commas.
+  - Repeat the returned sentence to the user."
+    appfn:displayDescription="Add to and read your shared grocery lists, and open saved recipes." />

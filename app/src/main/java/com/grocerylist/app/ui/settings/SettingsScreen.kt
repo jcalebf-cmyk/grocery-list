@@ -1,5 +1,6 @@
 package com.grocerylist.app.ui.settings
 
+import com.grocerylist.app.ui.readable
 import android.content.Intent
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.grocerylist.app.ui.auth.requestGoogleIdToken
@@ -226,7 +227,7 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding.readable()) {
             item { SectionTitle("Account") }
             item {
                 SettingsRow(

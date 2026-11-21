@@ -53,6 +53,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.ChatMessage
 import com.grocerylist.app.data.Recipe
 import com.grocerylist.app.ui.AppIcons
+import com.grocerylist.app.ui.ReadableWidth
+import androidx.compose.foundation.layout.wrapContentWidth
 import com.grocerylist.app.ui.Session
 
 /** Starting points for an empty chat. */
@@ -83,7 +85,10 @@ fun RecipeChatScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (St
             viewModel = detail,
             onBack = { viewModel.viewing.value = null },
             onOpenList = onOpenList,
-            actions = { SaveButton(saved = recipe in saved, onSave = { viewModel.save(recipe) }) },
+            actions = {
+                ShareRecipeButton(recipe)
+                SaveButton(saved = recipe in saved, onSave = { viewModel.save(recipe) })
+            },
         )
         return
     }
@@ -105,7 +110,8 @@ fun RecipeChatScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (St
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
+        // On a wide screen the conversation stays a readable column down the middle.
+        Column(Modifier.fillMaxSize().padding(padding).imePadding().wrapContentWidth().widthIn(max = ReadableWidth)) {
             if (messages.isEmpty() && !sending) {
                 EmptyChat(onExample = viewModel::send, modifier = Modifier.weight(1f))
             } else {

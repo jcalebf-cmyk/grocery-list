@@ -59,6 +59,7 @@ struct HomeView: View {
     @State private var deletingList: GroceryList?
     @State private var closingList: GroceryList?
     @State private var message: String?
+    @State private var twoPane = false
     @Namespace private var zoom
 
     init(user: UserProfile, householdId: String) {
@@ -67,15 +68,34 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Lists come first: they're what people open the app for.
-                    listsSection
-                    pastListsRow
-                    recipesSection
+            Group {
+                if twoPane {
+                    // Wide screen (an opened iPhone Duo): lists on one side, recipes as a grid on the other.
+                    HStack(alignment: .top, spacing: 0) {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 0) {
+                                listsSection
+                                pastListsRow
+                            }
+                            .padding(.bottom, 24)
+                        }
+                        Divider().ignoresSafeArea(edges: .bottom)
+                        ScrollView { recipesSection(grid: true).padding(.bottom, 24) }
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Lists come first: they're what people open the app for.
+                            listsSection
+                            pastListsRow
+                            recipesSection(grid: false)
+                        }
+                        .padding(.bottom, 24)
+                        .readableWidth()
+                    }
                 }
-                .padding(.bottom, 24)
             }
+            .onTwoPaneChange { twoPane = $0 }
             .background(Color.warmBackground)
             .navigationTitle(data.household?.name ?? "Groceries")
             .toolbar {
@@ -89,11 +109,16 @@ struct HomeView: View {
             // With no list going, the Start a list card does this job instead.
             .safeAreaInset(edge: .bottom) {
                 if !data.activeLists.isEmpty {
-                    Button { pickingStore = true } label: {
-                        Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
+                    // Side by side, it sits under the lists rather than across both panes.
+                    HStack(spacing: 0) {
+                        Button { pickingStore = true } label: {
+                            Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
+                        }
+                        .prominentGlassButton(foreground: .onCitrus)
+                        .tint(.citrus)
+                        .frame(maxWidth: .infinity)
+                        if twoPane { Color.clear.frame(maxWidth: .infinity, maxHeight: 0) }
                     }
-                    .prominentGlassButton(foreground: .onCitrus)
-                    .tint(.citrus)
                     .padding(.bottom, 4)
                 }
             }
@@ -134,6 +159,13 @@ struct HomeView: View {
         .task { await consume(data.groceries.listsStream()) { v in data.lists = v } }
         .task { await consume(data.groceries.statsStream()) { v in data.stats = v } }
         .task { await consume(data.recipeService.stream()) { v in data.recipes = v } }
+        // Siri: a recipe someone asked to open, and the store and recipe names it listens for.
+        .onChange(of: VoiceRouter.shared.recipeId, initial: true) { _, id in
+            guard let id else { return }
+            VoiceRouter.shared.recipeId = nil
+            path = [.recipe(id)]
+        }
+        .task(id: data.stores.map(\.name) + data.recipes.map(\.title)) { GroceriesShortcuts.updateAppShortcutParameters() }
         .task {
             await consume(HouseholdService.household(data.householdId)) { v in
                 data.household = v
@@ -159,7 +191,8 @@ struct HomeView: View {
 
     // MARK: Recipes
 
-    private var recipesSection: some View {
+    /// The recipes row; `grid` lays the cards out in rows instead, for the recipes pane on a wide screen.
+    private func recipesSection(grid: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Recipes").font(.brand(24))
@@ -186,6 +219,16 @@ struct HomeView: View {
                 Text("Save recipes you like here: ask for one, or paste one from anywhere.")
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 20)
+            } else if grid {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 14)], spacing: 14) {
+                    ForEach(data.recipes.prefix(10)) { recipe in
+                        NavigationLink(value: Route.recipe(recipe.id)) { RecipeCard(recipe: recipe, width: nil) }
+                            .buttonStyle(.plain)
+                            .matchedTransitionSource(id: recipe.id, in: zoom)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 4)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
@@ -201,7 +244,8 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(.top, 28)
+        // In its own pane it starts level with Shopping lists.
+        .padding(.top, grid ? 16 : 28)
     }
 
     private func show(_ text: String) {
@@ -311,6 +355,8 @@ struct ListRowView: View {
 /// A saved recipe on Home: its title and the basics, with an icon for where it came from.
 struct RecipeCard: View {
     let recipe: Recipe
+    /// Fixed in Home's row; nil fills a grid column.
+    var width: CGFloat? = 220
 
     private var icon: String {
         if !recipe.sourceUrl.isEmpty { return "play.rectangle" }
@@ -325,7 +371,8 @@ struct RecipeCard: View {
             Text(recipe.summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
         .padding(14)
-        .frame(width: 220, height: 128, alignment: .topLeading)
+        .frame(width: width, height: 128, alignment: .topLeading)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .background(Color.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
@@ -349,6 +396,7 @@ struct PastListsView: View {
                 }
             }
             .padding(.vertical, 8)
+            .readableWidth()
         }
         .background(Color.warmBackground)
         .navigationTitle("Past lists")

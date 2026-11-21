@@ -116,6 +116,7 @@ struct RecipeEditView: View {
                 .disabled(phase == .reading || pasted.trimmingCharacters(in: .whitespacesAndNewlines).count < Self.minPaste)
             }
             .padding(20)
+            .readableWidth()
         }
     }
 
@@ -176,6 +177,7 @@ struct RecipeEditView: View {
                 TextField("Tips, swaps, what you'd change next time", text: $notes, axis: .vertical).lineLimit(3...)
             }
         }
+        .readableScrollWidth()
     }
 
     private func fill(_ recipe: Recipe) {

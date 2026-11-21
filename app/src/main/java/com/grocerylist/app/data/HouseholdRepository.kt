@@ -3,6 +3,7 @@ package com.grocerylist.app.data
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
@@ -50,6 +51,20 @@ class HouseholdRepository {
         } else {
             combine(memberIds.map(::observeProfile)) { profiles -> profiles.filterNotNull().sortedBy { it.displayName } }
         }
+
+    /**
+     * The household [uid] belongs to, read once (for voice actions). Null without one, or after being
+     * removed from it (security rules then refuse reading it).
+     */
+    suspend fun currentHouseholdId(uid: String): String? {
+        val householdId = users.document(uid).get().await().toObject(UserProfile::class.java)?.householdId ?: return null
+        val household = try {
+            households.document(householdId).get().await().toObject(Household::class.java)
+        } catch (e: FirebaseFirestoreException) {
+            if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) return null else throw e
+        }
+        return householdId.takeIf { household != null && uid in household.memberIds }
+    }
 
     /** Creates or refreshes the user's profile document after sign-in. Leaves householdId alone. */
     fun ensureProfile(user: FirebaseUser) {

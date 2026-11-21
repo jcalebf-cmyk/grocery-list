@@ -134,6 +134,7 @@ struct SignInView: View {
             .padding(.horizontal, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .readableScrollWidth()
         .background(Color.warmBackground)
         .alert("Reset your password", isPresented: $resettingPassword) {
             TextField("Email", text: $resetEmail)
@@ -284,6 +285,7 @@ struct HouseholdSetupView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
         }
+        .readableWidth()
         .background(Color.warmBackground)
     }
 

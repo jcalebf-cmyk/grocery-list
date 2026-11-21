@@ -63,7 +63,10 @@ struct RecipeChatView: View {
             .safeAreaInset(edge: .bottom) { inputBar }
             .navigationDestination(item: $viewing) { recipe in
                 RecipeDetail(data: data, recipe: recipe, onOpenList: onOpenList)
-                    .toolbar { ToolbarItem(placement: .topBarTrailing) { saveButton(recipe) } }
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) { ShareRecipeButton(recipe: recipe) }
+                        ToolbarItem(placement: .topBarTrailing) { saveButton(recipe) }
+                    }
             }
             .alert("Recipe chat", isPresented: showingError) {
                 Button("OK", role: .cancel) {}
@@ -84,7 +87,11 @@ struct RecipeChatView: View {
     private var conversation: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                if chat.messages.isEmpty && !chat.sending { emptyState } else { messageList }
+                // On a wide screen the conversation stays a readable column down the middle.
+                Group {
+                    if chat.messages.isEmpty && !chat.sending { emptyState } else { messageList }
+                }
+                .readableWidth()
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: bottomID) { _, id in

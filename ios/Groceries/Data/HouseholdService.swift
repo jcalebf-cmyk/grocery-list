@@ -26,6 +26,21 @@ enum HouseholdService {
         return result.sorted { $0.displayName < $1.displayName }
     }
 
+    /// The household `uid` belongs to, read once (for voice actions). Nil without one, or after being removed
+    /// from it (security rules then refuse reading it).
+    static func currentHouseholdId(uid: String) async throws -> String? {
+        let profile = try await users.document(uid).getDocument()
+        guard let householdId = (try? profile.data(as: UserProfile.self))?.householdId else { return nil }
+        do {
+            let household = try await households.document(householdId).getDocument()
+            guard household.exists, let members = try? household.data(as: Household.self).memberIds,
+                  members.contains(uid) else { return nil }
+            return householdId
+        } catch let error as NSError where error.domain == FirestoreErrorDomain && error.code == FirestoreErrorCode.permissionDenied.rawValue {
+            return nil
+        }
+    }
+
     /// Creates or refreshes the user's profile after sign-in. Leaves householdId alone.
     static func ensureProfile(_ user: User) {
         let name = user.displayName ?? user.email?.components(separatedBy: "@").first ?? "Me"

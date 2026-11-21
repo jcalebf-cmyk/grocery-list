@@ -119,6 +119,7 @@ struct SettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .readableScrollWidth()
         .background(Color.warmBackground)
         .navigationTitle("Settings")
         // Checked on every return to the app, since the link is tapped outside it.

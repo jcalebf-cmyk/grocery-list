@@ -371,3 +371,46 @@ let aisleKeywords: [(Aisle, [String])] = [
         "sorbet", "gelato", "burrito", "edamame",
     ]),
 ]
+
+// MARK: - Sharing
+
+// Plain text for sending a recipe or a list by text or email through the share sheet. Same as ShareText.kt.
+
+/// The recipe as written (its own servings), with the video link if it came from one.
+func recipeShareText(_ recipe: Recipe) -> String {
+    var text = recipe.title.trimmed
+    if !recipe.description.trimmed.isEmpty { text += "\n" + recipe.description.trimmed }
+    let summary = [recipe.totalMinutes > 0 ? "\(recipe.totalMinutes) min" : nil,
+                   recipe.servings > 0 ? "Serves \(recipe.servings)" : nil]
+        .compactMap { $0 }.joined(separator: " · ")
+    if !summary.isEmpty { text += "\n" + summary }
+    if !recipe.ingredients.isEmpty {
+        text += "\n\nIngredients"
+        for ingredient in recipe.ingredients { text += "\n• " + ingredientShareLine(ingredient) }
+    }
+    if !recipe.steps.isEmpty {
+        text += "\n\nSteps"
+        for (index, step) in recipe.steps.enumerated() { text += "\n\(index + 1). " + step.trimmed }
+    }
+    if !recipe.notes.trimmed.isEmpty { text += "\n\nNotes\n" + recipe.notes.trimmed }
+    if !recipe.sourceUrl.trimmed.isEmpty { text += "\n\nVideo: " + recipe.sourceUrl.trimmed }
+    return text
+}
+
+/// "2 cloves garlic", or "Salt" when there's no amount.
+private func ingredientShareLine(_ ingredient: Ingredient) -> String {
+    let name = ingredient.name.trimmed, quantity = ingredient.quantity.trimmed
+    return quantity.isEmpty ? name.prefix(1).uppercased() + name.dropFirst() : "\(quantity) \(name)"
+}
+
+/// What's still to get on a list, in aisle order. Nil when everything's checked off.
+func listShareText(_ list: GroceryList, items: [ListItem]) -> String? {
+    let toGet = groupByAisle(items).filter { $0.aisle != nil }.flatMap(\.items)
+    if toGet.isEmpty { return nil }
+    return listShareSubject(list) + toGet.map { "\n• " + $0.name.trimmed }.joined()
+}
+
+/// The email subject for a shared list.
+func listShareSubject(_ list: GroceryList) -> String {
+    list.storeName.trimmed.isEmpty ? "Shopping list" : "\(list.storeName.trimmed) list"
+}

@@ -1,5 +1,8 @@
 package com.grocerylist.app.ui.onboarding
 
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
+import com.grocerylist.app.ui.ReadableWidth
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import android.content.Intent
@@ -120,7 +123,7 @@ fun OnboardingContent(
 
     BackHandler(enabled = index > 0) { index-- }
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().wrapContentWidth().widthIn(max = ReadableWidth)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { index-- }, enabled = index > 0, modifier = Modifier.alpha(if (index > 0) 1f else 0f)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material.icons.filled.PlayArrow
@@ -60,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.Recipe
 import com.grocerylist.app.data.RecipeSource
+import com.grocerylist.app.data.recipeShareText
 import com.grocerylist.app.data.scaleQuantity
 import com.grocerylist.app.data.servingsFactor
 import com.grocerylist.app.ui.AppIcons
@@ -67,6 +69,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.grocerylist.app.ui.Session
 import com.grocerylist.app.ui.StorePicker
+import com.grocerylist.app.ui.shareText
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.unit.Dp
+import com.grocerylist.app.ui.TwoPanes
+import com.grocerylist.app.ui.readable
+import com.grocerylist.app.ui.rememberWindowLayout
 
 /** A saved recipe from the household's recipe box. */
 @Composable
@@ -82,7 +91,7 @@ fun RecipeScreen(
     }
     val recipe by viewModel.recipe.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
+    var deleting by rememberSaveable { mutableStateOf(false) }
 
     RecipeDetail(
         recipe = recipe,
@@ -90,6 +99,7 @@ fun RecipeScreen(
         onBack = onBack,
         onOpenList = onOpenList,
         actions = {
+            ShareRecipeButton(recipe)
             IconButton(onClick = onEdit, enabled = recipe != null) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit recipe")
             }
@@ -141,7 +151,8 @@ fun RecipeDetail(
 ) {
     val shopping by viewModel.shopping.collectAsStateWithLifecycle()
     // Nothing starts ticked: the shopper ticks what they need, then adds those to a list.
-    var checked by remember(recipe?.ingredients) { mutableStateOf(emptySet<Int>()) }
+    // Saveable so ticks survive unfolding the phone, which rebuilds the screen.
+    var checked by rememberSaveable(recipe?.ingredients, stateSaver = IndexSetSaver) { mutableStateOf(emptySet<Int>()) }
     var pickingStore by rememberSaveable { mutableStateOf(false) }
     var showingOriginal by rememberSaveable { mutableStateOf(false) }
     // How many people to cook for; amounts scale from what the recipe serves.
@@ -166,9 +177,10 @@ fun RecipeDetail(
             )
         },
     ) { padding ->
+        val layout = rememberWindowLayout()
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (recipe != null) {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                val ingredients: LazyListScope.() -> Unit = {
                     item(key = "title") { RecipeTitle(recipe, people, onPeopleChange = { people = it }) }
                     if (recipe.ingredients.isNotEmpty()) {
                         item {
@@ -202,8 +214,10 @@ fun RecipeDetail(
                             },
                         )
                     }
+                }
+                val steps: LazyListScope.() -> Unit = {
                     if (recipe.steps.isNotEmpty()) {
-                        item { SectionTitle("Steps") }
+                        item { SectionTitle("Steps", top = if (layout.twoPane) 8.dp else 20.dp) }
                         if (factor != 1.0) {
                             item {
                                 Text(
@@ -235,7 +249,21 @@ fun RecipeDetail(
                         }
                     }
                 }
-
+                val bottom = PaddingValues(bottom = 32.dp)
+                if (layout.twoPane) {
+                    // Unfolded: shop from the ingredients on one side, cook from the steps on the other.
+                    TwoPanes(
+                        layout,
+                        first = { LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = bottom) { ingredients() } },
+                    ) {
+                        LazyColumn(Modifier.fillMaxSize(), contentPadding = bottom) { steps() }
+                    }
+                } else {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = bottom.readable()) {
+                        ingredients()
+                        steps()
+                    }
+                }
             }
         }
     }
@@ -260,6 +288,15 @@ fun RecipeDetail(
             openStoreIds = shopping.activeLists.mapTo(HashSet()) { it.storeId },
             onDismiss = { pickingStore = false },
         )
+    }
+}
+
+/** Sends the recipe as text (Messages, email, …). */
+@Composable
+fun ShareRecipeButton(recipe: Recipe?) {
+    val context = LocalContext.current
+    IconButton(onClick = { recipe?.let { shareText(context, it.title, recipeShareText(it)) } }, enabled = recipe != null) {
+        Icon(Icons.Default.Share, contentDescription = "Share recipe")
     }
 }
 
@@ -355,6 +392,9 @@ private fun NotesCard(notes: String) {
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp))
+private fun SectionTitle(text: String, top: Dp = 20.dp) {
+    Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 16.dp, top = top, bottom = 4.dp))
 }
+
+/** Which ingredients are ticked, by position. */
+private val IndexSetSaver = Saver<Set<Int>, ArrayList<Int>>(save = { ArrayList(it) }, restore = { it.toSet() })

@@ -1,5 +1,8 @@
 package com.grocerylist.app.ui.household
 
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
+import com.grocerylist.app.ui.ReadableWidth
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
@@ -133,7 +136,7 @@ fun HouseholdSetupScreen(
 
     BackHandler(enabled = step != SetupStep.CHOOSE && !busy) { goTo(SetupStep.CHOOSE) }
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().wrapContentWidth().widthIn(max = ReadableWidth)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             val canGoBack = step != SetupStep.CHOOSE
             IconButton(

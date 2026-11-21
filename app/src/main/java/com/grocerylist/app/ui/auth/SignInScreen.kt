@@ -1,5 +1,8 @@
 package com.grocerylist.app.ui.auth
 
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
+import com.grocerylist.app.ui.ReadableWidth
 import androidx.compose.foundation.layout.Arrangement
 import com.grocerylist.app.R
 import androidx.compose.ui.res.painterResource
@@ -65,6 +68,9 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
             .fillMaxSize()
             .safeDrawingPadding()
             .imePadding()
+            // A readable column on a tablet or an unfolded phone.
+            .wrapContentWidth()
+            .widthIn(max = ReadableWidth)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 48.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),

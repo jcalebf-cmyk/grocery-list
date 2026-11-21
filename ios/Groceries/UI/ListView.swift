@@ -70,6 +70,7 @@ struct ListView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .readableScrollWidth()
         .background(Color.warmBackground)
         .animation(.snappy, value: sortedItems)
         .navigationBarTitleDisplayMode(.inline)
@@ -80,6 +81,17 @@ struct ListView: View {
                         StoreLogo(name: name, cornerRadius: 7).frame(width: 36, height: 26)
                     }
                     Text(list?.displayName ?? "").font(.headline)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                // What's still to get; nothing to send once everything's checked off.
+                if let list, let text = listShareText(list, items: items) {
+                    let subject = listShareSubject(list)
+                    ShareLink(item: text, subject: Text(subject)) {
+                        Label("Share list", systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    Button("Share list", systemImage: "square.and.arrow.up") {}.disabled(true)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {

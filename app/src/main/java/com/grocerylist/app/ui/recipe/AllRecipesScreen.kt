@@ -1,5 +1,6 @@
 package com.grocerylist.app.ui.recipe
 
+import com.grocerylist.app.ui.readable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,7 +69,7 @@ fun AllRecipesScreen(
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding.readable()) {
             item {
                 OutlinedTextField(
                     value = query,

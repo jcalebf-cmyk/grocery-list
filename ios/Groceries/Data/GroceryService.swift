@@ -16,6 +16,23 @@ struct GroceryService {
     func itemsStream(_ listId: String) -> AsyncThrowingStream<[ListItem], Error> { lists.document(listId).collection("items").stream(ListItem.self) }
     func statsStream() -> AsyncThrowingStream<[ItemStat], Error> { stats.stream(ItemStat.self) }
 
+    // One-time reads, for voice actions that run without a screen open. From the server when it can be
+    // reached, else this phone's copy.
+    func stores() async throws -> [Store] {
+        try await stores.order(by: "createdAt").getDocuments().documents.compactMap { try? $0.data(as: Store.self) }
+    }
+
+    /// Open lists, newest first.
+    func activeLists() async throws -> [GroceryList] {
+        try await lists.whereField("status", isEqualTo: GroceryList.statusActive).getDocuments().documents
+            .compactMap { try? $0.data(as: GroceryList.self) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func items(_ listId: String) async throws -> [ListItem] {
+        try await lists.document(listId).collection("items").getDocuments().documents.compactMap { try? $0.data(as: ListItem.self) }
+    }
+
     /// Reuses an existing store with the same name instead of adding a duplicate.
     func addStore(_ name: String, existing: [Store]) -> Store {
         if let match = existing.first(where: { $0.name.caseInsensitiveCompare(name.trimmed) == .orderedSame }) { return match }

@@ -1,5 +1,9 @@
 package com.grocerylist.app.ui.recipe
 
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
+import com.grocerylist.app.ui.ReadableWidth
+import com.grocerylist.app.ui.readable
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
@@ -121,7 +125,7 @@ private fun PasteStep(viewModel: RecipeEditViewModel) {
     val context = LocalContext.current
     val reading = viewModel.phase == RecipeEditViewModel.Phase.READING
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        Modifier.fillMaxSize().wrapContentWidth().widthIn(max = ReadableWidth).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -171,7 +175,7 @@ private fun Editor(viewModel: RecipeEditViewModel) {
     val numbers = KeyboardOptions(keyboardType = KeyboardType.Number)
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp).readable(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {

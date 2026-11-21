@@ -34,6 +34,7 @@ import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
 import androidx.compose.runtime.LaunchedEffect
 import com.grocerylist.app.data.SharedRecipe
+import com.grocerylist.app.voice.OpenRecipeRequest
 import com.grocerylist.app.ui.recipe.AllRecipesScreen
 import com.grocerylist.app.ui.recipe.RecipeChatScreen
 import com.grocerylist.app.ui.recipe.RecipeEditScreen
@@ -71,6 +72,14 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
     val shared by SharedRecipe.pending.collectAsStateWithLifecycle()
     LaunchedEffect(shared) {
         if (shared != null) nav.navigate("recipes/paste") { launchSingleTop = true }
+    }
+    // A recipe a voice action (Gemini) asked to open.
+    val voiceRecipe by OpenRecipeRequest.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(voiceRecipe) {
+        voiceRecipe?.let { id ->
+            OpenRecipeRequest.pending.value = null
+            nav.navigate("recipe/$id") { popUpTo("home"); launchSingleTop = true }
+        }
     }
     SharedTransitionLayout {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {

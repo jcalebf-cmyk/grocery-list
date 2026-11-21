@@ -38,6 +38,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.platform.LocalContext
+import com.grocerylist.app.data.listShareSubject
+import com.grocerylist.app.data.listShareText
+import com.grocerylist.app.ui.shareText
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -84,6 +89,7 @@ import com.grocerylist.app.ui.CloseOutListDialog
 import com.grocerylist.app.ui.DeleteListDialog
 import com.grocerylist.app.ui.EditItemDialog
 import com.grocerylist.app.ui.AppIcons
+import com.grocerylist.app.ui.readable
 import androidx.compose.material.icons.filled.CheckCircle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,8 +99,8 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val active = state.list?.isActive == true
     var menuOpen by remember { mutableStateOf(false) }
-    var confirmingFinish by remember { mutableStateOf(false) }
-    var confirmingDelete by remember { mutableStateOf(false) }
+    var confirmingFinish by rememberSaveable { mutableStateOf(false) }
+    var confirmingDelete by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The list scrolls under a frosted top bar and a floating glass add bar.
@@ -128,6 +134,14 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                     }
                 },
                 actions = {
+                    state.list?.let { list ->
+                        // What's still to get; nothing to send once everything's checked off.
+                        val text = listShareText(list, state.items)
+                        val context = LocalContext.current
+                        IconButton(onClick = { text?.let { shareText(context, listShareSubject(list), it) } }, enabled = text != null) {
+                            Icon(Icons.Default.Share, contentDescription = "Share list")
+                        }
+                    }
                     if (state.list != null) {
                         IconButton(onClick = { menuOpen = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -208,7 +222,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                 onDismiss = { editingId = null },
             )
         }
-        LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding) {
+        LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding.readable()) {
             if (state.suggestions.isNotEmpty()) {
                 item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add, onDismiss = viewModel::dismissSuggestion) }
             }

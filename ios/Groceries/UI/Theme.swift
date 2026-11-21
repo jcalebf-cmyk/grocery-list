@@ -178,6 +178,8 @@ struct AddItemBar: View {
         }
         .glassEffect(.regular.interactive(), in: .capsule)
         .padding(.horizontal, 16)
+        // On a wide screen it lines up with the list's readable column.
+        .readableWidth(AdaptiveLayout.readableWidth + 32)
         .padding(.bottom, 8)
     }
 

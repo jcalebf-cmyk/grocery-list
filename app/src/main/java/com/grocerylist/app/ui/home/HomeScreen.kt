@@ -84,6 +84,16 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.material3.FabPosition
+import androidx.compose.ui.unit.Dp
+import com.grocerylist.app.ui.TwoPanes
+import com.grocerylist.app.ui.readable
+import com.grocerylist.app.ui.rememberWindowLayout
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,7 +128,10 @@ fun HomeScreen(
         return
     }
     var deletingList by remember { mutableStateOf<GroceryList?>(null) }
-    var closingList by remember { mutableStateOf<GroceryList?>(null) }
+    // By id so the confirmation survives unfolding the phone (which rebuilds the screen).
+    var closingListId by rememberSaveable { mutableStateOf<String?>(null) }
+    val closingList = state.activeLists.firstOrNull { it.id == closingListId }
+    val layout = rememberWindowLayout()
 
     Scaffold(
         topBar = {
@@ -134,6 +147,8 @@ fun HomeScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        // Side by side, New list sits under the lists rather than over the recipes.
+        floatingActionButtonPosition = if (layout.twoPane) FabPosition.Start else FabPosition.End,
         // With no list going, the Start a list card does this job instead.
         floatingActionButton = {
             if (state.activeLists.isNotEmpty()) {
@@ -147,8 +162,8 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
-            // Lists come first: they're what people open the app for.
+        // Lists come first: they're what people open the app for.
+        val lists: LazyListScope.() -> Unit = {
             item { SectionHeader("Shopping lists", top = 8.dp) }
             if (state.activeLists.isEmpty()) {
                 item { StartListCard(onStart = { pickingStore = true }) }
@@ -159,31 +174,63 @@ fun HomeScreen(
                     label = "Close out",
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    onSwipe = { closingList = list },
+                    onSwipe = { closingListId = list.id },
                 ) { ListRow(list) { onOpenList(list.id) } }
             }
             // Past lists stay out of the way: one row under the lists that opens the full history.
             if (state.pastListCount > 0) {
                 item { PastListsRow(state.pastListCount, onClick = onOpenPastLists) }
             }
-            item {
-                RecipesHeader(
-                    hasRecipes = state.recipes.isNotEmpty(),
-                    onAsk = onAskForRecipe,
-                    onPaste = onPasteRecipe,
-                    onSeeAll = onAllRecipes,
-                )
-            }
-            item {
-                if (state.recipes.isNotEmpty()) {
-                    RecipeRow(state.recipes.take(RECIPES_SHOWN), onOpenRecipe)
-                } else {
-                    Text(
-                        "Save recipes you like here: ask for one, or paste one from anywhere.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
+        }
+        val recipesHeader = @Composable { top: Dp, inset: Dp ->
+            RecipesHeader(
+                hasRecipes = state.recipes.isNotEmpty(),
+                onAsk = onAskForRecipe,
+                onPaste = onPasteRecipe,
+                onSeeAll = onAllRecipes,
+                top = top,
+                inset = inset,
+            )
+        }
+        val noRecipes = @Composable { inset: Dp ->
+            Text(
+                "Save recipes you like here: ask for one, or paste one from anywhere.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = inset, vertical = 8.dp),
+            )
+        }
+        val recipes = state.recipes.take(RECIPES_SHOWN)
+
+        if (layout.twoPane) {
+            // Unfolded: lists on one side, recipes as a grid on the other.
+            val panePadding = PaddingValues(bottom = padding.calculateBottomPadding())
+            TwoPanes(
+                layout,
+                Modifier.padding(top = padding.calculateTopPadding()),
+                first = { LazyColumn(Modifier.fillMaxSize(), contentPadding = panePadding) { lists() } },
+            ) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(180.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = padding.calculateBottomPadding() + 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // The grid already sits 16dp in, so the header and chips line up with the cards.
+                    item(span = { GridItemSpan(maxLineSpan) }) { recipesHeader(0.dp, 0.dp) }
+                    if (recipes.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) { noRecipes(0.dp) }
+                    }
+                    gridItems(recipes, key = { it.id }) { recipe ->
+                        RecipeCard(recipe, onClick = { onOpenRecipe(recipe.id) }, Modifier.fillMaxWidth().height(128.dp))
+                    }
                 }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = padding.readable()) {
+                lists()
+                item { recipesHeader(24.dp, 16.dp) }
+                item { if (recipes.isNotEmpty()) RecipeRow(recipes, onOpenRecipe) else noRecipes(16.dp) }
             }
         }
     }
@@ -201,10 +248,10 @@ fun HomeScreen(
     closingList?.let { list ->
         CloseOutListDialog(
             onConfirm = {
-                closingList = null
+                closingListId = null
                 viewModel.closeOut(list)
             },
-            onDismiss = { closingList = null },
+            onDismiss = { closingListId = null },
         )
     }
 
@@ -298,7 +345,8 @@ private fun PastListsRow(count: Int, onClick: () -> Unit) {
 fun PastListsScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (String) -> Unit) {
     val viewModel: HomeViewModel = viewModel(key = "past-lists") { HomeViewModel(session.householdId, session.user.uid) }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var deletingList by remember { mutableStateOf<GroceryList?>(null) }
+    var deletingListId by rememberSaveable { mutableStateOf<String?>(null) }
+    val deletingList = state.pastLists.firstOrNull { it.id == deletingListId }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.userMessages.collect { snackbar.showSnackbar(it) } }
 
@@ -313,14 +361,14 @@ fun PastListsScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (Str
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding.readable()) {
             items(state.pastLists, key = { it.id }) { list ->
                 SwipeAction(
                     icon = Icons.Default.Delete,
                     label = "Delete",
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    onSwipe = { deletingList = list },
+                    onSwipe = { deletingListId = list.id },
                 ) { ListRow(list) { onOpenList(list.id) } }
             }
             if (state.pastLists.isEmpty()) {
@@ -338,10 +386,10 @@ fun PastListsScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (Str
     deletingList?.let { list ->
         DeleteListDialog(
             onConfirm = {
-                deletingList = null
+                deletingListId = null
                 viewModel.deleteList(list)
             },
-            onDismiss = { deletingList = null },
+            onDismiss = { deletingListId = null },
         )
     }
 }
@@ -422,14 +470,17 @@ private fun RecipesHeader(
     onAsk: () -> Unit,
     onPaste: () -> Unit,
     onSeeAll: () -> Unit,
+    top: Dp = 24.dp,
+    inset: Dp = 16.dp,
 ) {
-    Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 4.dp)) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxWidth().padding(top = top, bottom = 4.dp)) {
+        // "See all" is a text button, whose own padding already insets its label.
+        Row(Modifier.fillMaxWidth().padding(start = inset, end = (inset - 8.dp).coerceAtLeast(0.dp)), verticalAlignment = Alignment.CenterVertically) {
             Text("Recipes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             if (hasRecipes) TextButton(onClick = onSeeAll) { Text("See all") }
         }
         Row(
-            Modifier.padding(top = 4.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            Modifier.padding(top = 4.dp).horizontalScroll(rememberScrollState()).padding(horizontal = inset),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AssistChip(
@@ -461,11 +512,11 @@ private fun RecipeRow(recipes: List<Recipe>, onOpen: (String) -> Unit) {
 }
 
 @Composable
-private fun RecipeCard(recipe: Recipe, onClick: () -> Unit) {
+private fun RecipeCard(recipe: Recipe, onClick: () -> Unit, modifier: Modifier = Modifier.width(220.dp).height(128.dp)) {
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        modifier = Modifier.width(220.dp).height(128.dp),
+        modifier = modifier,
     ) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon(

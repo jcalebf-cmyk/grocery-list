@@ -28,6 +28,15 @@ final class RecipeService {
         }
     }
 
+    /// A one-time read, for voice actions.
+    func all() async throws -> [Recipe] {
+        try await recipes.getDocuments().documents.compactMap { doc in
+            guard var recipe = try? doc.data(as: Recipe.self) else { return nil }
+            recipe.id = doc.documentID
+            return recipe
+        }
+    }
+
     /// Saves a new recipe and returns its ID. Works offline: Firestore syncs it later.
     @discardableResult
     func add(_ recipe: Recipe, uid: String) -> String {

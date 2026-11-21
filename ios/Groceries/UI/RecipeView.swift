@@ -14,6 +14,7 @@ struct RecipeView: View {
     var body: some View {
         RecipeDetail(data: data, recipe: recipe, onOpenList: onOpenList)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { ShareRecipeButton(recipe: recipe) }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit", systemImage: "pencil") { editing = true }.disabled(recipe == nil)
                 }
@@ -38,6 +39,21 @@ struct RecipeView: View {
     }
 }
 
+/// Sends the recipe as text (Messages, Mail, …). Android: ShareRecipeButton.
+struct ShareRecipeButton: View {
+    let recipe: Recipe?
+
+    var body: some View {
+        if let recipe {
+            ShareLink(item: recipeShareText(recipe), subject: Text(recipe.title)) {
+                Label("Share recipe", systemImage: "square.and.arrow.up")
+            }
+        } else {
+            Button("Share recipe", systemImage: "square.and.arrow.up") {}.disabled(true)
+        }
+    }
+}
+
 /// A recipe in full: ingredients to tick off and add to a list, then the steps. Used for saved recipes and
 /// for ones the chat suggests before they're saved; callers add their own toolbar buttons.
 struct RecipeDetail: View {
@@ -50,95 +66,48 @@ struct RecipeDetail: View {
     @State private var showingOriginal = false
     /// How many people to cook for; amounts scale from what the recipe serves.
     @State private var people = 0
+    @State private var twoPane = false
 
     private var factor: Double { servingsFactor(servings: recipe?.servings ?? 0, people: people) }
 
     var body: some View {
-        ScrollView {
+        ZStack {
             if let recipe {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(recipe.title).font(.brand(28))
-                        if !recipe.description.isEmpty { Text(recipe.description).padding(.bottom, 2) }
-                        // The servings control below says how many it serves, so the summary leaves that out.
-                        let summary = { var r = recipe; r.servings = 0; return r.summary }()
-                        if !summary.isEmpty {
-                            Text(summary).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        if recipe.servings > 0 { servingsControl }
-                        if let note = recipe.sourceNote {
-                            Text(note).font(.footnote).foregroundStyle(.secondary)
-                        }
-                        if let url = URL(string: recipe.sourceUrl), !recipe.sourceUrl.isEmpty {
-                            Link(destination: url) {
-                                Label("Watch the video", systemImage: "play.fill").font(.subheadline.weight(.medium))
+                if twoPane {
+                    // Wide screen: shop from the ingredients on one side, cook from the steps on the other.
+                    HStack(alignment: .top, spacing: 0) {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 0) {
+                                header(recipe)
+                                ingredientsSection(recipe)
                             }
-                            .buttonStyle(.glass)
-                            .padding(.top, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.bottom, 32)
+                        }
+                        Divider().ignoresSafeArea(edges: .bottom)
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 0) { stepsSection(recipe) }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 4)
+                                .padding(.bottom, 32)
                         }
                     }
-                    .padding(20)
-
-                    if !recipe.ingredients.isEmpty {
-                        // Sits with the ingredients rather than pinned to the screen, so it's there when you're
-                        // shopping and out of the way while you read or cook.
-                        HStack(alignment: .firstTextBaseline) {
-                            sectionTitle("Ingredients")
-                            Spacer()
-                            Button { pickingStore = true } label: {
-                                Label(checked.isEmpty ? "Add to list" : "Add \(checked.count) to list", systemImage: "cart")
-                                    .font(.subheadline.weight(.medium))
-                            }
-                            .buttonStyle(.glass)
-                            .disabled(checked.isEmpty)
-                            .padding(.trailing, 16)
-                        }
-                    }
-                    ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, ingredient in
-                        ingredientRow(index, ingredient)
-                    }
-                    if !recipe.steps.isEmpty {
-                        sectionTitle("Steps")
-                        if factor != 1 {
-                            Text("Amounts in the steps are for \(recipe.servings).")
-                                .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 20)
-                        }
-                    }
-                    ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("\(index + 1)").font(.subheadline.weight(.semibold))
-                                .frame(width: 28, height: 28).background(Color.accentColor.opacity(0.18), in: .circle)
-                            Text(step).padding(.top, 3)
-                        }
-                        .padding(.horizontal, 20).padding(.vertical, 6)
-                    }
-                    if !recipe.notes.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Notes").font(.subheadline.weight(.semibold))
-                            Text(recipe.notes).font(.subheadline)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            header(recipe)
+                            ingredientsSection(recipe)
+                            stepsSection(recipe)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                        .background(Color.citrusContainer, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .padding(.horizontal, 16).padding(.vertical, 16)
-                    }
-                    if !recipe.originalText.isEmpty {
-                        Button(showingOriginal ? "Hide what was pasted" : "Show what was pasted") {
-                            withAnimation(.snappy) { showingOriginal.toggle() }
-                        }
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 20).padding(.vertical, 8)
-                        if showingOriginal {
-                            Text(recipe.originalText).font(.subheadline).foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                                .padding(.horizontal, 20)
-                        }
+                        .padding(.bottom, 32)
+                        .readableWidth()
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 32)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onTwoPaneChange { twoPane = $0 }
         .background(Color.warmBackground)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: recipe?.servings) { people = recipe?.servings ?? 0 }
@@ -156,6 +125,91 @@ struct RecipeDetail: View {
                 onCancel: { pickingStore = false },
                 title: "Add to which list?"
             )
+        }
+    }
+
+    @ViewBuilder private func header(_ recipe: Recipe) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(recipe.title).font(.brand(28))
+            if !recipe.description.isEmpty { Text(recipe.description).padding(.bottom, 2) }
+            // The servings control below says how many it serves, so the summary leaves that out.
+            let summary = { var r = recipe; r.servings = 0; return r.summary }()
+            if !summary.isEmpty {
+                Text(summary).font(.subheadline).foregroundStyle(.secondary)
+            }
+            if recipe.servings > 0 { servingsControl }
+            if let note = recipe.sourceNote {
+                Text(note).font(.footnote).foregroundStyle(.secondary)
+            }
+            if let url = URL(string: recipe.sourceUrl), !recipe.sourceUrl.isEmpty {
+                Link(destination: url) {
+                    Label("Watch the video", systemImage: "play.fill").font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.glass)
+                .padding(.top, 4)
+            }
+        }
+        .padding(20)
+    }
+
+    @ViewBuilder private func ingredientsSection(_ recipe: Recipe) -> some View {
+        if !recipe.ingredients.isEmpty {
+            // Sits with the ingredients rather than pinned to the screen, so it's there when you're
+            // shopping and out of the way while you read or cook.
+            HStack(alignment: .firstTextBaseline) {
+                sectionTitle("Ingredients")
+                Spacer()
+                Button { pickingStore = true } label: {
+                    Label(checked.isEmpty ? "Add to list" : "Add \(checked.count) to list", systemImage: "cart")
+                        .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.glass)
+                .disabled(checked.isEmpty)
+                .padding(.trailing, 16)
+            }
+        }
+        ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, ingredient in
+            ingredientRow(index, ingredient)
+        }
+    }
+
+    @ViewBuilder private func stepsSection(_ recipe: Recipe) -> some View {
+        if !recipe.steps.isEmpty {
+            sectionTitle("Steps")
+            if factor != 1 {
+                Text("Amounts in the steps are for \(recipe.servings).")
+                    .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 20)
+            }
+        }
+        ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
+            HStack(alignment: .top, spacing: 12) {
+                Text("\(index + 1)").font(.subheadline.weight(.semibold))
+                    .frame(width: 28, height: 28).background(Color.accentColor.opacity(0.18), in: .circle)
+                Text(step).padding(.top, 3)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 6)
+        }
+        if !recipe.notes.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Notes").font(.subheadline.weight(.semibold))
+                Text(recipe.notes).font(.subheadline)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(Color.citrusContainer, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, 16).padding(.vertical, 16)
+        }
+        if !recipe.originalText.isEmpty {
+            Button(showingOriginal ? "Hide what was pasted" : "Show what was pasted") {
+                withAnimation(.snappy) { showingOriginal.toggle() }
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 20).padding(.vertical, 8)
+            if showingOriginal {
+                Text(recipe.originalText).font(.subheadline).foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 20)
+            }
         }
     }
 
@@ -232,6 +286,7 @@ struct AllRecipesView: View {
             if shown.isEmpty && !query.isEmpty { ContentUnavailableView.search(text: query) }
         }
         .scrollContentBackground(.hidden)
+        .readableScrollWidth()
         .background(Color.warmBackground)
         .navigationTitle("Recipes")
         .searchable(text: $query, prompt: "Search by name or ingredient")

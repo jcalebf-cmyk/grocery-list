@@ -39,6 +39,18 @@ class GroceryRepository(householdId: String) {
     fun observeStats(): Flow<List<ItemStat>> =
         stats.snapshots().map { it.toObjects(ItemStat::class.java) }
 
+    // One-time reads, for voice actions that run without a screen open. From the server when it can be
+    // reached, else this phone's copy.
+    suspend fun stores(): List<Store> = stores.orderBy("createdAt").get().await().toObjects(Store::class.java)
+
+    /** Open lists, newest first. */
+    suspend fun activeLists(): List<GroceryList> =
+        lists.whereEqualTo("status", GroceryList.STATUS_ACTIVE).get().await().toObjects(GroceryList::class.java)
+            .sortedByDescending { it.createdAt }
+
+    suspend fun items(listId: String): List<ListItem> =
+        lists.document(listId).collection("items").get().await().toObjects(ListItem::class.java)
+
     /** Removes the store from the picker. Its past and open lists keep the store's name. */
     fun removeStore(store: Store) {
         stores.document(store.id).delete()

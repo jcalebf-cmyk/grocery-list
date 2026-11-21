@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -54,6 +55,9 @@ android {
     }
 }
 
+// Lets the AppFunctions compiler collect the app's functions into one index for assistants.
+ksp { arg("appfunctions:aggregateAppFunctions", "true") }
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -61,6 +65,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.window)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -83,6 +88,9 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.haze)
     implementation(libs.haze.materials)
+
+    implementation(libs.androidx.appfunctions)
+    ksp(libs.androidx.appfunctions.compiler)
 
     testImplementation(libs.junit)
 }

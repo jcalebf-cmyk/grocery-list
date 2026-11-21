@@ -34,6 +34,7 @@ struct OnboardingView: View {
             .scrollBounceBehavior(.basedOnSize)
             footer
         }
+        .readableWidth()
         .background(Color.warmBackground)
     }
 

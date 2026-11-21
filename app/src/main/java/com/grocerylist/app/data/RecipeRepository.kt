@@ -6,6 +6,7 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -63,6 +64,9 @@ class RecipeRepository(householdId: String) {
     fun observeAll(): Flow<List<Recipe>> = recipes.snapshots().map { snap ->
         snap.documents.mapNotNull(::parse).sortedByDescending { it.createdAt }
     }
+
+    /** A one-time read, for voice actions. */
+    suspend fun all(): List<Recipe> = recipes.get().await().documents.mapNotNull(::parse)
 
     fun observe(id: String): Flow<Recipe?> = recipes.document(id).snapshots().map(::parse)
 
