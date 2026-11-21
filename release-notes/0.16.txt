@@ -1,0 +1,11 @@
+Groceries 0.16
+
+ADDED
+• Share: send a recipe or what's left on a shopping list to anyone, from the share button at the top of the screen.
+• Gemini (early): ask Gemini to add to a list, read it out, start one, check something off or open a recipe. Gemini's app actions are still rolling out, so this may not work on your phone yet.
+• Foldables and tablets: on a big screen, Home shows your lists and recipes side by side, and a recipe shows the ingredients next to the steps. Other screens stay a comfortable width instead of stretching edge to edge.
+
+FIXED
+• Ingredients you'd ticked on a recipe no longer clear when you fold, unfold or rotate the phone.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
