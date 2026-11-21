@@ -1,0 +1,8 @@
+Groceries 0.16
+
+ADDED
+• Share: send a recipe or what's left on a shopping list to anyone, from the share button at the top of the screen.
+• Siri and Shortcuts: say "Add to my Groceries list", "What's on my Groceries list", "Start a Groceries list", "Check something off in Groceries" or "Open a recipe in Groceries". The same actions are in the Shortcuts app.
+• Bigger screens: on a large screen (like an opened foldable), Home shows your lists and recipes side by side, and a recipe shows the ingredients next to the steps. Other screens stay a comfortable width instead of stretching edge to edge.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
