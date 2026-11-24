@@ -28,7 +28,12 @@ Android and iOS mirror each other: same Firestore documents and field names (tim
 millis as Int64/Long), same rules, same logic (suggestion ranking, "stores in use",
 store brand logos, servings scaling, recipe search). When changing behavior on one, change the other, or say why not.
 Android files to iOS files: `Suggestions.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt` → `ios/Groceries/Data/Logic.swift`;
-repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both.
+repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both;
+`ShareText.kt` ↔ `Logic.swift` (share text); `Adaptive.kt` ↔ `AdaptiveLayout.swift`; voice actions: `app/.../voice/` +
+`VoiceActions.kt` (Gemini AppFunctions, needs KSP) ↔ `ios/Groceries/Intents/` (Siri App Intents).
+Big screens (0.16): two panes (Home: lists | recipes; recipe: ingredients | steps) from 840dp/pt wide, split at the
+fold on a half-open Android foldable; other screens cap content at 640. iOS gotcha: pass `nil`, not 0, to
+`contentMargins` when no gutter is needed, or Lists lose their insets.
 
 ## Backend facts
 
@@ -103,6 +108,11 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
   accept Apple's updated Program License Agreement at developer.apple.com/account, then rerun the export.
   Material 3 on Android is pinned to 1.5.0-beta01 for the Expressive theme. Hand-built clickable chips need
   `Modifier.minimumInteractiveComponentSize()` (48dp, like stock chips) or they crowd what's around them.
+- **Foldable testing:** `~/.android/avd/Pixel_Fold` (Pixel Fold profile) only runs headless here
+  (`emulator -avd Pixel_Fold -no-window -gpu swiftshader_indirect`; its window fails), screenshot with
+  `screencap -d <display id>`, fold with `adb shell cmd device_state state 0|1|2` (folding shows "swipe up to continue").
+  The `iPhone Duo` simulator: outer 466×678pt, inner 951×669pt; drive postures with the iOS Simulator tool.
+  `xcrun agent skills export` hung here (Nov 21) without writing anything.
 - **Checking signed-in screens without an account:** temporarily swap `RootView()` (iOS) or `GroceryApp()`
   (Android) for a debug-only view with sample data, check it, then delete it before committing.
 - Firebase App Distribution always serves the APK as `app.apk`; the file can't be renamed for testers.
@@ -132,14 +142,17 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Nov 19, 2026)
+## Status (Nov 21, 2026)
 
-- **Android: 0.15** (code 19) on Firebase to all 3 testers, tagged `v0.15`. **iPhone: 0.15** (build 15)
-  uploaded to TestFlight and submitted for Beta App Review, tagged `ios-v0.15` (0.14 build 14 was still
-  waiting for review). Next iOS upload must be build 16. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
-- 0.15 = household setup asks "Is someone in your household already using Groceries?" first (Join / Start
-  cards), then one screen with one field; the name is prefilled "<Last name> household". Checked with sample
-  data in the emulator and simulator only; creating/joining wasn't run with a real account.
+- **Android: 0.16** (code 20) on Firebase to all 4 testers, tagged `v0.16`. **iPhone: 0.16** (build 16)
+  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.16`. Next iOS upload must be build 17.
+  Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- 0.16 = Share a recipe or a list's remaining items as text; Siri/Shortcuts (5 App Shortcuts) and Gemini
+  AppFunctions (add, read, start a list, check off, open recipe); foldable/big-screen layouts. Checked with sample
+  data in the Pixel Fold emulator and iPhone Duo simulator only. Voice actions only checked signed out (Shortcuts
+  app, `cmd app_function`); never with Siri's voice or Gemini, which needs Gemini's Connected Apps preview and
+  likely a Play track, so Firebase testers may not see it.
+- 0.15 = household setup asks start-or-join first; creating/joining not run with a real account.
 - 0.14 = recipe box (AI chat, paste text or YouTube link, Share to Groceries, servings scaling), lists-first Home
   with Past lists in its own screen, no My kitchen. Never run end to end with a real account: the chat and import
   prompts (no local Claude key), the iPhone share extension and the sign-in move into the shared keychain group
