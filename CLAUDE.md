@@ -158,11 +158,14 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Nov 21, 2026)
+## Status (Nov 24, 2026)
 
-- **Android: 0.16** (code 20) on Firebase to all 4 testers, tagged `v0.16`. **iPhone: 0.16** (build 16)
-  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.16`. Next iOS upload must be build 17.
+- **Android: 0.17** (code 21) on Firebase to all 5 testers, tagged `v0.17`. **iPhone: 0.17** (build 17)
+  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.17`. Next iOS upload must be build 18.
   Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- 0.17 = several households per account, Apple sign-in on Android, 8-character password minimum. Multi-household
+  was run end to end on both platforms against the local emulators, never with real accounts; sharing a recipe, Siri
+  and Gemini while in two households are untried.
 - 0.16 = Share a recipe or a list's remaining items as text; Siri/Shortcuts (5 App Shortcuts) and Gemini
   AppFunctions (add, read, start a list, check off, open recipe); foldable/big-screen layouts. Checked with sample
   data in the Pixel Fold emulator and iPhone Duo simulator only. Voice actions only checked signed out (Shortcuts
@@ -176,7 +179,7 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
   "New ideas". Keep `YOUTUBE_API_KEY` in Vercel (video links).
 - Recent releases: 0.12 = list items grouped by store aisle. 0.13 = stricter list suggestions and long-press "Don't suggest" (written in a cloud
   session; only unit-tested, not tried on a phone or simulator).
-- Not yet tried with real accounts: "Don't suggest", joining with a code, removal on Android, swipes on real
+- Not yet tried with real accounts: "Don't suggest", joining a second household, removal on Android, swipes on real
   lists, the confirmation email.
 - App name "Groceries" is set in Google Auth Platform → Branding and Firebase's public-facing name.
   Josh's call: `www` stays the primary domain, and Firebase's email template action URL stays as is
