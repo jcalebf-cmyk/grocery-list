@@ -1,0 +1,15 @@
+Groceries 0.17
+
+ADDED
+• More than one household: join or start another from Settings, under Other households, without a second account. Each one has its own lists, stores and recipes. Once you're in two, tap the name at the top of Home to switch. Siri and shared recipes use the one that's open.
+• Delete a household: if you're the only one in it and you have another, you can delete it in Settings.
+
+CHANGED
+• New passwords need at least 8 characters. Your current password still works.
+• Deleting your account now covers every household you're in, and asks who takes over each one you own.
+
+FIXED
+• Signing in on a new phone no longer flashes the household setup screen.
+• If the app can't connect when it opens, it says so and lets you sign out.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
