@@ -1,10 +1,9 @@
-import { createHash } from "node:crypto";
 import { ipAddress, waitUntil } from "@vercel/functions";
 import { z } from "zod";
 import { sendEmail, toOurPage } from "../lib/email.js";
 import { resetPassword } from "../lib/emailTemplates.js";
 import { adminAuth } from "../lib/firebaseAdmin.js";
-import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
+import { limitsUnavailable, overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
 
 // Anyone can call this (the user is signed out), so limit it per address and per network.
 const DAILY_LIMIT_PER_EMAIL = 5;
@@ -22,12 +21,15 @@ export async function POST(request: Request): Promise<Response> {
   if (!body.success) return Response.json({ error: "Send { email: string }" }, { status: 400 });
   const email = body.data.email;
 
-  const emailKey = createHash("sha256").update(email).digest("hex"); // keeps addresses out of the cache
-  if (
-    (await overDailyLimit("reset-ip", ipAddress(request) ?? "unknown", DAILY_LIMIT_PER_IP)) ||
-    (await overDailyLimit("reset-email", emailKey, DAILY_LIMIT_PER_EMAIL))
-  ) {
-    return tooManyRequests("Password reset emails are limited for today");
+  try {
+    if (
+      (await overDailyLimit("reset-ip", ipAddress(request) ?? "unknown", DAILY_LIMIT_PER_IP)) ||
+      (await overDailyLimit("reset-email", email, DAILY_LIMIT_PER_EMAIL))
+    ) {
+      return tooManyRequests("Password reset emails are limited for today");
+    }
+  } catch (e) {
+    return limitsUnavailable(e);
   }
 
   waitUntil(sendReset(email));

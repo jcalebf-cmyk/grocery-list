@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { verifyFirebaseUser } from "../lib/auth.js";
-import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
+import { limitsUnavailable, overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
 import { findNearbyStores } from "../lib/stores.js";
 
 // The app caches results for a week per area, so normal use is about one lookup a week.
@@ -19,8 +19,12 @@ export async function POST(request: Request): Promise<Response> {
 
   const body = Body.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "Send { lat: number, lng: number }" }, { status: 400 });
-  if (await overDailyLimit("stores", uid, DAILY_LIMIT)) {
-    return tooManyRequests("Nearby store lookups are limited for today");
+  try {
+    if (await overDailyLimit("stores", uid, DAILY_LIMIT)) {
+      return tooManyRequests("Nearby store lookups are limited for today");
+    }
+  } catch (e) {
+    return limitsUnavailable(e);
   }
 
   try {

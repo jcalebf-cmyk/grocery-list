@@ -2,7 +2,7 @@ import { verifyFirebaseUser } from "../lib/auth.js";
 import { sendEmail, toOurPage } from "../lib/email.js";
 import { confirmEmail } from "../lib/emailTemplates.js";
 import { adminAuth } from "../lib/firebaseAdmin.js";
-import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
+import { limitsUnavailable, overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
 
 // One at sign-up plus a few "Resend" taps in Settings.
 const DAILY_LIMIT = 5;
@@ -15,8 +15,12 @@ const DAILY_LIMIT = 5;
 export async function POST(request: Request): Promise<Response> {
   const uid = await verifyFirebaseUser(request);
   if (!uid) return Response.json({ error: "Sign in required" }, { status: 401 });
-  if (await overDailyLimit("verify-email", uid, DAILY_LIMIT)) {
-    return tooManyRequests("Confirmation emails are limited for today");
+  try {
+    if (await overDailyLimit("verify-email", uid, DAILY_LIMIT)) {
+      return tooManyRequests("Confirmation emails are limited for today");
+    }
+  } catch (e) {
+    return limitsUnavailable(e);
   }
 
   try {

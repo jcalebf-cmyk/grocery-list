@@ -85,7 +85,7 @@
         <input id="password" type="password" autocomplete="new-password" required>
         <button type="button" class="show" aria-controls="password">Show</button>
       </div>
-      <p class="hint" id="password-hint">At least 6 characters</p>
+      <p class="hint" id="password-hint">At least 8 characters</p>
       <label for="confirm">Type it again</label>
       <div class="field">
         <input id="confirm" type="password" autocomplete="new-password" required>
@@ -97,7 +97,7 @@
   </template>
 
   <script>
-    const MIN_PASSWORD = 6; // same as the apps
+    const MIN_PASSWORD = 8; // same as the apps and Firebase's password policy
     const params = new URLSearchParams(location.search);
     const mode = params.get("mode");
     const code = params.get("oobCode");
@@ -206,7 +206,7 @@
           if (isUsedOrExpired(e)) return showResetExpired();
           save.disabled = false;
           save.textContent = "Save password";
-          formError.textContent = /WEAK_PASSWORD/.test(e.message)
+          formError.textContent = /WEAK_PASSWORD|PASSWORD_DOES_NOT_MEET_REQUIREMENTS/.test(e.message)
             ? "That password is too easy to guess. Try a longer one."
             : "Couldn't save your password. Check your connection and try again.";
           formError.hidden = false;

@@ -1,20 +1,20 @@
 import { z } from "zod";
 import { verifyFirebaseUser } from "../lib/auth.js";
-import { chat, RecipeSchema } from "../lib/claude.js";
-import { overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
+import { readJson } from "../lib/body.js";
+import { chat } from "../lib/claude.js";
+import { recentTurns, Turn } from "../lib/conversation.js";
+import { limitsUnavailable, overDailyLimit, tooManyRequests } from "../lib/rateLimit.js";
 
 const Item = z.string().trim().min(1).max(60);
-const Turn = z.object({
-  role: z.enum(["user", "assistant"]),
-  text: z.string().trim().max(4000),
-  recipes: z.array(RecipeSchema).max(3).optional(),
-});
 const Body = z.object({
   // The whole conversation so far, oldest first, ending with the user's new message. The server keeps nothing.
   messages: z.array(Turn).min(1).max(40),
   onHand: z.array(Item).max(40).default([]), // in the kitchen
   pantry: z.array(Item).max(60).default([]), // seasonings and sauces
 });
+
+// Well over 40 turns with three long recipes each.
+const MAX_BODY_BYTES = 500_000;
 
 // Plenty for a few conversations a day. Each message is one Claude Haiku call.
 const DAILY_LIMIT = 40;
@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   const uid = await verifyFirebaseUser(request);
   if (!uid) return Response.json({ error: "Sign in required" }, { status: 401 });
 
-  const body = Body.safeParse(await request.json().catch(() => null));
+  const body = Body.safeParse(await readJson(request, MAX_BODY_BYTES));
   if (!body.success) return Response.json({ error: "Send { messages: [{ role, text }] }" }, { status: 400 });
   const { messages, onHand, pantry } = body.data;
   // Turns must alternate, starting and ending with the user.
@@ -36,12 +36,16 @@ export async function POST(request: Request): Promise<Response> {
   if (!alternates || messages.at(-1)?.role !== "user" || !messages.at(-1)?.text) {
     return Response.json({ error: "Messages must alternate and end with the user's" }, { status: 400 });
   }
-  if (await overDailyLimit("recipe-chat", uid, DAILY_LIMIT)) {
-    return tooManyRequests("You've reached today's limit for recipe chat");
+  try {
+    if (await overDailyLimit("recipe-chat", uid, DAILY_LIMIT)) {
+      return tooManyRequests("You've reached today's limit for recipe chat");
+    }
+  } catch (e) {
+    return limitsUnavailable(e);
   }
 
   try {
-    const reply = await chat(messages, { onHand, pantry });
+    const reply = await chat(recentTurns(messages), { onHand, pantry });
     if (!reply) return Response.json({ error: "Couldn't answer that" }, { status: 502 });
     console.log(`uid=${uid} turns=${messages.length} onHand=${onHand.length} pantry=${pantry.length} recipes=${reply.recipes.length}`);
     return Response.json({ reply: reply.reply, recipes: reply.recipes.slice(0, 3) });
