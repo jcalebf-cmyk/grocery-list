@@ -37,10 +37,22 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
 
 ## Backend facts
 
-- Firebase project `grocery-list-d5a77` (Auth: email, Google, Apple-on-iOS-only; Firestore). Email
+- Firebase project `grocery-list-d5a77` (Auth: email, Google, Apple; Firestore; 8-character password minimum). Email
   enumeration protection is on. Password reset must never reveal whether an email has an account (Josh's call);
   email confirmation is optional (a Settings row with Resend, never a sign-up blocker).
   Config files `app/google-services.json` and `ios/Groceries/App/GoogleService-Info.plist` are git-ignored.
+- Several households per account: `households.memberIds` is the truth (apps query `array-contains` uid).
+  `users.householdId` is the one open (per account, so all devices, voice and shares follow it); `users.householdIds`
+  only lets the rules share profiles across households (max 8; synced on launch). Deletes and "which households am I in"
+  always read from the server, never cache. Leaving saves the switch to the next household first.
+- Rules and the apps can be tested locally: the Firestore emulator jar is installed (run `firebase emulators:start` with
+  Android Studio's JBR). Restart it after rules changes; put emulator hooks in a copy of the repo, never in this folder.
+  Multi-household rules published by Josh Nov 24, 2026.
+  Known gap: `joinCode` stays on the household doc, so after one join, someone who knows its ID needs no code.
+- Apple sign-in on Android is a browser page (Services ID `com.householdgroceries.signin`, primary App ID
+  `com.householdgroceries.app`, so it's the same account as on iPhone; Josh confirmed Pixel ↔ the iPhone app on the Mac, Nov 24).
+  It needs a release-signed build: the debug key's SHA-1 isn't in Firebase. Firebase's password policy must match the
+  8-character minimum.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
   `itemStats`, `savedRecipes` (the recipe box); `inviteCodes/{code}`. No longer read, but account deletion
   still removes them: `onHand` (My kitchen, removed in 0.14) and the old suggestions (`recipes/current`, `/preferences`).
@@ -57,8 +69,9 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
   "Share to Groceries": Android's share target opens the paste screen with the text (review, then save); the
   iPhone share extension can't open the app, so it sends `save: true` and the server writes the recipe to the
   user's household with Firebase Admin (checking membership itself, since Admin skips the rules).
-  Endpoints require a Firebase ID token and have per-user daily limits (stores 20, chat 40, import 20) in
-  Vercel Runtime Cache.
+  Endpoints require a Firebase ID token and have per-user daily limits (stores 20, chat 40, import 20) plus app-wide
+  ones (`APP_LIMITS` in `server/lib/rateLimit.ts`), counted in Firestore `rateLimits` (server only). If the count
+  can't be checked the request is refused. Chat sends Claude at most 60 KB of recent conversation.
 - Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down. Since 0.9 the apps
   send exact location (Android asks for precise; approximate still works) and re-measure saved stores' distances.
 - Instacart handoff: investigated (Oct 2026) sending a list's items to Instacart as a shoppable page via
@@ -133,6 +146,9 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
   to the screen (Josh found it nagging).
 - Home, Josh's calls: Shopping lists first (always a header; a "Start a list" card replaces the floating New list
   button when none is going), then a "Past lists" row opening the history, then Recipes.
+- Several households, Josh's calls: a power-user feature, so joining or starting another lives only in Settings (never
+  onboarding); Home shows one at a time, its title a switcher only with 2+; a household you're alone in can be deleted
+  if you have another.
 - Household setup, Josh's call: ask start-or-join first (Join card above Start), never both forms on one screen.
 - Josh's calls: closing out a list just confirms (unchecked items stay on it); swiping left on Home closes out
   active lists and deletes past ones (in Past lists), each after a confirmation;

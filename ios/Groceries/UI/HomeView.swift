@@ -25,6 +25,8 @@ final class HouseholdData {
     /// Saved recipes, newest first.
     var recipes: [Recipe] = []
     var members: [UserProfile] = []
+    /// Every household they're in, by name. Home's title switches between them once there's more than one.
+    var households: [Household] = []
 
     init(user: UserProfile, householdId: String) {
         self.user = user
@@ -37,6 +39,7 @@ final class HouseholdData {
     /// Closed-out lists, newest first. Home shows only how many; Past lists shows them.
     var pastLists: [GroceryList] { lists.filter { !$0.isActive } }
     var yourStores: [Store] { storesInUse(stores, lists: lists) }
+    var otherHouseholds: [Household] { households.filter { $0.id != householdId } }
     var isOwner: Bool { household?.ownerId == user.id }
     var otherMembers: [String: String] {
         members.count > 1 ? Dictionary(uniqueKeysWithValues: members.filter { $0.id != user.id }.map { ($0.id, $0.displayName) }) : [:]
@@ -44,6 +47,8 @@ final class HouseholdData {
 
     func openList(for store: Store?) -> String { groceries.openList(for: store, uid: user.id, activeLists: activeLists).id }
     func openList(forNewStore name: String) -> String { openList(for: groceries.addStore(name, existing: stores)) }
+
+    func switchHousehold(to id: String) { HouseholdService.switchHousehold(uid: user.id, to: id) }
 
     func refreshMembers() async {
         members = await HouseholdService.members(household?.memberIds ?? [])
@@ -60,6 +65,7 @@ struct HomeView: View {
     @State private var closingList: GroceryList?
     @State private var message: String?
     @State private var twoPane = false
+    @State private var width: CGFloat = 375
     @Namespace private var zoom
 
     init(user: UserProfile, householdId: String) {
@@ -96,9 +102,15 @@ struct HomeView: View {
                 }
             }
             .onTwoPaneChange { twoPane = $0 }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .background(Color.warmBackground)
             .navigationTitle(data.household?.name ?? "Groceries")
             .toolbar {
+                if data.households.count > 1 {
+                    ToolbarItem(placement: .largeTitle) { HouseholdTitle(data: data, maxWidth: max(width - 32, 100)) }
+                    // The small title, once scrolled.
+                    ToolbarTitleMenu { HouseholdPicker(data: data) }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(value: Route.settings) { Image(systemName: "gearshape") }
                         .accessibilityLabel("Settings")
@@ -166,6 +178,7 @@ struct HomeView: View {
             path = [.recipe(id)]
         }
         .task(id: data.stores.map(\.name) + data.recipes.map(\.title)) { GroceriesShortcuts.updateAppShortcutParameters() }
+        .task { await consume(HouseholdService.householdsStream(data.user.id)) { v in data.households = v.byName } }
         .task {
             await consume(HouseholdService.household(data.householdId)) { v in
                 data.household = v
@@ -317,6 +330,47 @@ struct HomeView: View {
     }
 
     private func listRow(_ list: GroceryList) -> some View { ListRowView(list: list) }
+}
+
+/// The open household's name, which switches between households when tapped. Android: HouseholdTitle.
+struct HouseholdTitle: View {
+    let data: HouseholdData
+    let maxWidth: CGFloat
+
+    var body: some View {
+        Menu {
+            HouseholdPicker(data: data)
+        } label: {
+            HStack(spacing: 8) {
+                Text(data.household?.name ?? "Groceries").font(.largeTitle.bold()).lineLimit(1)
+                Image(systemName: "chevron.down.circle.fill")
+                    .font(.title3.weight(.semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+            // Told how wide it can be, since the bar lays it out at full length: a long name would be shrunk.
+            .frame(maxWidth: maxWidth, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .tint(.primary)
+        .accessibilityHint("Switches household")
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct HouseholdPicker: View {
+    let data: HouseholdData
+
+    var body: some View {
+        Picker("Household", selection: Binding(
+            get: { data.householdId },
+            set: { if $0 != data.householdId { data.switchHousehold(to: $0) } }
+        )) {
+            ForEach(data.households) { Text($0.name).tag($0.id) }
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+    }
 }
 
 /// A shopping list on Home or in Past lists: store logo, name, and when it started or was closed out.

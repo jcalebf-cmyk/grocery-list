@@ -10,6 +10,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.grocerylist.app.ui.AppIcons
 import androidx.compose.material3.AssistChip
 import androidx.compose.runtime.remember
@@ -67,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.grocerylist.app.data.GroceryList
+import com.grocerylist.app.data.Household
 import com.grocerylist.app.ui.Session
 import com.grocerylist.app.data.NearbyStores
 import com.grocerylist.app.ui.StoreLogo
@@ -109,6 +119,7 @@ fun HomeScreen(
 ) {
     val viewModel: HomeViewModel = viewModel { HomeViewModel(session.householdId, session.user.uid) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val households by viewModel.households.collectAsStateWithLifecycle()
     var pickingStore by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -137,7 +148,12 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(state.householdName.ifEmpty { "Groceries" }, style = MaterialTheme.typography.headlineSmall)
+                    HouseholdTitle(
+                        name = state.householdName.ifEmpty { "Groceries" },
+                        households = households,
+                        openId = session.householdId,
+                        onSwitch = viewModel::switchHousehold,
+                    )
                 },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
@@ -274,6 +290,48 @@ fun HomeScreen(
             openStoreIds = state.activeLists.mapTo(HashSet()) { it.storeId },
             onDismiss = { pickingStore = false },
         )
+    }
+}
+
+/** The open household's name. With more than one, tapping it switches between them. iOS: HouseholdTitle. */
+@Composable
+fun HouseholdTitle(name: String, households: List<Household>, openId: String, onSwitch: (Household) -> Unit) {
+    val title = @Composable { modifier: Modifier ->
+        Text(name, modifier, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    if (households.size < 2) {
+        title(Modifier)
+        return
+    }
+    var choosing by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                // Keeps the name where it sits without the menu, with room around it for the ripple.
+                .offset(x = (-8).dp)
+                .clip(MaterialTheme.shapes.medium)
+                .clickable(onClickLabel = "Switch household", role = Role.DropdownList) { choosing = true }
+                .minimumInteractiveComponentSize()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            title(Modifier.weight(1f, fill = false))
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = choosing, onDismissRequest = { choosing = false }) {
+            households.forEach { household ->
+                val open = household.id == openId
+                DropdownMenuItem(
+                    modifier = Modifier.semantics { selected = open },
+                    text = { Text(household.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { if (open) Icon(Icons.Default.Check, contentDescription = null) else Spacer(Modifier.size(24.dp)) },
+                    onClick = {
+                        choosing = false
+                        if (!open) onSwitch(household)
+                    },
+                )
+            }
+        }
     }
 }
 

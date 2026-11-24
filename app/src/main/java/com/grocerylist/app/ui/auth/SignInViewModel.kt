@@ -1,18 +1,25 @@
 package com.grocerylist.app.ui.auth
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.tasks.Task
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
+import com.google.firebase.auth.AuthResult
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.ServerException
+import com.grocerylist.app.data.isAppleSignInCancelled
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.io.IOException
 
 data class SignInState(
@@ -50,7 +57,8 @@ data class SignInState(
         )
 
     companion object {
-        const val MIN_PASSWORD_LENGTH = 6
+        /** Same as the reset page (account.html) and Firebase's password policy. */
+        const val MIN_PASSWORD_LENGTH = 8
     }
 }
 
@@ -101,9 +109,16 @@ class SignInViewModel : ViewModel() {
 
     fun signInWithGoogle(idToken: String) = run { AppGraph.auth.signInWithGoogle(idToken) }
 
+    fun signInWithApple(signIn: Task<AuthResult>) = run(::appleFailureMessage) { signIn.await() }
+
+    /** Picks an Apple sign-in back up if Android closed the app while its page was open. */
+    fun resumeAppleSignIn() {
+        if (!_state.value.busy) AppGraph.auth.pendingAppleSignIn?.let(::signInWithApple)
+    }
+
     fun showError(e: Throwable) = _state.update { it.copy(busy = false, error = friendlyMessage(e)) }
 
-    private fun run(block: suspend () -> Unit) {
+    private fun run(failureMessage: (Throwable) -> String = ::friendlyMessage, block: suspend () -> Unit) {
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             try {
@@ -112,7 +127,9 @@ class SignInViewModel : ViewModel() {
                 // Otherwise signing out later would reopen the screen with the old details filled in.
                 _state.value = SignInState()
             } catch (e: Exception) {
-                showError(e)
+                Log.w("SignIn", "Sign-in failed", e)
+                val message = if (e.isAppleSignInCancelled) null else failureMessage(e)
+                _state.update { it.copy(busy = false, error = message) }
             }
         }
     }
@@ -123,12 +140,24 @@ class SignInViewModel : ViewModel() {
         else -> "Couldn't send the email. Try again in a few minutes."
     }
 
-    private fun friendlyMessage(e: Throwable) = when (e) {
-        is FirebaseAuthWeakPasswordException -> "Use a password with at least 6 characters."
-        is FirebaseAuthUserCollisionException -> "There's already an account with that email. Try signing in."
-        is FirebaseAuthInvalidCredentialsException, is FirebaseAuthInvalidUserException ->
+    private fun appleFailureMessage(e: Throwable) = when {
+        e is FirebaseAuthUserCollisionException ->
+            "There's already an account with that email. Sign in the way you did before."
+        e is FirebaseNetworkException -> "Couldn't connect. Check your internet and try again."
+        else -> "Couldn't sign in with Apple. Try again, or use another way."
+    }
+
+    private fun friendlyMessage(e: Throwable) = when {
+        e is FirebaseAuthWeakPasswordException || e.breaksPasswordPolicy ->
+            "Use a password with at least ${SignInState.MIN_PASSWORD_LENGTH} characters."
+        e is FirebaseAuthUserCollisionException -> "There's already an account with that email. Try signing in."
+        e is FirebaseAuthInvalidCredentialsException || e is FirebaseAuthInvalidUserException ->
             "That email and password don't match an account."
-        is FirebaseTooManyRequestsException -> "Too many tries. Wait a few minutes and try again."
+        e is FirebaseTooManyRequestsException -> "Too many tries. Wait a few minutes and try again."
         else -> e.localizedMessage ?: "Something went wrong. Try again."
     }
+
+    /** Refused by the password policy set in Firebase, which the form should have caught first. */
+    private val Throwable.breaksPasswordPolicy
+        get() = this is FirebaseAuthException && errorCode == "ERROR_PASSWORD_DOES_NOT_MEET_REQUIREMENTS"
 }

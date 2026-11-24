@@ -2,7 +2,7 @@ import AuthenticationServices
 import SwiftUI
 
 /// Email, Google, and Apple sign-in, and account creation with password confirmation.
-/// Validation matches the Android app: 6-character minimum, and a mismatch shows once it can't become a match.
+/// Validation matches the Android app: 8-character minimum, and a mismatch shows once it can't become a match.
 struct SignInView: View {
     @State private var creatingAccount = false
     @State private var name = ""
@@ -20,7 +20,7 @@ struct SignInView: View {
     @State private var resetError: String?
     @State private var appleNonce = ""
 
-    private let minLength = 6
+    private let minLength = 8 // same as the reset page and Firebase's password policy
     private var passwordTooShort: Bool { creatingAccount && !password.isEmpty && password.count < minLength }
     private var showMismatch: Bool {
         creatingAccount && !confirmPassword.isEmpty && password != confirmPassword &&
@@ -222,7 +222,7 @@ struct SignInView: View {
         let code = (error as NSError).code
         switch code {
         case 17007: return "There's already an account with that email. Try signing in."
-        case 17026: return "Use a password with at least 6 characters."
+        case 17026, 17211: return "Use a password with at least \(minLength) characters."
         case 17004, 17009, 17011: return "That email and password don't match an account."
         case 17010: return "Too many tries. Wait a few minutes and try again."
         case 1001, -5: return "" // user cancelled Apple or Google
@@ -250,9 +250,11 @@ struct SignInView: View {
 /// Start a household or join one with an invite code: the first onboarding step. It asks which first,
 /// then shows just that one field, so nobody starts a second household by mistake. The rest
 /// (OnboardingView) follows on Home once the household is set.
+/// Settings shows the same steps, with `onClose`, to add another household; there's no walkthrough after that.
 /// Android: HouseholdSetupScreen.kt.
 struct HouseholdSetupView: View {
     let user: UserProfile
+    var onClose: (() -> Void)?
     @Environment(SessionModel.self) private var session
 
     private enum Step { case choose, join, start }
@@ -264,13 +266,15 @@ struct HouseholdSetupView: View {
     @State private var error: String?
     @FocusState private var fieldFocused: Bool
 
+    private var adding: Bool { onClose != nil }
+
     var body: some View {
         VStack(spacing: 0) {
             header
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     switch step {
-                    case .choose: choose
+                    case .choose: if adding { chooseAnother } else { choose }
                     case .join: join
                     case .start: start
                     }
@@ -291,7 +295,8 @@ struct HouseholdSetupView: View {
 
     private func go(to next: Step) {
         error = nil
-        if next == .start && householdName.isEmpty { householdName = suggestedHouseholdName(user.displayName) }
+        // Their first household likely has the suggested name already.
+        if next == .start && householdName.isEmpty && !adding { householdName = suggestedHouseholdName(user.displayName) }
         withAnimation(.snappy) { step = next }
         if next != .choose {
             Task { try? await Task.sleep(for: .milliseconds(350)); fieldFocused = true }
@@ -311,9 +316,12 @@ struct HouseholdSetupView: View {
             .disabled(step == .choose || busy)
             .accessibilityLabel("Back")
             Spacer()
+            if let onClose {
+                Button("Cancel", action: onClose).buttonStyle(.glass).disabled(busy)
+            }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.top, adding ? 16 : 8)
     }
 
     private func intro(_ systemImage: String, _ title: String, _ text: String) -> some View {
@@ -344,6 +352,13 @@ struct HouseholdSetupView: View {
             .padding(.top, 8)
     }
 
+    @ViewBuilder private var chooseAnother: some View {
+        intro("person.2.fill", "Another household",
+              "Each household has its own lists, stores, and recipes. Switch between them by tapping the name at the top of Home.")
+        choice("person.2.fill", "Join a household", "Someone sent me an invite code") { go(to: .join) }
+        choice("house.fill", "Start a new household", "I'll invite people to it") { go(to: .start) }
+    }
+
     private func choice(_ systemImage: String, _ title: String, _ subtitle: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 16) {
@@ -368,8 +383,8 @@ struct HouseholdSetupView: View {
     }
 
     @ViewBuilder private var join: some View {
-        intro("person.2.fill", "Join your household",
-              "Ask anyone already in your household for the invite code. They'll find it in Settings.")
+        intro("person.2.fill", adding ? "Join a household" : "Join your household",
+              "Ask anyone already in \(adding ? "the" : "your") household for the invite code. They'll find it in Settings.")
         TextField("6-character invite code", text: $code)
             .font(.system(.title3, design: .monospaced))
             .textInputAutocapitalization(.characters).autocorrectionDisabled()
@@ -409,11 +424,11 @@ struct HouseholdSetupView: View {
     private var canCreate: Bool { !busy && !householdName.trimmed.isEmpty }
 
     private func joinHousehold() {
-        run(.joined) { if try await !HouseholdService.joinHousehold(uid: user.id, code: code) { error = "No household uses that code. Check it and try again." } }
+        run(.joined) { if try await !HouseholdService.joinHousehold(user: user, code: code) { error = "No household uses that code. Check it and try again." } }
     }
 
     private func createHousehold() {
-        run(.created) { try await HouseholdService.createHousehold(uid: user.id, name: householdName) }
+        run(.created) { try await HouseholdService.createHousehold(user: user, name: householdName) }
     }
 
     /// Marks onboarding first: once the household is set, the session moves straight on to Home, which
@@ -421,11 +436,12 @@ struct HouseholdSetupView: View {
     private func run(_ start: OnboardingStart, _ work: @escaping () async throws -> Void) {
         busy = true
         error = nil
-        session.onboarding = start
+        if !adding { session.onboarding = start }
         Task {
             do { try await work() } catch { self.error = error.localizedDescription }
-            if error != nil { session.onboarding = nil }
+            if error != nil && !adding { session.onboarding = nil }
             busy = false
+            if error == nil { onClose?() }
         }
     }
 }

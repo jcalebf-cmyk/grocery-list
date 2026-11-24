@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.GroceryList
+import com.grocerylist.app.data.Household
 import com.grocerylist.app.data.Recipe
 import com.grocerylist.app.data.Store
 import com.grocerylist.app.data.storesInUse
@@ -47,6 +48,12 @@ class HomeViewModel(householdId: String, private val uid: String) : ViewModel() 
             recipes = recipes,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())
+
+    /** Every household they're in; Home's title switches between them once there's more than one. */
+    val households: StateFlow<List<Household>> = AppGraph.households.observeHouseholds(uid)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun switchHousehold(household: Household) = AppGraph.households.switchHousehold(uid, household.id)
 
     fun openListFor(store: Store): String = repo.openListFor(store, uid, state.value.activeLists).id
 

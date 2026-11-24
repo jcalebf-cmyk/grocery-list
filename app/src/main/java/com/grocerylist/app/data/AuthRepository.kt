@@ -1,9 +1,16 @@
 package com.grocerylist.app.data
 
+import android.app.Activity
+import android.util.Log
+import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
+import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthCredential
+import com.google.firebase.auth.OAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.channels.awaitClose
@@ -11,6 +18,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
+
+/** How an account signs in, which is also how it confirms identity before being deleted. */
+enum class SignInProvider { PASSWORD, GOOGLE, APPLE }
+
+/** The user closed Apple's sign-in page. */
+val Throwable.isAppleSignInCancelled: Boolean
+    get() = this is FirebaseAuthException && errorCode == "ERROR_WEB_CONTEXT_CANCELED"
 
 class AuthRepository {
     private val auth = Firebase.auth
@@ -60,11 +74,35 @@ class AuthRepository {
         auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
     }
 
+    /**
+     * Opens Apple's sign-in page in a browser tab (Android has no Apple sheet). Someone who signed up on an
+     * iPhone gets the same account: Apple's ID for a person is the same across one developer team's apps.
+     * The result outlives the activity, which Android may close while the browser is in front.
+     */
+    fun startAppleSignIn(activity: Activity): Task<AuthResult> =
+        auth.startActivityForSignInWithProvider(activity, appleProvider())
+
+    /** An Apple sign-in still finishing after Android closed the app behind the browser, if there is one. */
+    val pendingAppleSignIn: Task<AuthResult>? get() = auth.pendingAuthResult
+
+    private fun appleProvider() = OAuthProvider.newBuilder("apple.com").setScopes(listOf("email", "name")).build()
+
     suspend fun updateDisplayName(name: String) {
         auth.currentUser?.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(name.trim()).build())?.await()
     }
 
-    /** True if the account signs in with a password (otherwise it's Google-only). */
+    /** Same order as iOS's AuthService.provider. */
+    val provider: SignInProvider
+        get() {
+            val ids = auth.currentUser?.providerData?.map { it.providerId }.orEmpty()
+            return when {
+                "apple.com" in ids -> SignInProvider.APPLE
+                EmailAuthProvider.PROVIDER_ID in ids -> SignInProvider.PASSWORD
+                else -> SignInProvider.GOOGLE
+            }
+        }
+
+    /** True if the account signs in with a password (otherwise it's Google or Apple only). */
     val usesPassword: Boolean
         get() = auth.currentUser?.providerData?.any { it.providerId == EmailAuthProvider.PROVIDER_ID } == true
 
@@ -77,6 +115,18 @@ class AuthRepository {
     suspend fun reauthenticateWithGoogle(idToken: String) {
         val user = auth.currentUser ?: error("Not signed in")
         user.reauthenticate(GoogleAuthProvider.getCredential(idToken, null)).await()
+    }
+
+    /**
+     * Also ends the app's access to their Apple account, as Apple asks of apps that delete accounts. Unlike on
+     * iPhone, failing at that doesn't stop the deletion: Apple accounts can drop the app in their own settings.
+     */
+    suspend fun reauthenticateWithApple(activity: Activity) {
+        val user = auth.currentUser ?: error("Not signed in")
+        val result = user.startActivityForReauthenticateWithProvider(activity, appleProvider()).await()
+        val token = (result.credential as? OAuthCredential)?.accessToken ?: return
+        runCatching { auth.revokeAccessToken(token).await() }
+            .onFailure { Log.w("AuthRepository", "Couldn't revoke Apple access", it) }
     }
 
     /** Permanently deletes the login. Call last, after the user's data is gone. */

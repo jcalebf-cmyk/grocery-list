@@ -32,7 +32,7 @@ final class ShareViewController: UIViewController {
 final class ShareModel {
     enum State {
         case reading
-        case saved(title: String)
+        case saved(title: String, householdName: String?)
         case failed(String)
     }
 
@@ -42,6 +42,8 @@ final class ShareModel {
     private struct Response: Decodable {
         struct Recipe: Decodable { let title: String }
         let recipe: Recipe
+        /// Sent when they're in several households, to say which one it went to.
+        let householdName: String?
     }
 
     func run(_ items: [NSExtensionItem]) async {
@@ -63,7 +65,7 @@ final class ShareModel {
         }
         do {
             let response: Response = try await ServerAPI.post("/api/recipe-import", body: Request(text: text, save: true), timeout: 60)
-            state = .saved(title: response.recipe.title)
+            state = .saved(title: response.recipe.title, householdName: response.householdName)
         } catch let error as ServerError {
             let message = switch error.status {
             case 422: "Couldn't find a recipe in that. Share the recipe's text, or a link to a cooking video."
@@ -110,11 +112,11 @@ struct ShareView: View {
                     Text("Reading the recipe…").font(.headline)
                     Text("It's saved to your household's recipes when it's done.")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                case .saved(let title):
+                case .saved(let title, let householdName):
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(Color.accentColor)
                     Text("Saved to Groceries").font(.headline)
                     Text(title).font(.title3.weight(.semibold)).multilineTextAlignment(.center)
-                    Text("Find it under Recipes. You can check and edit it there.")
+                    Text("Find it under Recipes\(householdName.map { " in \($0)" } ?? ""). You can check and edit it there.")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 case .failed(let message):
                     Image(systemName: "exclamationmark.circle").font(.system(size: 48)).foregroundStyle(.secondary)

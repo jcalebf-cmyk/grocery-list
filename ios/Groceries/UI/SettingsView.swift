@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var removing: UserProfile?
     @State private var leaving = false
     @State private var deleting = false
+    @State private var deletingHousehold = false
+    @State private var addingHousehold = false
     @State private var error: String?
     @State private var emailUnconfirmed = false
     @State private var confirmationSent = false
@@ -111,6 +113,30 @@ struct SettingsView: View {
                 Section {
                     Button("Leave household", role: .destructive) { leaving = true }
                 }
+            } else if !data.otherHouseholds.isEmpty, data.household?.memberIds == [data.user.id] {
+                // Nobody else would be left in it, so it can only be deleted, not left.
+                Section {
+                    Button("Delete household", role: .destructive) { deletingHousehold = true }
+                }
+            }
+
+            Section("Other households") {
+                ForEach(data.otherHouseholds) { other in
+                    HStack(spacing: 12) {
+                        Image(systemName: "house.fill").foregroundStyle(.tint).frame(width: 34)
+                        VStack(alignment: .leading) {
+                            Text(other.name)
+                            Text(other.memberIds.count == 1 ? "Just you" : "\(other.memberIds.count) members")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Switch") { data.switchHousehold(to: other.id) }.buttonStyle(.borderless)
+                            .accessibilityLabel("Switch to \(other.name)")
+                    }
+                }
+                if data.households.count < HouseholdService.maxHouseholds {
+                    Button("Join or start another household", systemImage: "plus") { addingHousehold = true }
+                }
             }
 
             Section {
@@ -159,12 +185,24 @@ struct SettingsView: View {
                 leaving = false
                 run {
                     if let newOwner, let household = data.household { try await HouseholdService.transferOwnership(household, to: newOwner.id) }
-                    try await HouseholdService.leave(data.householdId, uid: data.user.id)
+                    try await HouseholdService.leave(data.householdId, uid: data.user.id, next: data.otherHouseholds.first?.id)
                 }
             }
         }
         .sheet(isPresented: $deleting) {
-            DeleteAccountSheet(data: data, others: others)
+            DeleteAccountSheet(data: data)
+        }
+        .sheet(isPresented: $addingHousehold) {
+            HouseholdSetupView(user: data.user, onClose: { addingHousehold = false })
+        }
+        .alert("Delete \(data.household?.name ?? "household")?", isPresented: $deletingHousehold) {
+            Button("Delete", role: .destructive) {
+                guard let next = data.otherHouseholds.first?.id else { return }
+                run { try await HouseholdService.deleteHousehold(data.householdId, uid: data.user.id, next: next) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its lists, stores, and recipes are deleted for good.")
         }
         .alert("Something went wrong", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") {}
@@ -219,28 +257,33 @@ private struct LeaveSheet: View {
 /// sign-in to delete. For Apple accounts this also revokes Sign in with Apple, as Apple requires.
 private struct DeleteAccountSheet: View {
     let data: HouseholdData
-    let others: [UserProfile]
     @State private var password = ""
-    @State private var newOwner: UserProfile?
+    /// Nil until they've been looked up.
+    @State private var households: [AffectedHousehold]?
+    /// Household ID to new owner.
+    @State private var newOwners: [String: String] = [:]
     @State private var working = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
 
-    private var shared: Bool { !others.isEmpty }
-    private var needsNewOwner: Bool { shared && data.isOwner }
+    private var needOwner: [AffectedHousehold] { (households ?? []).filter(\.needsNewOwner) }
     private var provider: AuthService.Provider { AuthService.provider }
 
     var body: some View {
         NavigationStack {
             Form {
-                Text(shared
-                     ? "This permanently deletes your account and removes you from \(data.household?.name ?? "your household"). Its lists stay with the other members."
-                     : "This permanently deletes your account and \(data.household?.name ?? "your household"), including all of its lists, stores, and recipes. This can't be undone.")
-                if needsNewOwner {
-                    Picker("Who takes over?", selection: $newOwner) {
-                        ForEach(others) { Text($0.displayName).tag(Optional($0)) }
+                if let households {
+                    Text(accountDeletionText(deleted: households.filter(\.solo).map(\.household.name),
+                                             left: households.filter { !$0.solo }.map(\.household.name)))
+                    ForEach(needOwner) { affected in
+                        Picker(households.count > 1 ? "Who takes over \(affected.household.name)?" : "Who takes over?",
+                               selection: $newOwners[affected.id]) {
+                            ForEach(affected.others) { Text($0.displayName).tag(Optional($0.id)) }
+                        }
+                        .pickerStyle(.inline)
                     }
-                    .pickerStyle(.inline)
+                } else if error == nil {
+                    Text("Checking your households…").foregroundStyle(.secondary)
                 }
                 Section {
                     switch provider {
@@ -257,10 +300,21 @@ private struct DeleteAccountSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(working ? "Deleting…" : "Delete", role: .destructive, action: delete)
-                        .disabled(working || (needsNewOwner && newOwner == nil) || (provider == .password && password.isEmpty))
+                        .disabled(working || households == nil || needOwner.contains { newOwners[$0.id] == nil } || (provider == .password && password.isEmpty))
                 }
             }
-            .onAppear { if needsNewOwner && others.count == 1 { newOwner = others.first } }
+            .task {
+                do {
+                    let found = try await AccountDeletion.affectedHouseholds(uid: data.user.id)
+                    // The only other member is the only choice.
+                    for affected in found where affected.needsNewOwner && affected.others.count == 1 {
+                        newOwners[affected.id] = affected.others[0].id
+                    }
+                    households = found
+                } catch {
+                    self.error = "Couldn't look up your households. Check your connection and try again."
+                }
+            }
         }
         .interactiveDismissDisabled(working)
     }
@@ -278,7 +332,7 @@ private struct DeleteAccountSheet: View {
             }
             do {
                 // Deleting changes the session, which closes these screens; that's expected.
-                try await AccountDeletion.deleteAccount(uid: data.user.id, householdId: data.householdId, newOwner: newOwner?.id)
+                try await AccountDeletion.deleteAccount(uid: data.user.id, currentHouseholdId: data.householdId, newOwners: newOwners)
             } catch {
                 self.error = "Couldn't finish deleting your account. Try again."
                 working = false

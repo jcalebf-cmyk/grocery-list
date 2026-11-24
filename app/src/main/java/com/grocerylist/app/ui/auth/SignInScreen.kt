@@ -1,5 +1,6 @@
 package com.grocerylist.app.ui.auth
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
 import com.grocerylist.app.ui.ReadableWidth
@@ -33,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.grocerylist.app.AppGraph
 import com.grocerylist.app.ui.AppIcons
 import kotlinx.coroutines.launch
 
@@ -58,10 +61,12 @@ import kotlinx.coroutines.launch
 fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var resetEmail by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { viewModel.resumeAppleSignIn() }
 
     Column(
         Modifier
@@ -105,6 +110,20 @@ fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
             Image(painterResource(R.drawable.ic_google_g), contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
             Text("Continue with Google")
+        }
+        OutlinedButton(
+            onClick = { activity?.let { viewModel.signInWithApple(AppGraph.auth.startAppleSignIn(it)) } },
+            enabled = !state.busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_apple),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.width(12.dp))
+            Text("Continue with Apple")
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))

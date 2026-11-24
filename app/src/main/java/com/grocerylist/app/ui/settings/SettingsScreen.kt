@@ -6,6 +6,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import com.grocerylist.app.ui.auth.requestGoogleIdToken
 import com.grocerylist.app.data.NearbyStores
 import com.grocerylist.app.data.AccountDeletion
+import com.grocerylist.app.data.AffectedHousehold
+import com.grocerylist.app.data.HouseholdRepository
+import com.grocerylist.app.data.accountDeletionText
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -85,6 +92,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.grocerylist.app.data.isAppleSignInCancelled
+import com.grocerylist.app.data.SignInProvider
+import androidx.activity.compose.LocalActivity
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModel(private val householdId: String, private val uid: String) : ViewModel() {
@@ -130,13 +140,55 @@ class SettingsViewModel(private val householdId: String, private val uid: String
         household.value?.let { households.transferOwnership(it, member.uid) }
     }
 
-    // On success the session moves to household setup, so there's nothing else to do here.
-    fun leave() = run("Couldn't leave the household") { households.leaveHousehold(householdId, uid) }
+    /** Every household they're in, this one included. */
+    val mine = households.observeHouseholds(uid)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The household that opens when this one is left or deleted. */
+    private val next get() = mine.value.firstOrNull { it.id != householdId }?.id
+
+    fun switchHousehold(household: Household) = households.switchHousehold(uid, household.id)
+
+    // On success the session moves to another household, or to setup, so there's nothing else to do here.
+    fun leave(context: Context) = finish(context, "Couldn't leave the household. Try again.") { next ->
+        households.leaveHousehold(householdId, uid, next)
+    }
+
+    fun deleteHousehold(context: Context) = finish(context, "Couldn't finish deleting the household. Try again.") { next ->
+        households.deleteHousehold(householdId, uid, next ?: return@finish)
+    }
+
+    /** Runs in the app-wide scope: another household opens partway through, which closes this screen. */
+    private fun finish(context: Context, failure: String, block: suspend (next: String?) -> Unit) {
+        val appContext = context.applicationContext
+        val next = next
+        AppGraph.appScope.launch {
+            try {
+                block(next)
+            } catch (e: Exception) {
+                Log.w("Settings", failure, e)
+                Toast.makeText(appContext, failure, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     /** The owner hands ownership over first; the rules don't let an owner leave directly. */
-    fun makeOwnerAndLeave(member: UserProfile) = run("Couldn't leave the household") {
+    fun makeOwnerAndLeave(context: Context, member: UserProfile) = finish(context, "Couldn't leave the household. Try again.") { next ->
         household.value?.let { households.transferOwnership(it, member.uid) }
-        households.leaveHousehold(householdId, uid)
+        households.leaveHousehold(householdId, uid, next)
+    }
+
+    /** Null until the delete-account confirmation has looked them up. */
+    val affected = MutableStateFlow<List<AffectedHousehold>?>(null)
+
+    fun loadAffected() {
+        viewModelScope.launch {
+            try {
+                affected.value = AccountDeletion.affectedHouseholds(uid)
+            } catch (_: Exception) {
+                deleteError.value = "Couldn't look up your households. Check your connection and try again."
+            }
+        }
     }
 
     val deleting = MutableStateFlow(false)
@@ -146,7 +198,7 @@ class SettingsViewModel(private val householdId: String, private val uid: String
      * Confirms identity with [reauthenticate], then deletes everything. Once identity is confirmed the
      * rest runs in the app-wide scope: deleting changes the session, which closes this screen mid-way.
      */
-    fun deleteAccount(context: Context, newOwner: UserProfile?, reauthenticate: suspend () -> Unit) {
+    fun deleteAccount(context: Context, newOwners: Map<String, String>, reauthenticate: suspend () -> Unit) {
         val appContext = context.applicationContext
         viewModelScope.launch {
             deleting.value = true
@@ -157,17 +209,18 @@ class SettingsViewModel(private val householdId: String, private val uid: String
                 deleting.value = false
                 return@launch
             } catch (e: Exception) {
-                deleteError.value = if (e is FirebaseAuthInvalidCredentialsException) {
-                    "That password isn't right."
-                } else {
-                    "Couldn't confirm it's you. Try again."
+                deleteError.value = when {
+                    e.isAppleSignInCancelled -> null
+                    e is FirebaseAuthInvalidCredentialsException && AppGraph.auth.provider == SignInProvider.PASSWORD ->
+                        "That password isn't right."
+                    else -> "Couldn't confirm it's you. Try again."
                 }
                 deleting.value = false
                 return@launch
             }
             AppGraph.appScope.launch {
                 try {
-                    AccountDeletion.deleteAccount(uid, householdId, newOwner)
+                    AccountDeletion.deleteAccount(uid, householdId, newOwners)
                     NearbyStores.clear(appContext)
                 } catch (e: Exception) {
                     Log.w("AccountDeletion", "Account deletion failed", e)
@@ -190,7 +243,7 @@ class SettingsViewModel(private val householdId: String, private val uid: String
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> Unit) {
+fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onAddHousehold: () -> Unit, onSignOut: () -> Unit) {
     val viewModel: SettingsViewModel = viewModel { SettingsViewModel(session.householdId, session.user.uid) }
     val household by viewModel.household.collectAsStateWithLifecycle()
     val members by viewModel.members.collectAsStateWithLifecycle()
@@ -198,12 +251,15 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
     val isOwner = household?.ownerId == session.user.uid
     // Members and leaving only matter once someone else has joined; alone, leaving would just strand your lists.
     val shared = members.size > 1
+    val mine by viewModel.mine.collectAsStateWithLifecycle()
+    val otherHouseholds = mine.filter { it.id != session.householdId }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.errorMessages.collect { snackbar.showSnackbar(it) } }
 
     var editingName by rememberSaveable { mutableStateOf(false) }
     var renamingHousehold by rememberSaveable { mutableStateOf(false) }
     var confirmingLeave by rememberSaveable { mutableStateOf(false) }
+    var confirmingDeleteHousehold by rememberSaveable { mutableStateOf(false) }
     var removing by remember { mutableStateOf<UserProfile?>(null) }
     var promoting by remember { mutableStateOf<UserProfile?>(null) }
     var confirmingDelete by rememberSaveable { mutableStateOf(false) }
@@ -314,6 +370,33 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
                     ) { Text("Leave household", color = MaterialTheme.colorScheme.error) }
                 }
+            } else if (otherHouseholds.isNotEmpty() && household?.memberIds == listOf(session.user.uid)) {
+                // Nobody else would be left in it, so it can only be deleted, not left.
+                item {
+                    TextButton(
+                        onClick = { confirmingDeleteHousehold = true },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
+                    ) { Text("Delete household", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+
+            item { SectionTitle("Other households") }
+            items(otherHouseholds, key = { "household-${it.id}" }) { other ->
+                SettingsRow(
+                    title = other.name,
+                    subtitle = if (other.memberIds.size == 1) "Just you" else "${other.memberIds.size} members",
+                    leading = { Icon(Icons.Default.Home, contentDescription = null) },
+                    trailing = { TextButton(onClick = { viewModel.switchHousehold(other) }) { Text("Switch") } },
+                )
+            }
+            if (mine.size < HouseholdRepository.MAX_HOUSEHOLDS) {
+                item {
+                    SettingsRow(
+                        title = "Join or start another household",
+                        leading = { Icon(Icons.Default.Add, contentDescription = null) },
+                        onClick = onAddHousehold,
+                    )
+                }
             }
 
             item {
@@ -364,26 +447,43 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
             onDismiss = { removing = null },
         )
     }
+    if (confirmingDeleteHousehold) {
+        val context = LocalContext.current
+        ConfirmDialog(
+            title = "Delete ${household?.name ?: "household"}?",
+            text = "Its lists, stores, and recipes are deleted for good.",
+            confirm = "Delete",
+            onConfirm = {
+                confirmingDeleteHousehold = false
+                viewModel.deleteHousehold(context)
+            },
+            onDismiss = { confirmingDeleteHousehold = false },
+        )
+    }
     if (confirmingDelete) {
         val context = LocalContext.current
+        val activity = LocalActivity.current
+        val provider = AppGraph.auth.provider
+        LaunchedEffect(Unit) { viewModel.loadAffected() }
         DeleteAccountDialog(
-            householdName = household?.name ?: "your household",
-            shared = shared,
-            isOwner = isOwner,
-            candidates = members.filter { it.uid != session.user.uid },
-            usesPassword = AppGraph.auth.usesPassword,
+            provider = provider,
             viewModel = viewModel,
-            onDeleteWithPassword = { password, newOwner ->
-                viewModel.deleteAccount(context, newOwner) { AppGraph.auth.reauthenticateWithPassword(password) }
+            onDeleteWithPassword = { password, newOwners ->
+                viewModel.deleteAccount(context, newOwners) { AppGraph.auth.reauthenticateWithPassword(password) }
             },
-            onDeleteWithGoogle = { newOwner ->
-                viewModel.deleteAccount(context, newOwner) {
-                    AppGraph.auth.reauthenticateWithGoogle(requestGoogleIdToken(context))
+            onDeleteWithProvider = { newOwners ->
+                viewModel.deleteAccount(context, newOwners) {
+                    if (provider == SignInProvider.APPLE) {
+                        AppGraph.auth.reauthenticateWithApple(checkNotNull(activity))
+                    } else {
+                        AppGraph.auth.reauthenticateWithGoogle(requestGoogleIdToken(context))
+                    }
                 }
             },
             onDismiss = {
                 confirmingDelete = false
                 viewModel.deleteError.value = null
+                viewModel.affected.value = null
             },
         )
     }
@@ -402,13 +502,14 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
         )
     }
     if (confirmingLeave && shared) {
+        val context = LocalContext.current
         if (isOwner) {
             ChooseNewOwnerDialog(
                 householdName = household?.name ?: "household",
                 candidates = members.filter { it.uid != session.user.uid },
                 onConfirm = { newOwner ->
                     confirmingLeave = false
-                    viewModel.makeOwnerAndLeave(newOwner)
+                    viewModel.makeOwnerAndLeave(context, newOwner)
                 },
                 onDismiss = { confirmingLeave = false },
             )
@@ -419,7 +520,7 @@ fun SettingsScreen(session: Session.Ready, onBack: () -> Unit, onSignOut: () -> 
                 confirm = "Leave",
                 onConfirm = {
                     confirmingLeave = false
-                    viewModel.leave()
+                    viewModel.leave(context)
                 },
                 onDismiss = { confirmingLeave = false },
             )
@@ -616,53 +717,63 @@ private fun ChooseNewOwnerDialog(
 }
 
 /**
- * Explains what deletion removes, picks a new owner if needed, and confirms identity
- * (password or Google) as the final step, since Firebase requires a fresh sign-in to delete.
+ * Explains what deletion removes, picks new owners if needed, and confirms identity
+ * (password, Google, or Apple) as the final step, since Firebase requires a fresh sign-in to delete.
  */
 @Composable
 private fun DeleteAccountDialog(
-    householdName: String,
-    shared: Boolean,
-    isOwner: Boolean,
-    candidates: List<UserProfile>,
-    usesPassword: Boolean,
+    provider: SignInProvider,
     viewModel: SettingsViewModel,
-    onDeleteWithPassword: (String, UserProfile?) -> Unit,
-    onDeleteWithGoogle: (UserProfile?) -> Unit,
+    onDeleteWithPassword: (String, Map<String, String>) -> Unit,
+    onDeleteWithProvider: (Map<String, String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val usesPassword = provider == SignInProvider.PASSWORD
+    val providerName = if (provider == SignInProvider.APPLE) "Apple" else "Google"
     val deleting by viewModel.deleting.collectAsStateWithLifecycle()
     val error by viewModel.deleteError.collectAsStateWithLifecycle()
     var password by rememberSaveable { mutableStateOf("") }
-    val needsNewOwner = shared && isOwner
-    var newOwner by remember { mutableStateOf(if (needsNewOwner) candidates.singleOrNull() else null) }
-    val ready = !deleting && (!needsNewOwner || newOwner != null) && (!usesPassword || password.isNotEmpty())
+    val affected by viewModel.affected.collectAsStateWithLifecycle()
+    val households = affected.orEmpty()
+    val needOwner = households.filter { it.needsNewOwner }
+    // Household ID to new owner. The only other member is the only choice.
+    var chosen by remember { mutableStateOf(emptyMap<String, String>()) }
+    val newOwners = needOwner.mapNotNull { a ->
+        (chosen[a.household.id] ?: a.others.singleOrNull()?.uid)?.let { a.household.id to it }
+    }.toMap()
+    val ready = !deleting && affected != null && newOwners.size == needOwner.size && (!usesPassword || password.isNotEmpty())
 
     AlertDialog(
         onDismissRequest = { if (!deleting) onDismiss() },
         title = { Text("Delete your account?") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    if (shared) {
-                        "This permanently deletes your account and removes you from $householdName. " +
-                            "Its lists stay with the other members."
-                    } else {
-                        "This permanently deletes your account and $householdName, including all of its " +
-                            "lists, stores, and recipes. This can't be undone."
-                    },
-                )
-                if (needsNewOwner) {
-                    Text("You're the owner. Choose who takes over:", style = MaterialTheme.typography.titleSmall)
-                    candidates.forEach { member ->
+            // Scrolls: several households can each need a new owner.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (affected == null) {
+                    if (error == null) Text("Checking your households…")
+                } else {
+                    val (solo, shared) = households.partition { it.solo }
+                    Text(accountDeletionText(solo.map { it.household.name }, shared.map { it.household.name }))
+                }
+                needOwner.forEach { a ->
+                    Text(
+                        if (households.size > 1) {
+                            "You're the owner of ${a.household.name}. Choose who takes over:"
+                        } else {
+                            "You're the owner. Choose who takes over:"
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    a.others.forEach { member ->
+                        val choose = { chosen = chosen + (a.household.id to member.uid) }
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(MaterialTheme.shapes.small)
-                                .clickable { newOwner = member },
+                                .clickable(onClick = choose),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected = newOwner?.uid == member.uid, onClick = { newOwner = member })
+                            RadioButton(selected = newOwners[a.household.id] == member.uid, onClick = choose)
                             Text(member.displayName)
                         }
                     }
@@ -679,21 +790,21 @@ private fun DeleteAccountDialog(
                         enabled = !deleting,
                     )
                 } else {
-                    Text("You'll confirm with Google before anything is deleted.", style = MaterialTheme.typography.bodySmall)
+                    Text("You'll confirm with $providerName before anything is deleted.", style = MaterialTheme.typography.bodySmall)
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { if (usesPassword) onDeleteWithPassword(password, newOwner) else onDeleteWithGoogle(newOwner) },
+                onClick = { if (usesPassword) onDeleteWithPassword(password, newOwners) else onDeleteWithProvider(newOwners) },
                 enabled = ready,
             ) {
                 Text(
                     when {
                         deleting -> "Deleting…"
                         usesPassword -> "Delete account"
-                        else -> "Confirm with Google & delete"
+                        else -> "Confirm with $providerName & delete"
                     },
                     color = MaterialTheme.colorScheme.error,
                 )

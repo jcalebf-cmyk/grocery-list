@@ -22,7 +22,8 @@ const DAILY_LIMIT = 20;
  * - source "youtube": copied from the video's description or the creator's comment, as they wrote it.
  * - source "ai": the creator didn't post the recipe, so Claude wrote one for the dish in the video's title.
  * `video` ({ url, title, channel }) comes with the last two. With `save: true` the recipe also goes into the
- * user's household recipe box, and `savedId` is its ID.
+ * recipe box of the household the user has open; `savedId` is its ID, and `householdName` comes too if they're
+ * in several households.
  */
 export async function POST(request: Request): Promise<Response> {
   const uid = await verifyFirebaseUser(request);
@@ -45,25 +46,26 @@ export async function POST(request: Request): Promise<Response> {
       console.log(`uid=${uid} video=${videoId} comments=${video.creatorComments.length} found=${result != null} fromCreator=${result?.fromCreator}`);
       if (!result) return Response.json({ error: "That doesn't look like a cooking video" }, { status: 422 });
       const source = result.fromCreator ? "youtube" : "ai";
-      const savedId = save
+      const saved = save
         ? await saveToRecipeBox(uid, result.recipe, { source, originalText: "", sourceUrl: video.url, sourceName: video.channel })
         : undefined;
-      if (savedId === null) return Response.json({ error: "Join a household first" }, { status: 409 });
+      if (saved === null) return Response.json({ error: "Join a household first" }, { status: 409 });
       return Response.json({
         recipe: result.recipe,
         source,
         video: { url: video.url, title: video.title, channel: video.channel },
-        savedId,
+        savedId: saved?.id,
+        householdName: saved?.householdName,
       });
     }
     const recipe = await importRecipe(text);
     console.log(`uid=${uid} chars=${text.length} found=${recipe != null} ingredients=${recipe?.ingredients.length ?? 0}`);
     if (!recipe) return Response.json({ error: "That doesn't look like a recipe" }, { status: 422 });
-    const savedId = save
+    const saved = save
       ? await saveToRecipeBox(uid, recipe, { source: "pasted", originalText: text, sourceUrl: "", sourceName: "" })
       : undefined;
-    if (savedId === null) return Response.json({ error: "Join a household first" }, { status: 409 });
-    return Response.json({ recipe, source: "pasted", savedId });
+    if (saved === null) return Response.json({ error: "Join a household first" }, { status: 409 });
+    return Response.json({ recipe, source: "pasted", savedId: saved?.id, householdName: saved?.householdName });
   } catch (e) {
     console.error("recipe import failed", e);
     return Response.json({ error: "Couldn't read that recipe right now" }, { status: 502 });

@@ -9,7 +9,13 @@ data class UserProfile(
     @DocumentId val uid: String = "",
     val displayName: String = "",
     val email: String = "",
+    /** The household they have open. Someone can be in several and switch between them. */
     val householdId: String? = null,
+    /**
+     * Every household they're in, so security rules let people in any of them read this profile. The households'
+     * own member lists are what counts; this copy is brought up to date on launch.
+     */
+    val householdIds: List<String> = emptyList(),
 )
 
 data class Household(

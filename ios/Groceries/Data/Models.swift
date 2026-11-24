@@ -8,7 +8,11 @@ struct UserProfile: Codable, Identifiable, Hashable {
     @DocumentID var uid: String?
     var displayName: String = ""
     var email: String = ""
+    /// The household they have open. Someone can be in several and switch between them.
     var householdId: String?
+    /// Every household they're in, so security rules let people in any of them read this profile. The
+    /// households' own member lists are what counts; this copy is brought up to date on launch.
+    var householdIds: [String]?
 
     var id: String { uid ?? "" }
 }

@@ -69,14 +69,16 @@ import com.grocerylist.app.ui.onboarding.OnboardingStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-class HouseholdSetupViewModel : ViewModel() {
+/** [adding]: it's another household for someone who already has one, so there's no walkthrough after. */
+class HouseholdSetupViewModel(private val adding: Boolean) : ViewModel() {
     val busy = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
+    val done = MutableStateFlow(false)
 
-    fun create(uid: String, name: String) = run(OnboardingStart.CREATED) { AppGraph.households.createHousehold(uid, name) }
+    fun create(user: UserProfile, name: String) = run(OnboardingStart.CREATED) { AppGraph.households.createHousehold(user, name) }
 
-    fun join(uid: String, code: String) = run(OnboardingStart.JOINED) {
-        if (!AppGraph.households.joinHousehold(uid, code)) error.value = "No household uses that code. Check it and try again."
+    fun join(user: UserProfile, code: String) = run(OnboardingStart.JOINED) {
+        if (!AppGraph.households.joinHousehold(user, code)) error.value = "No household uses that code. Check it and try again."
     }
 
     fun clearError() {
@@ -87,14 +89,15 @@ class HouseholdSetupViewModel : ViewModel() {
     private fun run(start: OnboardingStart, block: suspend () -> Unit) {
         busy.value = true
         error.value = null
-        Onboarding.pending.value = start
+        if (!adding) Onboarding.pending.value = start
         viewModelScope.launch {
             try {
                 block()
             } catch (e: Exception) {
                 error.value = e.localizedMessage ?: "Something went wrong. Try again."
             } finally {
-                if (error.value != null) Onboarding.pending.value = null
+                if (error.value != null && !adding) Onboarding.pending.value = null
+                done.value = error.value == null
                 busy.value = false
             }
         }
@@ -120,11 +123,52 @@ private enum class SetupStep { CHOOSE, JOIN, START }
  * iOS: HouseholdSetupView in SignInView.swift.
  */
 @Composable
-fun HouseholdSetupScreen(
+fun HouseholdSetupScreen(user: UserProfile, onSignOut: () -> Unit) {
+    SetupSteps(user, viewModel(key = "setup") { HouseholdSetupViewModel(adding = false) }, onClose = null) { onJoin, onStart ->
+        Intro(
+            AppIcons.Group,
+            "Welcome, ${user.displayName}",
+            "Groceries keeps one shared list for your whole household, updated live as anyone adds or checks off items.",
+        )
+        Text(
+            "Is someone in your household already using Groceries?",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        ChoiceCard(AppIcons.Group, "Join my household", "Yes, someone sent me an invite code", onJoin)
+        ChoiceCard(Icons.Default.Home, "Start a new household", "No, I'm the first one here", onStart)
+        TextButton(onClick = onSignOut, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)) {
+            Text("Sign out")
+        }
+    }
+}
+
+/** The same steps from Settings, for someone adding another household to the ones they have. */
+@Composable
+fun AddHouseholdScreen(user: UserProfile, onClose: () -> Unit, onAdded: () -> Unit) {
+    val viewModel: HouseholdSetupViewModel = viewModel { HouseholdSetupViewModel(adding = true) }
+    val done by viewModel.done.collectAsStateWithLifecycle()
+    LaunchedEffect(done) { if (done) onAdded() }
+    SetupSteps(user, viewModel, onClose) { onJoin, onStart ->
+        Intro(
+            AppIcons.Group,
+            "Another household",
+            "Each household has its own lists, stores, and recipes. Switch between them by tapping the name at the top of Home.",
+        )
+        ChoiceCard(AppIcons.Group, "Join a household", "Someone sent me an invite code", onJoin)
+        ChoiceCard(Icons.Default.Home, "Start a new household", "I'll invite people to it", onStart)
+    }
+}
+
+/** [onClose] backs out of the first step; null when there's nowhere to go back to. */
+@Composable
+private fun SetupSteps(
     user: UserProfile,
-    onSignOut: () -> Unit,
-    viewModel: HouseholdSetupViewModel = viewModel(),
+    viewModel: HouseholdSetupViewModel,
+    onClose: (() -> Unit)?,
+    choose: @Composable ColumnScope.(onJoin: () -> Unit, onStart: () -> Unit) -> Unit,
 ) {
+    val adding = onClose != null
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     var step by rememberSaveable { mutableStateOf(SetupStep.CHOOSE) }
@@ -138,9 +182,9 @@ fun HouseholdSetupScreen(
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().wrapContentWidth().widthIn(max = ReadableWidth)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-            val canGoBack = step != SetupStep.CHOOSE
+            val canGoBack = step != SetupStep.CHOOSE || onClose != null
             IconButton(
-                onClick = { goTo(SetupStep.CHOOSE) },
+                onClick = { if (step == SetupStep.CHOOSE) onClose?.invoke() else goTo(SetupStep.CHOOSE) },
                 enabled = canGoBack && !busy,
                 modifier = Modifier.alpha(if (canGoBack) 1f else 0f),
             ) {
@@ -162,9 +206,15 @@ fun HouseholdSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 when (shown) {
-                    SetupStep.CHOOSE -> ChooseStep(user, onJoin = { goTo(SetupStep.JOIN) }, onStart = { goTo(SetupStep.START) }, onSignOut)
-                    SetupStep.JOIN -> JoinStep(busy, error, onJoin = { viewModel.join(user.uid, it) })
-                    SetupStep.START -> StartStep(user, busy, error, onCreate = { viewModel.create(user.uid, it) })
+                    SetupStep.CHOOSE -> choose({ goTo(SetupStep.JOIN) }, { goTo(SetupStep.START) })
+                    SetupStep.JOIN -> JoinStep(adding, busy, error, onJoin = { viewModel.join(user, it) })
+                    SetupStep.START -> StartStep(
+                        // Their first household likely has the suggested name already.
+                        suggested = if (adding) "" else suggestedHouseholdName(user.displayName),
+                        busy,
+                        error,
+                        onCreate = { viewModel.create(user, it) },
+                    )
                 }
             }
         }
@@ -183,25 +233,6 @@ private fun ColumnScope.Intro(icon: ImageVector, title: String, text: String) {
     }
     Text(title, style = MaterialTheme.typography.headlineMedium)
     Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-@Composable
-private fun ColumnScope.ChooseStep(user: UserProfile, onJoin: () -> Unit, onStart: () -> Unit, onSignOut: () -> Unit) {
-    Intro(
-        AppIcons.Group,
-        "Welcome, ${user.displayName}",
-        "Groceries keeps one shared list for your whole household, updated live as anyone adds or checks off items.",
-    )
-    Text(
-        "Is someone in your household already using Groceries?",
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 8.dp),
-    )
-    ChoiceCard(AppIcons.Group, "Join my household", "Yes, someone sent me an invite code", onJoin)
-    ChoiceCard(Icons.Default.Home, "Start a new household", "No, I'm the first one here", onStart)
-    TextButton(onClick = onSignOut, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)) {
-        Text("Sign out")
-    }
 }
 
 @Composable
@@ -234,7 +265,7 @@ private fun ChoiceCard(icon: ImageVector, title: String, subtitle: String, onCli
 }
 
 @Composable
-private fun ColumnScope.JoinStep(busy: Boolean, error: String?, onJoin: (String) -> Unit) {
+private fun ColumnScope.JoinStep(adding: Boolean, busy: Boolean, error: String?, onJoin: (String) -> Unit) {
     var code by rememberSaveable { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -242,8 +273,8 @@ private fun ColumnScope.JoinStep(busy: Boolean, error: String?, onJoin: (String)
 
     Intro(
         AppIcons.Group,
-        "Join your household",
-        "Ask anyone already in your household for the invite code. They'll find it in Settings.",
+        if (adding) "Join a household" else "Join your household",
+        "Ask anyone already in ${if (adding) "the" else "your"} household for the invite code. They'll find it in Settings.",
     )
     OutlinedTextField(
         value = code,
@@ -262,9 +293,8 @@ private fun ColumnScope.JoinStep(busy: Boolean, error: String?, onJoin: (String)
 }
 
 @Composable
-private fun ColumnScope.StartStep(user: UserProfile, busy: Boolean, error: String?, onCreate: (String) -> Unit) {
+private fun ColumnScope.StartStep(suggested: String, busy: Boolean, error: String?, onCreate: (String) -> Unit) {
     var name by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        val suggested = suggestedHouseholdName(user.displayName)
         mutableStateOf(TextFieldValue(suggested, TextRange(suggested.length)))
     }
     val focus = remember { FocusRequester() }

@@ -10,12 +10,21 @@ service cloud.firestore {
     // For writes: checks membership as it will be after this write/batch commits,
     // so creating a household and its first stores can happen in one batch.
     function memberAfter(hid) { return uid() in getAfter(householdPath(hid)).data.memberIds; }
+    // Whether you belong to any of these households. Rules can't loop, and a request may only look up 10
+    // documents, so this stops at 8 (MAX_HOUSEHOLDS in the apps).
+    function sharesAny(hids) {
+      return inNth(hids, 0) || inNth(hids, 1) || inNth(hids, 2) || inNth(hids, 3)
+        || inNth(hids, 4) || inNth(hids, 5) || inNth(hids, 6) || inNth(hids, 7);
+    }
+    function inNth(hids, i) { return hids.size() > i && memberOf(hids[i]); }
 
     match /users/{userId} {
-      // You can read your own profile, plus profiles of people in your household.
+      // You can read your own profile, plus profiles of people you share a household with: the one they have
+      // open (householdId) or any other they're in (householdIds, added in 0.17).
       allow read: if signedIn() && (
         userId == uid() ||
-        (resource.data.get('householdId', null) != null && memberOf(resource.data.householdId))
+        (resource.data.get('householdId', null) != null && memberOf(resource.data.householdId)) ||
+        sharesAny(resource.data.get('householdIds', []))
       );
       // You can only edit your own profile, and only point it at a household you belong to.
       allow create, update: if signedIn() && userId == uid() && (
@@ -32,14 +41,14 @@ service cloud.firestore {
       allow create: if signedIn()
         && memberAfter(request.resource.data.householdId)
         && getAfter(householdPath(request.resource.data.householdId)).data.inviteCode == code;
-      // Removed along with a household when its only member deletes their account.
+      // Removed along with a household when its only member deletes it or their account.
       allow delete: if signedIn() && get(householdPath(resource.data.householdId)).data.memberIds == [uid()];
     }
 
     match /households/{hid} {
       allow read: if signedIn() && uid() in resource.data.memberIds;
       allow create: if signedIn() && request.resource.data.memberIds == [uid()];
-      // Only when the last member deletes their account (its contents are deleted first).
+      // Only by its last member, deleting the household or their account (its contents are deleted first).
       allow delete: if signedIn() && resource.data.memberIds == [uid()];
       allow update: if signedIn() && (
         // Members can rename the household.
@@ -74,8 +83,9 @@ service cloud.firestore {
           && request.resource.data.memberIds[0] == uid())
       );
 
-      // Stores, lists, items, and item stats: members only.
-      match /{document=**} {
+      // Stores, lists, items, item stats and recipes: members only. The {collection} part matters: a bare
+      // {document=**} also matches the household itself, which let anyone add themselves without the code.
+      match /{collection}/{document=**} {
         allow read: if signedIn() && memberOf(hid);
         allow write: if signedIn() && memberAfter(hid);
       }

@@ -15,6 +15,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +33,7 @@ import androidx.navigation.compose.rememberNavController
 import com.grocerylist.app.ui.auth.SignInScreen
 import com.grocerylist.app.ui.home.HomeScreen
 import com.grocerylist.app.ui.home.PastListsScreen
+import com.grocerylist.app.ui.household.AddHouseholdScreen
 import com.grocerylist.app.ui.household.HouseholdSetupScreen
 import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
@@ -39,6 +44,7 @@ import com.grocerylist.app.ui.recipe.AllRecipesScreen
 import com.grocerylist.app.ui.recipe.RecipeChatScreen
 import com.grocerylist.app.ui.recipe.RecipeEditScreen
 import com.grocerylist.app.ui.recipe.RecipeScreen
+import kotlinx.coroutines.delay
 
 @Composable
 fun GroceryApp(sessionViewModel: SessionViewModel = viewModel()) {
@@ -46,12 +52,11 @@ fun GroceryApp(sessionViewModel: SessionViewModel = viewModel()) {
 
     Surface(Modifier.fillMaxSize()) {
         when (val s = session) {
-            Session.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            Session.Loading -> LoadingScreen(onSignOut = sessionViewModel::signOut)
             Session.SignedOut -> SignInScreen()
             is Session.NeedsHousehold -> HouseholdSetupScreen(s.user, onSignOut = sessionViewModel::signOut)
-            is Session.Ready -> SignedInNav(s, onSignOut = sessionViewModel::signOut)
+            // Fresh screens, starting on Home, when another household opens.
+            is Session.Ready -> key(s.householdId) { SignedInNav(s, onSignOut = sessionViewModel::signOut) }
             is Session.Failed -> Column(
                 Modifier.fillMaxSize().padding(32.dp),
                 verticalArrangement = Arrangement.Center,
@@ -60,6 +65,32 @@ fun GroceryApp(sessionViewModel: SessionViewModel = viewModel()) {
                 Text(s.message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
                 TextButton(onClick = sessionViewModel::signOut) { Text("Sign out") }
             }
+        }
+    }
+}
+
+/** After a while it offers a way out: without a connection, or with an account that's gone, it can't finish. */
+@Composable
+private fun LoadingScreen(onSignOut: () -> Unit) {
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(8_000)
+        slow = true
+    }
+    Column(
+        Modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator()
+        if (slow) {
+            Text(
+                "Still connecting. Check your internet connection.",
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            TextButton(onClick = onSignOut) { Text("Sign out") }
         }
     }
 }
@@ -150,7 +181,19 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                     )
                 }
                 screen("settings") {
-                    SettingsScreen(session = session, onBack = { nav.popBackStack() }, onSignOut = onSignOut)
+                    SettingsScreen(
+                        session = session,
+                        onBack = { nav.popBackStack() },
+                        onAddHousehold = { nav.navigate("household/add") },
+                        onSignOut = onSignOut,
+                    )
+                }
+                screen("household/add") {
+                    AddHouseholdScreen(
+                        user = session.user,
+                        onClose = { nav.popBackStack() },
+                        onAdded = { nav.popBackStack("home", inclusive = false) },
+                    )
                 }
             }
         }

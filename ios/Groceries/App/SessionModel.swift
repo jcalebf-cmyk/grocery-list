@@ -24,6 +24,7 @@ final class SessionModel {
     var onboarding: OnboardingStart?
     private var authHandle: AuthStateDidChangeListenerHandle?
     private var watch: Task<Void, Never>?
+    private var membership: Task<Void, Never>?
 
     func start() async {
         guard FirebaseApp.app() != nil else { session = .notConfigured; return }
@@ -37,14 +38,27 @@ final class SessionModel {
 
     private func follow(_ user: User?) {
         watch?.cancel()
+        membership?.cancel()
         guard let user else { session = .signedOut; onboarding = nil; return }
         HouseholdService.ensureProfile(user)
+        Task { try? await HouseholdService.syncHouseholdIds(user.uid) }
         watch = Task {
             do {
                 for try await (profile, saving) in HouseholdService.profileSaving(user.uid) {
+                    guard !Task.isCancelled else { return }
+                    // Each profile change starts over, since another household may have been opened.
+                    membership?.cancel()
                     guard let profile else { continue }
-                    guard let householdId = profile.householdId else { session = .needsHousehold(profile); continue }
-                    await followMembership(profile, householdId, saving: saving)
+                    // Signing in writes the name and email first, so until the server's copy is in, having no
+                    // household only means it isn't known yet.
+                    if profile.householdId == nil && saving { session = .loading; continue }
+                    membership = Task {
+                        if let householdId = profile.householdId {
+                            await followMembership(profile, householdId, saving: saving)
+                        } else {
+                            await openAnother(profile)
+                        }
+                    }
                 }
             } catch {
                 session = .signedOut
@@ -52,30 +66,44 @@ final class SessionModel {
         }
     }
 
-    /// Ready while still a member. Once removed (or after leaving), security rules deny reading the
-    /// household, so the user is sent to setup and the stale link is cleared.
+    /// Ready while still a member of the household they have open. Once removed (or after leaving), security
+    /// rules deny reading it, so another of their households opens instead.
     /// `saving`: the profile's household link isn't on the server yet (they're joining right now).
     private func followMembership(_ profile: UserProfile, _ householdId: String, saving: Bool) async {
         do {
             // Waits for the server: Home's listeners start on ready, and any the server refuses stop for good.
             for try await household in HouseholdService.confirmedHousehold(householdId) {
+                guard !Task.isCancelled else { return }
                 if let household, household.memberIds.contains(profile.id) {
                     let ready = Session.ready(profile, householdId: householdId)
                     if session != ready { session = ready }
                 } else {
-                    leaveToSetup(profile)
+                    await openAnother(profile)
                     return
                 }
             }
         } catch let error as NSError where error.domain == FirestoreErrorDomain && error.code == FirestoreErrorCode.permissionDenied.rawValue {
             // Asked before the join was saved. The profile updates once it is, which tries again.
             if saving { return }
-            leaveToSetup(profile)
+            await openAnother(profile)
         } catch {}
     }
 
-    private func leaveToSetup(_ profile: UserProfile) {
-        HouseholdService.clearHousehold(uid: profile.id)
+    /// Opens another household the user is in, or household setup if there isn't one (clearing the stale link).
+    private func openAnother(_ profile: UserProfile) async {
+        // Tries until the server answers, so a bad connection doesn't look like having no household.
+        var found: [Household]?
+        while found == nil {
+            found = try? await HouseholdService.householdsOf(profile.id)
+            if found == nil { try? await Task.sleep(for: .seconds(3)) }
+            guard !Task.isCancelled else { return }
+        }
+        if let next = found?.first(where: { $0.id != profile.householdId }) {
+            // The profile updates, which starts this again on that household.
+            HouseholdService.switchHousehold(uid: profile.id, to: next.id)
+            return
+        }
+        if profile.householdId != nil { HouseholdService.clearHousehold(uid: profile.id) }
         var cleared = profile
         cleared.householdId = nil
         session = .needsHousehold(cleared)

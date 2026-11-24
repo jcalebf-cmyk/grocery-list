@@ -414,3 +414,32 @@ func listShareText(_ list: GroceryList, items: [ListItem]) -> String? {
 func listShareSubject(_ list: GroceryList) -> String {
     list.storeName.trimmed.isEmpty ? "Shopping list" : "\(list.storeName.trimmed) list"
 }
+
+// MARK: Account deletion
+
+/// What the delete-account confirmation says, given the names of the households that go with the account and
+/// the ones that stay with their other members. Android: accountDeletionText in AccountDeletion.kt.
+func accountDeletionText(deleted: [String], left: [String]) -> String {
+    let goes = "\(joinNames(deleted)), including all of \(deleted.count > 1 ? "their" : "its") lists, stores, and recipes."
+    let stays = left.count > 1 ? "Their lists stay" : "Its lists stay"
+    switch (deleted.isEmpty, left.isEmpty) {
+    case (true, true):
+        return "This permanently deletes your account. This can't be undone."
+    case (true, false):
+        return "This permanently deletes your account and removes you from \(joinNames(left)). \(stays) with the other members."
+    case (false, true):
+        return "This permanently deletes your account and \(goes) This can't be undone."
+    case (false, false):
+        return "This permanently deletes your account and \(goes) This can't be undone. "
+            + "You'll also be removed from \(joinNames(left)). \(stays) with the other members."
+    }
+}
+
+private func joinNames(_ names: [String]) -> String {
+    switch names.count {
+    case 0: ""
+    case 1: names[0]
+    case 2: "\(names[0]) and \(names[1])"
+    default: names.dropLast().joined(separator: ", ") + ", and " + names[names.count - 1]
+    }
+}

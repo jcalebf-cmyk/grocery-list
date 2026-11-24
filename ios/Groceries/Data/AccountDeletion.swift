@@ -1,44 +1,49 @@
 import FirebaseFirestore
 
-/// Deletes the signed-in user's data and login; the caller must have just re-authenticated.
-/// Only member: the household and everything in it go too. Shared household: the user leaves it,
-/// handing ownership to `newOwner` first if they're the owner. Mirrors Android's AccountDeletion.
+/// A household account deletion affects. `others` are the members who could take it over.
+struct AffectedHousehold: Identifiable {
+    let household: Household
+    let isOwner: Bool
+    let others: [UserProfile]
+
+    var id: String { household.id }
+    /// The user is its only member, so it goes with them.
+    var solo: Bool { household.memberIds.count <= 1 }
+    /// The user picks who takes over. (If no profile could be read, the next member does.)
+    var needsNewOwner: Bool { !solo && isOwner && !others.isEmpty }
+}
+
+/// Deletes the signed-in user's data and login; the caller must have just re-authenticated. For each household
+/// they're in: only member, the household and everything in it go too; shared, the user leaves it, handing
+/// ownership to the chosen member first if they're the owner. Mirrors Android's AccountDeletion.
 enum AccountDeletion {
-    static func deleteAccount(uid: String, householdId: String?, newOwner: String?) async throws {
-        let db = Firestore.firestore()
-        if let householdId,
-           let household = try? await db.collection("households").document(householdId).getDocument(as: Household.self) {
-            if household.memberIds.count <= 1 {
-                try await deleteHousehold(household, db: db)
-            } else {
-                if household.ownerId == uid, let newOwner {
-                    try await HouseholdService.transferOwnership(household, to: newOwner)
-                }
-                try await HouseholdService.leave(householdId, uid: uid)
-            }
+    static func affectedHouseholds(uid: String) async throws -> [AffectedHousehold] {
+        var result: [AffectedHousehold] = []
+        for household in try await HouseholdService.householdsOf(uid) {
+            let isOwner = household.ownerId == uid
+            // Only an owner has anyone to choose.
+            let others = isOwner ? await HouseholdService.members(household.memberIds.filter { $0 != uid }) : []
+            result.append(AffectedHousehold(household: household, isOwner: isOwner, others: others))
         }
-        try await db.collection("users").document(uid).delete()
-        try await AuthService.deleteUser()
-        await NearbyStores.shared.clear()
+        return result
     }
 
-    /// Subcollections first: the rules check membership on the household doc, so it must go last.
-    private static func deleteHousehold(_ household: Household, db: Firestore) async throws {
-        let ref = db.collection("households").document(household.id)
-        var docs: [DocumentReference] = []
-        for name in ["stores", "itemStats", "onHand", "savedRecipes", "recipes"] {
-            docs += try await ref.collection(name).getDocuments().documents.map(\.reference)
+    /// `newOwners` maps a household's ID to the member who takes it over.
+    static func deleteAccount(uid: String, currentHouseholdId: String, newOwners: [String: String]) async throws {
+        let households = try await HouseholdService.householdsOf(uid)
+        // The open household goes last: once it's gone, the session looks for another to open.
+        for household in households.filter({ $0.id != currentHouseholdId }) + households.filter({ $0.id == currentHouseholdId }) {
+            if household.memberIds.count <= 1 {
+                try await HouseholdService.deleteHousehold(household.id, uid: uid)
+            } else {
+                if household.ownerId == uid, let newOwner = newOwners[household.id] ?? household.memberIds.first(where: { $0 != uid }) {
+                    try await HouseholdService.transferOwnership(household, to: newOwner)
+                }
+                try await HouseholdService.removeMember(household.id, member: uid)
+            }
         }
-        for list in try await ref.collection("lists").getDocuments().documents {
-            docs += try await list.reference.collection("items").getDocuments().documents.map(\.reference)
-            docs.append(list.reference)
-        }
-        for start in stride(from: 0, to: docs.count, by: 450) {
-            let batch = db.batch()
-            docs[start..<min(start + 450, docs.count)].forEach { batch.deleteDocument($0) }
-            try await batch.commit()
-        }
-        if !household.inviteCode.isEmpty { try await db.collection("inviteCodes").document(household.inviteCode).delete() }
-        try await ref.delete()
+        try await Firestore.firestore().collection("users").document(uid).delete()
+        try await AuthService.deleteUser()
+        await NearbyStores.shared.clear()
     }
 }
