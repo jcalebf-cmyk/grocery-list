@@ -27,9 +27,10 @@ owns it; testers are friends and family.
 Android and iOS mirror each other: same Firestore documents and field names (timestamps are device
 millis as Int64/Long), same rules, same logic (suggestion ranking, "stores in use",
 store brand logos, servings scaling, recipe search). When changing behavior on one, change the other, or say why not.
-Android files to iOS files: `Suggestions.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt` → `ios/Groceries/Data/Logic.swift`;
+Android files to iOS files: `Suggestions.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt`/`RecipeSearch.kt` → `ios/Groceries/Data/Logic.swift`;
 repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both;
-`ShareText.kt` ↔ `Logic.swift` (share text); `Adaptive.kt` ↔ `AdaptiveLayout.swift`; voice actions: `app/.../voice/` +
+`ShareText.kt` ↔ `Logic.swift` (share text); `RecipeCards.kt` ↔ `RecipeCards.swift`; `RecipeVisual.kt` ↔ `RecipeVisual.swift`
+(the emoji tables must stay identical); `Adaptive.kt` ↔ `AdaptiveLayout.swift`; voice actions: `app/.../voice/` +
 `VoiceActions.kt` (Gemini AppFunctions, needs KSP) ↔ `ios/Groceries/Intents/` (Siri App Intents).
 Big screens (0.16): two panes (Home: lists | recipes; recipe: ingredients | steps) from 840dp/pt wide, split at the
 fold on a half-open Android foldable; other screens cap content at 640. iOS gotcha: pass `nil`, not 0, to
@@ -53,6 +54,8 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
   `com.householdgroceries.app`, so it's the same account as on iPhone; Josh confirmed Pixel ↔ the iPhone app on the Mac, Nov 24).
   It needs a release-signed build: the debug key's SHA-1 isn't in Firebase. Firebase's password policy must match the
   8-character minimum.
+- New fields on an existing iOS Codable document must be optional (or decoded by hand): a missing non-optional one
+  makes every older document unreadable, and it's dropped silently.
 - Firestore: `users/{uid}`, `households/{hid}` (owner = `memberIds[0]`) with `stores`, `lists/{id}/items`,
   `itemStats`, `savedRecipes` (the recipe box); `inviteCodes/{code}`. No longer read, but account deletion
   still removes them: `onHand` (My kitchen, removed in 0.14) and the old suggestions (`recipes/current`, `/preferences`).
@@ -144,8 +147,15 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
   you need before "Add to list"). The servings control scales ingredient amounts only (steps keep the original
   amounts, and say so). Ingredients start unticked (Josh's call); "Add to list" sits by the Ingredients heading, never pinned
   to the screen (Josh found it nagging).
-- Home, Josh's calls: Shopping lists first (always a header; a "Start a list" card replaces the floating New list
-  button when none is going), then a "Past lists" row opening the history, then Recipes.
+- Home, Josh's calls: Shopping lists first (always a header, with New list on its line: not floating, where it read as
+  a recipe button, and not a "New" menu; a "Start a list" card replaces it when none is going), then a "Past lists" row
+  opening the history, then every recipe as cards two across, scrolling down, under a search bar that opens the
+  recipes screen. Recipe search (`RecipeSearch.kt` ↔ `searchRecipes` in `Logic.swift`) ranks title, then ingredient,
+  then description/notes/channel; cards say which ingredient matched.
+- Recipe cards, Josh's call: a YouTube recipe shows the video's thumbnail (loaded from i.ytimg.com, nothing stored), any
+  other a food emoji from its title on a colored tile. No user photos.
+- List item notes (Josh's call): long-press an item → "Add a note" (one line, 120 characters), shown under its name and
+  in shared lists. Optional `note` on the item; "Add to list" from a recipe doesn't fill it, and voice doesn't read it.
 - Several households, Josh's calls: a power-user feature, so joining or starting another lives only in Settings (never
   onboarding); Home shows one at a time, its title a switcher only with 2+; a household you're alone in can be deleted
   if you have another.
@@ -158,11 +168,14 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Nov 24, 2026)
+## Status (Nov 25, 2026)
 
-- **Android: 0.17** (code 21) on Firebase to all 5 testers, tagged `v0.17`. **iPhone: 0.17** (build 17)
-  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.17`. Next iOS upload must be build 18.
+- **Android: 0.18** (code 22) on Firebase to all testers, tagged `v0.18`. **iPhone: 0.18** (build 18)
+  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.18`. Next iOS upload must be build 19.
   Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- 0.18 = recipe grid with pictures and better search, list item notes, New list in the Shopping lists heading, long
+  ingredient amounts wrap (Android). Run against a local Firestore emulator with open rules on the Android emulator and
+  iPhone 17 simulator, notes syncing both ways; not on the iPhone Duo's inner screen or with a real account.
 - 0.17 = several households per account, Apple sign-in on Android, 8-character password minimum. Multi-household
   was run end to end on both platforms against the local emulators, never with real accounts; sharing a recipe, Siri
   and Gemini while in two households are untried.
