@@ -55,6 +55,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -210,7 +212,14 @@ fun RecipeDetail(
                             leadingContent = { Checkbox(checked = isChecked, onCheckedChange = { toggle() }) },
                             headlineContent = { Text(ingredient.name.replaceFirstChar(Char::uppercase)) },
                             trailingContent = {
-                                if (ingredient.quantity.isNotBlank()) Text(scaleQuantity(ingredient.quantity, factor))
+                                // A long amount ("2 oz chopped, drained (half a can)") wraps instead of squeezing the name.
+                                if (ingredient.quantity.isNotBlank()) {
+                                    Text(
+                                        scaleQuantity(ingredient.quantity, factor),
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.widthIn(max = 128.dp),
+                                    )
+                                }
                             },
                         )
                     }

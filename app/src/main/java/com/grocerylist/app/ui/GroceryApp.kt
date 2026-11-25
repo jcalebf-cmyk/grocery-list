@@ -122,7 +122,7 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         onOpenRecipe = { nav.navigate("recipe/$it") },
                         onAskForRecipe = { nav.navigate("recipes/ask") },
                         onPasteRecipe = { nav.navigate("recipes/paste") },
-                        onAllRecipes = { nav.navigate("recipes") },
+                        onSearchRecipes = { nav.navigate("recipes") },
                         onOpenPastLists = { nav.navigate("lists/past") },
                         onOpenSettings = { nav.navigate("settings") },
                     )

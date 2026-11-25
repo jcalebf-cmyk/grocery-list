@@ -76,7 +76,7 @@ struct HomeView: View {
         NavigationStack(path: $path) {
             Group {
                 if twoPane {
-                    // Wide screen (an opened iPhone Duo): lists on one side, recipes as a grid on the other.
+                    // Wide screen (an opened iPhone Duo): lists on one side, recipes on the other.
                     HStack(alignment: .top, spacing: 0) {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
@@ -86,7 +86,7 @@ struct HomeView: View {
                             .padding(.bottom, 24)
                         }
                         Divider().ignoresSafeArea(edges: .bottom)
-                        ScrollView { recipesSection(grid: true).padding(.bottom, 24) }
+                        ScrollView { recipesSection(top: 0).padding(.bottom, 24) }
                     }
                 } else {
                     ScrollView {
@@ -94,7 +94,7 @@ struct HomeView: View {
                             // Lists come first: they're what people open the app for.
                             listsSection
                             pastListsRow
-                            recipesSection(grid: false)
+                            recipesSection(top: 16)
                         }
                         .padding(.bottom, 24)
                         .readableWidth()
@@ -114,24 +114,6 @@ struct HomeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(value: Route.settings) { Image(systemName: "gearshape") }
                         .accessibilityLabel("Settings")
-                }
-            }
-            // Floats over the content rather than sitting in the bottom toolbar, which would shrink it
-            // to an icon-only circle; it should read "New list".
-            // With no list going, the Start a list card does this job instead.
-            .safeAreaInset(edge: .bottom) {
-                if !data.activeLists.isEmpty {
-                    // Side by side, it sits under the lists rather than across both panes.
-                    HStack(spacing: 0) {
-                        Button { pickingStore = true } label: {
-                            Label("New list", systemImage: "plus").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
-                        }
-                        .prominentGlassButton(foreground: .onCitrus)
-                        .tint(.citrus)
-                        .frame(maxWidth: .infinity)
-                        if twoPane { Color.clear.frame(maxWidth: .infinity, maxHeight: 0) }
-                    }
-                    .padding(.bottom, 4)
                 }
             }
             .navigationDestination(for: Route.self) { route in
@@ -162,7 +144,7 @@ struct HomeView: View {
             .overlay(alignment: .bottom) {
                 if let message {
                     Text(message).font(.callout).padding(.horizontal, 16).padding(.vertical, 12)
-                        .glassEffect(in: .capsule).padding(.bottom, 80)
+                        .glassEffect(in: .capsule).padding(.bottom, 16)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -204,61 +186,43 @@ struct HomeView: View {
 
     // MARK: Recipes
 
-    /// The recipes row; `grid` lays the cards out in rows instead, for the recipes pane on a wide screen.
-    private func recipesSection(grid: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Recipes").font(.brand(24))
-                Spacer()
-                if !data.recipes.isEmpty {
-                    NavigationLink("See all", value: Route.recipes).font(.subheadline.weight(.medium))
-                }
-            }
-            .padding(.horizontal, 20)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    NavigationLink(value: Route.recipeChat) { Label("Ask for a recipe", systemImage: "sparkles") }
-                        .buttonStyle(.glass)
-                    Button { pasting = true } label: { Label("Paste a recipe", systemImage: "doc.on.clipboard") }
-                        .buttonStyle(.glass)
-                }
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 20)
-                .padding(.vertical, 2)
-            }
-            .scrollClipDisabled()
-
-            if data.recipes.isEmpty {
-                Text("Save recipes you like here: ask for one, or paste one from anywhere.")
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 20)
-            } else if grid {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 14)], spacing: 14) {
-                    ForEach(data.recipes.prefix(10)) { recipe in
-                        NavigationLink(value: Route.recipe(recipe.id)) { RecipeCard(recipe: recipe, width: nil) }
-                            .buttonStyle(.plain)
-                            .matchedTransitionSource(id: recipe.id, in: zoom)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 4)
-            } else {
+    /// The recipe box, in its own pane on a wide screen (where it starts level with Shopping lists).
+    private func recipesSection(top: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("Recipes", top: top)
+            VStack(alignment: .leading, spacing: 12) {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 14) {
-                        // Home shows the newest few; the rest are under See all.
-                        ForEach(data.recipes.prefix(10)) { recipe in
-                            NavigationLink(value: Route.recipe(recipe.id)) { RecipeCard(recipe: recipe) }
-                                .buttonStyle(.plain)
-                                .matchedTransitionSource(id: recipe.id, in: zoom)
-                        }
+                    HStack(spacing: 8) {
+                        NavigationLink(value: Route.recipeChat) { Label("Ask for a recipe", systemImage: "sparkles") }
+                            .buttonStyle(.glass)
+                        Button { pasting = true } label: { Label("Paste a recipe", systemImage: "doc.on.clipboard") }
+                            .buttonStyle(.glass)
                     }
+                    .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
+                }
+                .scrollClipDisabled()
+
+                if data.recipes.isEmpty {
+                    Text("Save recipes you like here: ask for one, or paste one from anywhere.")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 20)
+                } else {
+                    // Looks like a search field; opens the recipes screen ready to type in.
+                    NavigationLink(value: Route.recipes) {
+                        Label("Search recipes", systemImage: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .background(Color.card, in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+                    RecipeGrid(matches: data.recipes.map { RecipeMatch(recipe: $0) }, zoom: zoom)
                 }
             }
         }
-        // In its own pane it starts level with Shopping lists.
-        .padding(.top, grid ? 16 : 28)
     }
 
     private func show(_ text: String) {
@@ -272,7 +236,17 @@ struct HomeView: View {
     // MARK: Lists
 
     @ViewBuilder private var listsSection: some View {
-        sectionTitle("Shopping lists", top: 8)
+        sectionTitle("Shopping lists") {
+            // Sits with the lists, not floating over the recipes, so it's clear what it starts.
+            // With no list going, the Start a list card does this job instead.
+            if !data.activeLists.isEmpty {
+                Button { pickingStore = true } label: {
+                    Label("New list", systemImage: "plus").font(.subheadline.weight(.semibold)).frame(minHeight: 30)
+                }
+                .prominentGlassButton(foreground: .onCitrus)
+                .tint(.citrus)
+            }
+        }
         if data.activeLists.isEmpty {
             startListCard
         }
@@ -325,8 +299,27 @@ struct HomeView: View {
         }
     }
 
-    private func sectionTitle(_ text: String, top: CGFloat = 28) -> some View {
-        Text(text).font(.brand(22)).padding(.horizontal, 20).padding(.top, top).padding(.bottom, 8)
+    /// A section's title, with its button at the end of the line (or under it, when large text leaves no room). The
+    /// same height with or without one, so two panes line up.
+    private func sectionTitle(_ text: String, top: CGFloat = 0, @ViewBuilder action: () -> some View = { EmptyView() }) -> some View {
+        let title = Text(text).font(.brand(22)).accessibilityAddTraits(.isHeader)
+        return ViewThatFits(in: .horizontal) {
+            HStack {
+                title.lineLimit(1)
+                Spacer()
+                action()
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                title
+                action()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 4)
+        }
+        .frame(minHeight: 52)
+        .padding(.leading, 20)
+        .padding(.trailing, 16)
+        .padding(.top, top)
     }
 
     private func listRow(_ list: GroceryList) -> some View { ListRowView(list: list) }
@@ -403,31 +396,6 @@ struct ListRowView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
-    }
-}
-
-/// A saved recipe on Home: its title and the basics, with an icon for where it came from.
-struct RecipeCard: View {
-    let recipe: Recipe
-    /// Fixed in Home's row; nil fills a grid column.
-    var width: CGFloat? = 220
-
-    private var icon: String {
-        if !recipe.sourceUrl.isEmpty { return "play.rectangle" }
-        return recipe.source == .ai ? "sparkles" : "fork.knife"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: icon).font(.subheadline).foregroundStyle(Color.accentColor)
-            Text(recipe.title).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
-            Spacer(minLength: 0)
-            Text(recipe.summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-        }
-        .padding(14)
-        .frame(width: width, height: 128, alignment: .topLeading)
-        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
-        .background(Color.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 

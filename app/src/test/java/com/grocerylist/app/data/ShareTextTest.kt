@@ -47,11 +47,17 @@ class ShareTextTest {
     @Test fun listIsWhatsLeftInAisleOrder() {
         val items = listOf(
             ListItem(name = "Milk"),
-            ListItem(name = "Bananas"),
+            ListItem(name = "Bananas", note = " Not too  ripe "),
             ListItem(name = "Bread", checked = true),
         )
-        assertEquals("Trader Joe's list\n• Bananas\n• Milk", listShareText(GroceryList(storeName = "Trader Joe's"), items))
-        assertEquals("Shopping list\n• Bananas\n• Milk", listShareText(GroceryList(), items))
+        assertEquals("Trader Joe's list\n• Bananas (Not too ripe)\n• Milk", listShareText(GroceryList(storeName = "Trader Joe's"), items))
+        assertEquals("Shopping list\n• Bananas (Not too ripe)\n• Milk", listShareText(GroceryList(), items))
+    }
+
+    @Test fun notesAreOneShortLineOrNothing() {
+        assertEquals("The low-sodium one", cleanNote("  The low-sodium\n one "))
+        assertNull(cleanNote("  \n "))
+        assertEquals(MAX_NOTE_LENGTH, cleanNote("a".repeat(500))?.length)
     }
 
     @Test fun nothingToShareWhenAllChecked() {

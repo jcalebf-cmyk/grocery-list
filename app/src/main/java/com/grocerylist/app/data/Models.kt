@@ -61,7 +61,15 @@ data class ListItem(
     val checked: Boolean = false,
     val addedBy: String = "",
     val createdAt: Long = 0,
+    /** Extra context for whoever's shopping ("the low-sodium one"). Most items have none. */
+    val note: String? = null,
 )
+
+const val MAX_NOTE_LENGTH = 120
+
+/** A note as it's saved: one line, no longer than [MAX_NOTE_LENGTH]. Null if there's nothing in it. Same as Logic.swift. */
+fun cleanNote(text: String): String? =
+    text.trim().replace(Regex("\\s+"), " ").take(MAX_NOTE_LENGTH).trim().ifEmpty { null }
 
 /** How often a household adds an item; drives suggestions. Document ID is the item key. */
 data class ItemStat(

@@ -26,16 +26,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.foundation.layout.size
-import com.grocerylist.app.data.Recipe
-import com.grocerylist.app.data.RecipeSource
-import com.grocerylist.app.ui.recipe.recipeSummary
 import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Card
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,11 +45,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -63,7 +57,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -95,12 +88,14 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.material3.FabPosition
 import androidx.compose.ui.unit.Dp
+import com.grocerylist.app.data.RecipeMatch
+import com.grocerylist.app.ui.ReadableWidth
+import com.grocerylist.app.ui.recipe.RecipeSearchBar
+import com.grocerylist.app.ui.recipe.recipeColumns
+import com.grocerylist.app.ui.recipe.recipeRows
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
 import com.grocerylist.app.ui.TwoPanes
 import com.grocerylist.app.ui.readable
 import com.grocerylist.app.ui.rememberWindowLayout
@@ -113,7 +108,7 @@ fun HomeScreen(
     onOpenRecipe: (String) -> Unit,
     onAskForRecipe: () -> Unit,
     onPasteRecipe: () -> Unit,
-    onAllRecipes: () -> Unit,
+    onSearchRecipes: () -> Unit,
     onOpenPastLists: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -163,24 +158,15 @@ fun HomeScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
-        // Side by side, New list sits under the lists rather than over the recipes.
-        floatingActionButtonPosition = if (layout.twoPane) FabPosition.Start else FabPosition.End,
-        // With no list going, the Start a list card does this job instead.
-        floatingActionButton = {
-            if (state.activeLists.isNotEmpty()) {
-                ExtendedFloatingActionButton(
-                    onClick = { pickingStore = true },
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("New list") },
-                )
-            }
-        },
     ) { padding ->
         // Lists come first: they're what people open the app for.
         val lists: LazyListScope.() -> Unit = {
-            item { SectionHeader("Shopping lists", top = 8.dp) }
+            item {
+                SectionHeader("Shopping lists") {
+                    // With no list going, the Start a list card does this job instead.
+                    if (state.activeLists.isNotEmpty()) NewListButton { pickingStore = true }
+                }
+            }
             if (state.activeLists.isEmpty()) {
                 item { StartListCard(onStart = { pickingStore = true }) }
             }
@@ -198,55 +184,49 @@ fun HomeScreen(
                 item { PastListsRow(state.pastListCount, onClick = onOpenPastLists) }
             }
         }
-        val recipesHeader = @Composable { top: Dp, inset: Dp ->
+        val recipesHeader = @Composable { top: Dp ->
             RecipesHeader(
                 hasRecipes = state.recipes.isNotEmpty(),
                 onAsk = onAskForRecipe,
                 onPaste = onPasteRecipe,
-                onSeeAll = onAllRecipes,
+                onSearch = onSearchRecipes,
                 top = top,
-                inset = inset,
             )
         }
-        val noRecipes = @Composable { inset: Dp ->
+        val noRecipes = @Composable {
             Text(
                 "Save recipes you like here: ask for one, or paste one from anywhere.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = inset, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
-        val recipes = state.recipes.take(RECIPES_SHOWN)
+        val recipes = remember(state.recipes) { state.recipes.map { RecipeMatch(it) } }
 
         if (layout.twoPane) {
-            // Unfolded: lists on one side, recipes as a grid on the other.
-            val panePadding = PaddingValues(bottom = padding.calculateBottomPadding())
+            // Unfolded: lists on one side, recipes on the other.
+            val panePadding = PaddingValues(bottom = padding.calculateBottomPadding() + 16.dp)
             TwoPanes(
                 layout,
                 Modifier.padding(top = padding.calculateTopPadding()),
                 first = { LazyColumn(Modifier.fillMaxSize(), contentPadding = panePadding) { lists() } },
             ) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(180.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = padding.calculateBottomPadding() + 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    // The grid already sits 16dp in, so the header and chips line up with the cards.
-                    item(span = { GridItemSpan(maxLineSpan) }) { recipesHeader(0.dp, 0.dp) }
-                    if (recipes.isEmpty()) {
-                        item(span = { GridItemSpan(maxLineSpan) }) { noRecipes(0.dp) }
-                    }
-                    gridItems(recipes, key = { it.id }) { recipe ->
-                        RecipeCard(recipe, onClick = { onOpenRecipe(recipe.id) }, Modifier.fillMaxWidth().height(128.dp))
+                BoxWithConstraints {
+                    val columns = recipeColumns(maxWidth)
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = panePadding) {
+                        item { recipesHeader(0.dp) }
+                        if (recipes.isEmpty()) item { noRecipes() }
+                        recipeRows(recipes, columns, onOpenRecipe)
                     }
                 }
             }
         } else {
+            val columns = recipeColumns(minOf(layout.width, ReadableWidth))
             LazyColumn(Modifier.fillMaxSize(), contentPadding = padding.readable()) {
                 lists()
-                item { recipesHeader(24.dp, 16.dp) }
-                item { if (recipes.isNotEmpty()) RecipeRow(recipes, onOpenRecipe) else noRecipes(16.dp) }
+                item { recipesHeader(16.dp) }
+                if (recipes.isEmpty()) item { noRecipes() }
+                recipeRows(recipes, columns, onOpenRecipe)
+                item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
@@ -335,13 +315,37 @@ fun HouseholdTitle(name: String, households: List<Household>, openId: String, on
     }
 }
 
+/**
+ * A section's title, with its button at the end of the line (or under it, when large text leaves no room). The same
+ * height with or without one, so two panes line up.
+ */
 @Composable
-private fun SectionHeader(text: String, top: androidx.compose.ui.unit.Dp = 24.dp) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(start = 16.dp, top = top, bottom = 8.dp),
-    )
+private fun SectionHeader(text: String, top: Dp = 0.dp, action: @Composable () -> Unit = {}) {
+    FlowRow(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = top).heightIn(min = 56.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.Center,
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(end = 16.dp))
+        action()
+    }
+}
+
+/** Sits with the lists, not floating over the recipes, so it's clear what it starts. */
+@Composable
+private fun NewListButton(onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        ),
+        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp))
+        Text("New list", Modifier.padding(start = 8.dp))
+    }
 }
 
 /** Shown under Shopping lists when none is going, so starting one is the obvious next step. */
@@ -519,26 +523,12 @@ private fun ListRow(list: GroceryList, onClick: () -> Unit) {
     )
 }
 
-/** Home shows the newest few; the rest are a tap away. */
-private const val RECIPES_SHOWN = 10
-
 @Composable
-private fun RecipesHeader(
-    hasRecipes: Boolean,
-    onAsk: () -> Unit,
-    onPaste: () -> Unit,
-    onSeeAll: () -> Unit,
-    top: Dp = 24.dp,
-    inset: Dp = 16.dp,
-) {
-    Column(Modifier.fillMaxWidth().padding(top = top, bottom = 4.dp)) {
-        // "See all" is a text button, whose own padding already insets its label.
-        Row(Modifier.fillMaxWidth().padding(start = inset, end = (inset - 8.dp).coerceAtLeast(0.dp)), verticalAlignment = Alignment.CenterVertically) {
-            Text("Recipes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            if (hasRecipes) TextButton(onClick = onSeeAll) { Text("See all") }
-        }
+private fun RecipesHeader(hasRecipes: Boolean, onAsk: () -> Unit, onPaste: () -> Unit, onSearch: () -> Unit, top: Dp) {
+    Column(Modifier.fillMaxWidth().padding(top = top, bottom = 6.dp)) {
+        SectionHeader("Recipes")
         Row(
-            Modifier.padding(top = 4.dp).horizontalScroll(rememberScrollState()).padding(horizontal = inset),
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AssistChip(
@@ -552,50 +542,6 @@ private fun RecipesHeader(
                 leadingIcon = { Icon(AppIcons.Paste, contentDescription = null, Modifier.size(18.dp)) },
             )
         }
-    }
-}
-
-@Composable
-private fun RecipeRow(recipes: List<Recipe>, onOpen: (String) -> Unit) {
-    // A newly saved recipe goes first; without this the row stays on the card it showed and hides it.
-    val state = rememberLazyListState()
-    LaunchedEffect(recipes.first().id) { state.scrollToItem(0) }
-    LazyRow(
-        state = state,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        items(recipes, key = { it.id }) { recipe -> RecipeCard(recipe, onClick = { onOpen(recipe.id) }) }
-    }
-}
-
-@Composable
-private fun RecipeCard(recipe: Recipe, onClick: () -> Unit, modifier: Modifier = Modifier.width(220.dp).height(128.dp)) {
-    Card(
-        onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        modifier = modifier,
-    ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(
-                when {
-                    recipe.sourceUrl.isNotBlank() -> Icons.Default.PlayArrow
-                    recipe.source == RecipeSource.AI -> AppIcons.Sparkle
-                    else -> AppIcons.Restaurant
-                },
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(recipe.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.weight(1f))
-            Text(
-                recipeSummary(recipe),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        if (hasRecipes) RecipeSearchBar(onSearch, Modifier.padding(horizontal = 16.dp).padding(top = 4.dp))
     }
 }

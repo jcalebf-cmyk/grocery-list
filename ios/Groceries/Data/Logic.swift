@@ -18,6 +18,15 @@ func itemKey(_ name: String) -> String {
         .replacingOccurrences(of: "/", with: "-")
 }
 
+let maxNoteLength = 120
+
+/// A note as it's saved: one line, no longer than `maxNoteLength`. Nil if there's nothing in it. Same as Models.kt.
+func cleanNote(_ text: String) -> String? {
+    let line = text.trimmed.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    let short = String(line.prefix(maxNoteLength)).trimmed
+    return short.isEmpty ? nil : short
+}
+
 private let dayMs = 24.0 * 60 * 60 * 1000
 private let halfLifeDays = 21.0
 private let minTimesAdded: Int64 = 2
@@ -53,10 +62,67 @@ func rankRegulars(_ stats: [ItemStat], storeId: String, alreadyOnList: Set<Strin
         .map(\.0)
 }
 
-/// True if every word of `query` appears in the recipe's title or an ingredient. Same as `matchesRecipe` in AllRecipesScreen.kt.
-func matchesRecipe(_ recipe: Recipe, query: String) -> Bool {
-    let haystack = itemKey(([recipe.title] + recipe.ingredients.map(\.name)).joined(separator: " "))
-    return itemKey(query).split(separator: " ").allSatisfy { haystack.contains($0) }
+/// A recipe a search found. `ingredient` is the one that matched, when the title alone doesn't show why it's here.
+struct RecipeMatch: Identifiable {
+    let recipe: Recipe
+    var ingredient: String?
+    var id: String { recipe.id }
+}
+
+/// Recipes with every word of `query`, best first: in the title, then in an ingredient, then in the description,
+/// notes or video channel. Within each, they stay in the order given. Accents and plurals don't matter ("jalapeno",
+/// "tomatoes"), and part of a word is enough. A blank query gives every recipe. Same as RecipeSearch.kt.
+func searchRecipes(_ recipes: [Recipe], query: String) -> [RecipeMatch] {
+    let words = searchWords(query)
+    if words.isEmpty { return recipes.map { RecipeMatch(recipe: $0) } }
+    var inTitle: [RecipeMatch] = [], inIngredients: [RecipeMatch] = [], inRest: [RecipeMatch] = []
+    for recipe in recipes {
+        let title = SearchText(recipe.title)
+        let notInTitle = words.filter { !title.has($0) }
+        if notInTitle.isEmpty {
+            inTitle.append(RecipeMatch(recipe: recipe))
+            continue
+        }
+        let ingredients = recipe.ingredients.map { (name: $0.name, text: SearchText($0.name)) }
+        let leftOver = notInTitle.filter { word in !ingredients.contains { $0.text.has(word) } }
+        if leftOver.isEmpty {
+            /// The first that matches the most words.
+            func best(_ names: [String]) -> String? {
+                var found: (name: String, count: Int)?
+                for name in names {
+                    let count = notInTitle.filter(SearchText(name).has).count
+                    if count > found?.count ?? -1 { found = (name, count) }
+                }
+                return found?.name
+            }
+            // Just the part that matched: "boneless, skinless chicken thighs" is "skinless chicken thighs".
+            let part = best(ingredients.map(\.name)).flatMap { best($0.split(separator: ",").map { String($0).trimmed }) }
+            inIngredients.append(RecipeMatch(recipe: recipe, ingredient: part))
+            continue
+        }
+        let rest = SearchText([recipe.description, recipe.notes, recipe.sourceName].joined(separator: " "))
+        if leftOver.allSatisfy(rest.has) { inRest.append(RecipeMatch(recipe: recipe)) }
+    }
+    return inTitle + inIngredients + inRest
+}
+
+func searchWords(_ text: String) -> [String] {
+    aisleWords(text.folding(options: .diacriticInsensitive, locale: nil))
+}
+
+private struct SearchText {
+    private let words: [String]
+    private let forms: Set<String>
+
+    init(_ text: String) {
+        words = searchWords(text)
+        forms = words.reduce(into: []) { $0.formUnion(wordForms($1)) }
+    }
+
+    /// Part of a word, or the same word in the singular or plural.
+    func has(_ word: String) -> Bool {
+        words.contains { $0.contains(word) } || !wordForms(word).isDisjoint(with: forms)
+    }
 }
 
 /// Stores to offer under "Your stores": only ones the household has made a list for, most recent first.
@@ -275,8 +341,8 @@ private func aisleWords(_ text: String) -> [String] {
 }
 
 // A word and its likely singulars, so "berries", "tomatoes", "loaves" and "eggs" match "berry", "tomato", "loaf"
-// and "egg".
-private func wordForms(_ word: String) -> Set<String> {
+// and "egg". Recipe search uses these too.
+func wordForms(_ word: String) -> Set<String> {
     var forms: Set<String> = [word]
     if word.count > 3 && word.hasSuffix("s") && !word.hasSuffix("ss") {
         forms.insert(String(word.dropLast()))
@@ -407,7 +473,12 @@ private func ingredientShareLine(_ ingredient: Ingredient) -> String {
 func listShareText(_ list: GroceryList, items: [ListItem]) -> String? {
     let toGet = groupByAisle(items).filter { $0.aisle != nil }.flatMap(\.items)
     if toGet.isEmpty { return nil }
-    return listShareSubject(list) + toGet.map { "\n• " + $0.name.trimmed }.joined()
+    return listShareSubject(list) + toGet.map { "\n• " + itemShareLine($0) }.joined()
+}
+
+/// "Soup (the low-sodium one)", or just the name when there's no note.
+private func itemShareLine(_ item: ListItem) -> String {
+    item.name.trimmed + (cleanNote(item.note ?? "").map { " (\($0))" } ?? "")
 }
 
 /// The email subject for a shared list.

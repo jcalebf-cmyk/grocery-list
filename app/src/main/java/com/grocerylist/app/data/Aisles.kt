@@ -59,12 +59,12 @@ fun aisleFor(name: String): Aisle {
     return best ?: Aisle.OTHER
 }
 
-private fun aisleWords(text: String): List<String> =
+internal fun aisleWords(text: String): List<String> =
     itemKey(text).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
 
 // A word and its likely singulars, so "berries", "tomatoes", "loaves" and "eggs" match "berry", "tomato", "loaf"
-// and "egg".
-private fun wordForms(word: String): Set<String> = buildSet {
+// and "egg". Recipe search uses these too.
+internal fun wordForms(word: String): Set<String> = buildSet {
     add(word)
     if (word.length > 3 && word.endsWith("s") && !word.endsWith("ss")) {
         add(word.dropLast(1))

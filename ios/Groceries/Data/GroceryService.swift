@@ -97,6 +97,11 @@ struct GroceryService {
         batch.commit()
     }
 
+    /// A blank note removes it.
+    func setNote(_ item: ListItem, in listId: String, to note: String) {
+        lists.document(listId).collection("items").document(item.id).updateData(["note": cleanNote(note).map { $0 as Any } ?? FieldValue.delete()])
+    }
+
     /// Hides the item from list suggestions until someone adds it again.
     func dismissSuggestion(_ stat: ItemStat) {
         stats.document(stat.key).setData(["dismissedAt": nowMillis()], merge: true)

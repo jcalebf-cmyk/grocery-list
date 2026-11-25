@@ -76,6 +76,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -88,6 +89,8 @@ import com.grocerylist.app.ui.StoreLogo
 import com.grocerylist.app.ui.CloseOutListDialog
 import com.grocerylist.app.ui.DeleteListDialog
 import com.grocerylist.app.ui.EditItemDialog
+import com.grocerylist.app.ui.ItemNoteDialog
+import androidx.compose.material.icons.filled.Edit
 import com.grocerylist.app.ui.AppIcons
 import com.grocerylist.app.ui.readable
 import androidx.compose.material.icons.filled.CheckCircle
@@ -102,6 +105,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     var confirmingFinish by rememberSaveable { mutableStateOf(false) }
     var confirmingDelete by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var notingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The list scrolls under a frosted top bar and a floating glass add bar.
     val haze = rememberHazeState()
@@ -222,6 +226,17 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                 onDismiss = { editingId = null },
             )
         }
+        state.items.firstOrNull { it.id == notingId }?.let { item ->
+            ItemNoteDialog(
+                itemName = item.name,
+                note = item.note.orEmpty(),
+                onSave = {
+                    notingId = null
+                    viewModel.setNote(item, it)
+                },
+                onDismiss = { notingId = null },
+            )
+        }
         LazyColumn(Modifier.fillMaxSize().hazeSource(haze), contentPadding = padding.readable()) {
             if (state.suggestions.isNotEmpty()) {
                 item(key = "suggestions") { SuggestionRow(state.suggestions, onAdd = viewModel::add, onDismiss = viewModel::dismissSuggestion) }
@@ -262,6 +277,7 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
                         onToggle = { viewModel.toggle(item) },
                         onDelete = { viewModel.delete(item) },
                         onEdit = { editingId = item.id },
+                        onNote = { notingId = item.id },
                         modifier = Modifier.animateItem(),
                     )
                     HorizontalDivider()
@@ -346,8 +362,10 @@ private fun GroceryRow(
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
+    onNote: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     val toggleWithFeel = {
         haptics.performHapticFeedback(if (item.checked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
@@ -380,59 +398,89 @@ private fun GroceryRow(
             }
         },
     ) {
-        val colors = MaterialTheme.colorScheme
-        ListItem(
-            // Tap checks off; long-press edits the name.
-            modifier = Modifier.combinedClickable(
-                enabled = editable,
-                onLongClickLabel = "Edit item",
-                onLongClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onEdit()
-                },
-                onClick = toggleWithFeel,
-            ),
-            leadingContent = {
-                Checkbox(
-                    checked = item.checked,
-                    onCheckedChange = { toggleWithFeel() },
+        Box {
+            val colors = MaterialTheme.colorScheme
+            ListItem(
+                // Tap checks off; long-press opens the menu for a note or a new name.
+                modifier = Modifier.combinedClickable(
                     enabled = editable,
-                    // Closed-out lists: a pale outline instead of the usual disabled tint, so it reads as read-only.
-                    colors = CheckboxDefaults.colors(
-                        disabledUncheckedColor = colors.outlineVariant,
-                        disabledCheckedColor = colors.outlineVariant,
-                    ),
-                )
-            },
-            headlineContent = {
-                // The strike-through draws across the word when an item is checked off.
-                val strike by animateFloatAsState(
-                    targetValue = if (item.checked) 1f else 0f,
-                    animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-                    label = "strike",
-                )
-                val textColor by animateColorAsState(
-                    when {
-                        !editable -> colors.onSurface.copy(alpha = 0.45f)
-                        item.checked -> colors.onSurfaceVariant
-                        else -> colors.onSurface
+                    onLongClickLabel = "Add a note or edit",
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
                     },
-                    label = "text color",
-                )
-                Text(
-                    item.name,
-                    color = textColor,
-                    modifier = Modifier.drawWithContent {
-                        drawContent()
-                        if (strike > 0f) {
-                            val y = size.height / 2
-                            drawLine(textColor, Offset(0f, y), Offset(size.width * strike, y), strokeWidth = 1.5.dp.toPx())
-                        }
+                    onClick = toggleWithFeel,
+                ),
+                leadingContent = {
+                    Checkbox(
+                        checked = item.checked,
+                        onCheckedChange = { toggleWithFeel() },
+                        enabled = editable,
+                        // Closed-out lists: a pale outline instead of the usual disabled tint, so it reads as read-only.
+                        colors = CheckboxDefaults.colors(
+                            disabledUncheckedColor = colors.outlineVariant,
+                            disabledCheckedColor = colors.outlineVariant,
+                        ),
+                    )
+                },
+                headlineContent = {
+                    // The strike-through draws across the word when an item is checked off.
+                    val strike by animateFloatAsState(
+                        targetValue = if (item.checked) 1f else 0f,
+                        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                        label = "strike",
+                    )
+                    val textColor by animateColorAsState(
+                        when {
+                            !editable -> colors.onSurface.copy(alpha = 0.45f)
+                            item.checked -> colors.onSurfaceVariant
+                            else -> colors.onSurface
+                        },
+                        label = "text color",
+                    )
+                    Text(
+                        item.name,
+                        color = textColor,
+                        modifier = Modifier.drawWithContent {
+                            drawContent()
+                            if (strike > 0f) {
+                                val y = size.height / 2
+                                drawLine(textColor, Offset(0f, y), Offset(size.width * strike, y), strokeWidth = 1.5.dp.toPx())
+                            }
+                        },
+                    )
+                },
+                supportingContent = item.note?.takeIf { it.isNotBlank() }?.let { note ->
+                    {
+                        Text(
+                            note,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant.copy(alpha = if (editable && !item.checked) 1f else 0.6f),
+                        )
+                    }
+                },
+                // Only items someone else added get a badge, so your own list stays clean.
+                trailingContent = addedBy?.let { name -> { MemberBadge(name) } },
+            )
+            // Lined up with the item's name rather than the screen edge.
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, offset = DpOffset(72.dp, 0.dp)) {
+                DropdownMenuItem(
+                    text = { Text(if (item.note.isNullOrBlank()) "Add a note" else "Edit note") },
+                    leadingIcon = { Icon(AppIcons.Note, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        onNote()
                     },
                 )
-            },
-            // Only items someone else added get a badge, so your own list stays clean.
-            trailingContent = addedBy?.let { name -> { MemberBadge(name) } },
-        )
+                DropdownMenuItem(
+                    text = { Text("Edit name") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        onEdit()
+                    },
+                )
+            }
+        }
     }
 }

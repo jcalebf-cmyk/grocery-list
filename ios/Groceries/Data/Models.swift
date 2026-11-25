@@ -61,6 +61,9 @@ struct ListItem: Codable, Identifiable, Hashable {
     var checked: Bool = false
     var addedBy: String = ""
     var createdAt: Int64 = 0
+    /// Extra context for whoever's shopping ("the low-sodium one"). Most items have none, so it has to stay optional:
+    /// an item without the field couldn't be read otherwise.
+    var note: String?
 
     var id: String { docId ?? "" }
 }
@@ -143,6 +146,14 @@ extension Recipe {
          servings > 0 ? "Serves \(servings)" : nil,
          ingredients.isEmpty ? nil : (ingredients.count == 1 ? "1 ingredient" : "\(ingredients.count) ingredients")]
             .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// "45 min · Serves 4": as much of `summary` as fits on a card, or how many ingredients if it says neither.
+    var cardSummary: String {
+        guard totalMinutes > 0 || servings > 0 else { return summary }
+        var short = self
+        short.ingredients = []
+        return short.summary
     }
 
     /// Where the recipe came from, when it matters. Same wording as `sourceNote` in RecipeScreen.kt.

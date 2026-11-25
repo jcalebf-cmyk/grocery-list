@@ -37,7 +37,13 @@ private fun ingredientLine(ingredient: Ingredient): String {
 fun listShareText(list: GroceryList, items: List<ListItem>): String? {
     val toGet = groupByAisle(items).filter { it.aisle != null }.flatMap { it.items }
     if (toGet.isEmpty()) return null
-    return listShareSubject(list) + toGet.joinToString("") { "\n• ${it.name.trim()}" }
+    return listShareSubject(list) + toGet.joinToString("") { "\n• " + itemLine(it) }
+}
+
+/** "Soup (the low-sodium one)", or just the name when there's no note. */
+private fun itemLine(item: ListItem): String {
+    val note = cleanNote(item.note.orEmpty())
+    return item.name.trim() + if (note == null) "" else " ($note)"
 }
 
 /** The email subject for a shared list. */

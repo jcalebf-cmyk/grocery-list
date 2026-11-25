@@ -9,6 +9,8 @@ struct ListView: View {
     @State private var confirmingDelete = false
     @State private var editing: ListItem?
     @State private var editedName = ""
+    @State private var noting: ListItem?
+    @State private var editedNote = ""
     @Environment(\.dismiss) private var dismiss
 
     private var active: Bool { list?.isActive == true }
@@ -21,6 +23,43 @@ struct ListView: View {
     }
 
     var body: some View {
+        content
+            .deleteListAlert(isPresented: $confirmingDelete) {
+                let groceries = data.groceries, id = listId
+                Task { try? await groceries.deleteList(id) }
+                dismiss()
+            }
+            .alert("Note for \(noting?.name ?? "")", isPresented: Binding(get: { noting != nil }, set: { if !$0 { noting = nil } }), presenting: noting) { item in
+                TextField("The low-sodium one", text: $editedNote)
+                    .textInputAutocapitalization(.sentences)
+                Button("Cancel", role: .cancel) {}
+                // Saving it blank removes the note.
+                Button("Save") { data.groceries.setNote(item, in: listId, to: editedNote) }
+            }
+            .onChange(of: editedNote) { _, text in
+                if text.count > maxNoteLength { editedNote = String(text.prefix(maxNoteLength)) }
+            }
+            .alert("Edit name", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } }), presenting: editing) { item in
+                TextField("Item", text: $editedName)
+                    .textInputAutocapitalization(.sentences)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") {
+                    if let list { data.groceries.renameItem(item, in: list, to: editedName) }
+                }
+                .disabled(editedName.trimmed.isEmpty)
+            }
+            .closeOutListAlert(isPresented: $confirmingFinish) {
+                data.groceries.closeOut(listId)
+                dismiss()
+            }
+            .safeAreaInset(edge: .bottom) {
+                if active { AddItemBar(onAdd: add) }
+            }
+            .task { await consume(data.groceries.listStream(listId)) { v in list = v } }
+            .task { await consume(data.groceries.itemsStream(listId)) { v in items = v } }
+    }
+
+    private var content: some View {
         List {
             if list?.isActive == false {
                 Text("This list is closed out. Reopen it from the ••• menu to make changes.")
@@ -51,20 +90,7 @@ struct ListView: View {
             ForEach(groupByAisle(sortedItems)) { section in
                 Section(section.aisle?.label ?? "Checked off") {
                     ForEach(section.items) { item in
-                        ItemRow(item: item, editable: active, addedBy: data.otherMembers[item.addedBy]) {
-                            data.groceries.setChecked(item, in: listId, !item.checked)
-                        }
-                        .swipeActions {
-                            if active, let list {
-                                Button("Delete", systemImage: "trash", role: .destructive) { data.groceries.deleteItem(item, from: list) }
-                                Button("Edit", systemImage: "pencil") { startEditing(item) }.tint(.gray)
-                            }
-                        }
-                        .contextMenu {
-                            if active {
-                                Button("Edit", systemImage: "pencil") { startEditing(item) }
-                            }
-                        }
+                        itemRow(item)
                     }
                 }
             }
@@ -109,29 +135,25 @@ struct ListView: View {
                 }
             }
         }
-        .deleteListAlert(isPresented: $confirmingDelete) {
-            let groceries = data.groceries, id = listId
-            Task { try? await groceries.deleteList(id) }
-            dismiss()
+    }
+
+    private func itemRow(_ item: ListItem) -> some View {
+        ItemRow(item: item, editable: active, addedBy: data.otherMembers[item.addedBy]) {
+            data.groceries.setChecked(item, in: listId, !item.checked)
         }
-        .alert("Edit item", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } }), presenting: editing) { item in
-            TextField("Item", text: $editedName)
-                .textInputAutocapitalization(.sentences)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                if let list { data.groceries.renameItem(item, in: list, to: editedName) }
+        .swipeActions {
+            if active, let list {
+                Button("Delete", systemImage: "trash", role: .destructive) { data.groceries.deleteItem(item, from: list) }.tint(.red)
+                Button("Edit", systemImage: "pencil") { startEditing(item) }.tint(.gray)
+                Button("Note", systemImage: "note.text") { startNote(item) }.tint(.accentColor)
             }
-            .disabled(editedName.trimmed.isEmpty)
         }
-        .closeOutListAlert(isPresented: $confirmingFinish) {
-            data.groceries.closeOut(listId)
-            dismiss()
+        .contextMenu {
+            if active {
+                Button(item.note == nil ? "Add a note" : "Edit note", systemImage: "note.text") { startNote(item) }
+                Button("Edit name", systemImage: "pencil") { startEditing(item) }
+            }
         }
-        .safeAreaInset(edge: .bottom) {
-            if active { AddItemBar(onAdd: add) }
-        }
-        .task { await consume(data.groceries.listStream(listId)) { v in list = v } }
-        .task { await consume(data.groceries.itemsStream(listId)) { v in items = v } }
     }
 
     private func add(_ name: String) {
@@ -144,9 +166,13 @@ struct ListView: View {
         editing = item
     }
 
+    private func startNote(_ item: ListItem) {
+        editedNote = item.note ?? ""
+        noting = item
+    }
 }
 
-/// A list item: tap to check off (with a haptic and an animated strike-through); swipe or long-press to edit.
+/// A list item: tap to check off (with a haptic and an animated strike-through); swipe or long-press to add a note or edit.
 /// Closed lists show faded, read-only rows.
 private struct ItemRow: View {
     let item: ListItem
@@ -161,9 +187,14 @@ private struct ItemRow: View {
                     .font(.title2)
                     .foregroundStyle(editable ? (item.checked ? Color.accentColor : .secondary) : Color.secondary.opacity(0.4))
                     .contentTransition(.symbolEffect(.replace))
-                Text(item.name)
-                    .strikethrough(item.checked)
-                    .foregroundStyle(!editable ? Color.primary.opacity(0.45) : item.checked ? Color.secondary : Color.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.name)
+                        .strikethrough(item.checked)
+                        .foregroundStyle(!editable ? Color.primary.opacity(0.45) : item.checked ? Color.secondary : Color.primary)
+                    if let note = item.note, !note.isEmpty {
+                        Text(note).font(.subheadline).foregroundStyle(.secondary).opacity(editable && !item.checked ? 1 : 0.6)
+                    }
+                }
                 Spacer()
                 if let addedBy { MemberBadge(name: addedBy, size: 26) }
             }

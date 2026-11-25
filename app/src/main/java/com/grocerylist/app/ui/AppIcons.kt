@@ -72,6 +72,9 @@ object AppIcons {
         )
     }
 
+    /** Material's "notes", for a note on a list item. */
+    val Note: ImageVector by lazy { icon("Note", "M3 18h12v-2H3v2zM3 6v2h18V6H3zm0 7h18v-2H3v2z") }
+
     val Minus: ImageVector by lazy { icon("Minus", "M19 13H5v-2h14v2z") }
 
     val Paste: ImageVector by lazy {

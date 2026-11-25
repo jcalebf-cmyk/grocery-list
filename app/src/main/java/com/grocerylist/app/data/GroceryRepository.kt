@@ -164,6 +164,11 @@ class GroceryRepository(householdId: String) {
         }.commit()
     }
 
+    /** A blank note removes it. */
+    fun setNote(listId: String, item: ListItem, note: String) {
+        lists.document(listId).collection("items").document(item.id).update("note", cleanNote(note) ?: FieldValue.delete())
+    }
+
     /** Hides the item from list suggestions until someone adds it again. */
     fun dismissSuggestion(stat: ItemStat) {
         stats.document(stat.key).set(mapOf("dismissedAt" to System.currentTimeMillis()), SetOptions.merge())

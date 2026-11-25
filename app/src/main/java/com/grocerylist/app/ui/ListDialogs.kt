@@ -21,6 +21,8 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
+import com.grocerylist.app.data.MAX_NOTE_LENGTH
 
 /** Shared by the list's menu and swiping a past list on Home. */
 @Composable
@@ -36,7 +38,7 @@ fun DeleteListDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-/** Long-pressing an item on an active list, mostly to fix typos. */
+/** From long-pressing an item on an active list, mostly to fix typos. */
 @Composable
 fun EditItemDialog(name: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -46,7 +48,7 @@ fun EditItemDialog(name: String, onSave: (String) -> Unit, onDismiss: () -> Unit
     val save = { if (text.text.isNotBlank()) onSave(text.text) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit item") },
+        title = { Text("Edit name") },
         text = {
             OutlinedTextField(
                 value = text,
@@ -58,6 +60,33 @@ fun EditItemDialog(name: String, onSave: (String) -> Unit, onDismiss: () -> Unit
             )
         },
         confirmButton = { TextButton(onClick = save, enabled = text.text.isNotBlank()) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
+}
+
+/** From long-pressing an item on an active list. Saving it blank removes the note. */
+@Composable
+fun ItemNoteDialog(itemName: String, note: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(note, selection = TextRange(note.length)))
+    }
+    val focus = remember { FocusRequester() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Note for $itemName", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.copy(text = it.text.take(MAX_NOTE_LENGTH)) },
+                placeholder = { Text("The low-sodium one") },
+                maxLines = 3,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSave(text.text) }),
+                modifier = Modifier.focusRequester(focus),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text.text) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
     LaunchedEffect(Unit) { focus.requestFocus() }
