@@ -1,0 +1,16 @@
+Groceries 0.18
+
+ADDED
+• Notes on list items: touch and hold an item, or swipe it left, to add a note ("The low-sodium one"). Everyone in the household sees it under the item, and it goes along when you share the list.
+• Pictures on recipe cards: recipes from YouTube show the video's thumbnail, and the rest get a food emoji picked from the name.
+• Recipe search on Home: tap the search bar above your recipes and start typing.
+
+CHANGED
+• Recipes on Home are now cards, two across, and you scroll down through all of them.
+• Better recipe search: the closest matches come first, plurals and accents don't matter, and it also looks in descriptions and notes. When an ingredient matched, the card says which one.
+• New list moved up next to the Shopping lists title.
+
+FIXED
+• Delete is now red when you swipe a list item, instead of green.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
