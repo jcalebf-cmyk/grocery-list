@@ -1,0 +1,12 @@
+Groceries 0.19
+
+ADDED
+• Start over in Ask for a recipe: the button at the top clears the conversation for a fresh one. Recipes you saved stay in your recipe box.
+
+CHANGED
+• Ask for a recipe remembers your conversation. Leave the chat, or close the app, and it's still there when you come back, with the recipes you saved still marked Saved. It stays on your phone only, and signing out clears it.
+• Smoother moves around the app: a list grows out of its row on Home when you open it, screens glide in and out, and lists slide into place as you start or close them out.
+• Changing the servings on a recipe rolls the amounts up or down to their new values.
+• The recipe chat feels livelier: messages float in, dots bounce while it thinks, and new recipe ideas arrive one after another.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
