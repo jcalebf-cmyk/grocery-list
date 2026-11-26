@@ -169,9 +169,10 @@ extension Recipe {
     }
 }
 
-/// One message in the recipe chat. Assistant messages can carry recipe cards.
-struct ChatMessage: Identifiable, Hashable {
-    let id = UUID()
+/// One message in the recipe chat. Assistant messages can carry recipe cards. Codable so the chat can be kept on the
+/// phone (RecipeChat).
+struct ChatMessage: Identifiable, Hashable, Codable {
+    var id = UUID()
     var fromUser: Bool
     var text: String
     var recipes: [Recipe] = []

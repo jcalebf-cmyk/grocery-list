@@ -162,6 +162,7 @@ struct RecipeDetail: View {
                 Button { pickingStore = true } label: {
                     Label(checked.isEmpty ? "Add to list" : "Add \(checked.count) to list", systemImage: "cart")
                         .font(.subheadline.weight(.medium))
+                        .contentTransition(.numericText(value: Double(checked.count)))
                 }
                 .buttonStyle(.glass)
                 .disabled(checked.isEmpty)
@@ -217,12 +218,14 @@ struct RecipeDetail: View {
     private var servingsControl: some View {
         HStack(spacing: 12) {
             Text("Serves")
-            Button { people -= 1 } label: { Image(systemName: "minus").frame(width: 22, height: 22) }
+            Button { withAnimation(.snappy) { people -= 1 } } label: { Image(systemName: "minus").frame(width: 22, height: 22) }
                 .buttonStyle(.glass).buttonBorderShape(.circle).disabled(people <= 1)
                 .accessibilityLabel("Fewer servings")
+            // Rolls over to the new number, and the amounts below follow.
             Text("\(people)").font(.headline).monospacedDigit().frame(minWidth: 24)
+                .contentTransition(.numericText(value: Double(people)))
                 .accessibilityLabel("Serves \(people)")
-            Button { people += 1 } label: { Image(systemName: "plus").frame(width: 22, height: 22) }
+            Button { withAnimation(.snappy) { people += 1 } } label: { Image(systemName: "plus").frame(width: 22, height: 22) }
                 .buttonStyle(.glass).buttonBorderShape(.circle).disabled(people >= 24)
                 .accessibilityLabel("More servings")
         }
@@ -233,14 +236,17 @@ struct RecipeDetail: View {
     private func ingredientRow(_ index: Int, _ ingredient: Ingredient) -> some View {
         let isChecked = checked.contains(index)
         return Button {
-            if isChecked { checked.remove(index) } else { checked.insert(index) }
+            withAnimation(.snappy) { if isChecked { checked.remove(index) } else { checked.insert(index) } }
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                     .font(.title3).foregroundStyle(isChecked ? Color.accentColor : .secondary)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: isChecked)
                 Text(ingredient.name.prefix(1).uppercased() + ingredient.name.dropFirst())
                 Spacer()
                 Text(scaleQuantity(ingredient.quantity, factor: factor)).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+                    .contentTransition(.numericText(value: factor))
             }
             .padding(.horizontal, 20).padding(.vertical, 8)
             .contentShape(Rectangle())

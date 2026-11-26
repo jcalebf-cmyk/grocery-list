@@ -17,6 +17,8 @@ final class HouseholdData {
     let householdId: String
     let groceries: GroceryService
     let recipeService: RecipeService
+    /// The "Ask for a recipe" conversation, kept on the phone until Start over.
+    let recipeChat: RecipeChat
 
     var household: Household?
     var stores: [Store] = []
@@ -33,6 +35,7 @@ final class HouseholdData {
         self.householdId = householdId
         groceries = GroceryService(householdId: householdId)
         recipeService = RecipeService(householdId: householdId)
+        recipeChat = RecipeChat(uid: user.id, householdId: householdId, service: recipeService)
     }
 
     var activeLists: [GroceryList] { lists.filter(\.isActive) }
@@ -84,6 +87,7 @@ struct HomeView: View {
                                 pastListsRow
                             }
                             .padding(.bottom, 24)
+                            .animation(.snappy, value: listsShown)
                         }
                         Divider().ignoresSafeArea(edges: .bottom)
                         ScrollView { recipesSection(top: 0).padding(.bottom, 24) }
@@ -97,6 +101,8 @@ struct HomeView: View {
                             recipesSection(top: 16)
                         }
                         .padding(.bottom, 24)
+                        // New lists slide in, and closed-out ones fold away.
+                        .animation(.snappy, value: listsShown)
                         .readableWidth()
                     }
                 }
@@ -118,13 +124,16 @@ struct HomeView: View {
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                case .list(let id): ListView(data: data, listId: id)
+                case .list(let id):
+                    // Opened from Home, the list grows out of its row.
+                    ListView(data: data, listId: id)
+                        .navigationTransition(.zoom(sourceID: ListRowView.zoomID(id), in: zoom))
                 case .recipe(let id):
                     RecipeView(data: data, recipeId: id, onOpenList: { path = [.list($0)] })
                         .navigationTransition(.zoom(sourceID: id, in: zoom))
                 case .recipes: AllRecipesView(data: data, onPaste: { pasting = true })
                 case .recipeChat: RecipeChatView(data: data, onOpenList: { path = [.list($0)] })
-                case .pastLists: PastListsView(data: data)
+                case .pastLists: PastListsView(data: data, zoom: zoom)
                 case .settings: SettingsView(data: data)
                 }
             }
@@ -288,6 +297,7 @@ struct HomeView: View {
                     Text("Past lists").font(.body.weight(.semibold)).foregroundStyle(.primary)
                     Spacer()
                     Text("\(data.pastLists.count)").foregroundStyle(.secondary)
+                        .contentTransition(.numericText(value: Double(data.pastLists.count)))
                     Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                 }
                 .padding(12)
@@ -322,7 +332,10 @@ struct HomeView: View {
         .padding(.top, top)
     }
 
-    private func listRow(_ list: GroceryList) -> some View { ListRowView(list: list) }
+    private func listRow(_ list: GroceryList) -> some View { ListRowView(list: list, zoom: zoom) }
+
+    /// What Home shows of the lists, so adding, closing out, or deleting one animates.
+    private var listsShown: [String] { data.activeLists.map(\.id) + ["past \(data.pastLists.count)"] }
 }
 
 /// The open household's name, which switches between households when tapped. Android: HouseholdTitle.
@@ -369,6 +382,10 @@ struct HouseholdPicker: View {
 /// A shopping list on Home or in Past lists: store logo, name, and when it started or was closed out.
 struct ListRowView: View {
     let list: GroceryList
+    /// Opening the list zooms out of its row.
+    var zoom: Namespace.ID?
+
+    static func zoomID(_ listId: String) -> String { "list-\(listId)" }
 
     var body: some View {
         NavigationLink(value: Route.list(list.id)) {
@@ -392,6 +409,7 @@ struct ListRowView: View {
             }
             .padding(12)
             .background(Color.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .modifier(ZoomSource(id: Self.zoomID(list.id), namespace: zoom))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
@@ -402,6 +420,7 @@ struct ListRowView: View {
 /// Every closed-out list, newest first. Swipe left to delete one. Android: PastListsScreen.
 struct PastListsView: View {
     let data: HouseholdData
+    var zoom: Namespace.ID?
     @State private var deletingList: GroceryList?
     @State private var failed = false
 
@@ -410,7 +429,7 @@ struct PastListsView: View {
             VStack(spacing: 0) {
                 ForEach(data.pastLists) { list in
                     SwipeAction(label: "Delete", systemImage: "trash", tint: .red, action: { deletingList = list }) {
-                        ListRowView(list: list)
+                        ListRowView(list: list, zoom: zoom)
                     }
                 }
                 if data.pastLists.isEmpty {
@@ -419,6 +438,7 @@ struct PastListsView: View {
             }
             .padding(.vertical, 8)
             .readableWidth()
+            .animation(.snappy, value: data.pastLists.map(\.id))
         }
         .background(Color.warmBackground)
         .navigationTitle("Past lists")

@@ -55,7 +55,7 @@ data class ChatMessage(val fromUser: Boolean, val text: String, val recipes: Lis
 
 /**
  * The household's saved recipes (`households/{hid}/savedRecipes`), plus the server calls that make them:
- * the AI chat and reading a pasted recipe. Chats aren't stored; only recipes someone saves are.
+ * the AI chat and reading a pasted recipe. Chats stay on the phone (RecipeChats); only recipes someone saves are shared.
  */
 class RecipeRepository(householdId: String) {
     private val recipes = Firebase.firestore.collection("households").document(householdId).collection("savedRecipes")
@@ -93,7 +93,7 @@ class RecipeRepository(householdId: String) {
                 JSONObject()
                     .put("role", if (m.fromUser) "user" else "assistant")
                     .put("text", m.text)
-                    .apply { if (!m.fromUser) put("recipes", JSONArray(m.recipes.map(::toJson))) }
+                    .apply { if (!m.fromUser) put("recipes", JSONArray(m.recipes.map(::recipeCardJson))) }
             },
         )
         val reply = ServerApi.post(
@@ -105,7 +105,7 @@ class RecipeRepository(householdId: String) {
         return ChatMessage(
             fromUser = false,
             text = reply.optString("reply"),
-            recipes = (0 until cards.length()).map { fromJson(cards.getJSONObject(it), RecipeSource.AI) },
+            recipes = (0 until cards.length()).map { recipeFromCardJson(cards.getJSONObject(it), RecipeSource.AI) },
         )
     }
 
@@ -116,7 +116,7 @@ class RecipeRepository(householdId: String) {
     suspend fun import(text: String): Recipe {
         val reply = ServerApi.post("/api/recipe-import", JSONObject().put("text", text), readTimeoutMs = 60_000)
         val source = RecipeSource.of(reply.optString("source"))
-        val recipe = fromJson(reply.getJSONObject("recipe"), source)
+        val recipe = recipeFromCardJson(reply.getJSONObject("recipe"), source)
         val video = reply.optJSONObject("video")
             ?: return recipe.copy(originalText = text)
         return recipe.copy(sourceUrl = video.optString("url"), sourceName = video.optString("channel"))
@@ -160,35 +160,35 @@ class RecipeRepository(householdId: String) {
         )
     }
 
-    /** The card fields only, as the server sends and takes them. */
-    private fun toJson(r: Recipe) = JSONObject()
-        .put("title", r.title)
-        .put("description", r.description)
-        .put("servings", r.servings)
-        .put("totalMinutes", r.totalMinutes)
-        .put("ingredients", JSONArray(r.ingredients.map { JSONObject().put("name", it.name).put("quantity", it.quantity) }))
-        .put("steps", JSONArray(r.steps))
-        .put("notes", r.notes)
-
-    private fun fromJson(o: JSONObject, source: RecipeSource): Recipe {
-        val ingredients = o.optJSONArray("ingredients") ?: JSONArray()
-        val steps = o.optJSONArray("steps") ?: JSONArray()
-        return Recipe(
-            title = o.optString("title"),
-            description = o.optString("description"),
-            servings = o.optInt("servings"),
-            totalMinutes = o.optInt("totalMinutes"),
-            ingredients = (0 until ingredients.length()).map {
-                val i = ingredients.getJSONObject(it)
-                Ingredient(i.optString("name"), i.optString("quantity"))
-            },
-            steps = (0 until steps.length()).map { steps.getString(it) },
-            notes = o.optString("notes"),
-            source = source,
-        )
-    }
-
     private companion object {
         const val MAX_TURNS = 40 // the server's cap
     }
+}
+
+/** The card fields only, as the server sends and takes them. */
+internal fun recipeCardJson(r: Recipe) = JSONObject()
+    .put("title", r.title)
+    .put("description", r.description)
+    .put("servings", r.servings)
+    .put("totalMinutes", r.totalMinutes)
+    .put("ingredients", JSONArray(r.ingredients.map { JSONObject().put("name", it.name).put("quantity", it.quantity) }))
+    .put("steps", JSONArray(r.steps))
+    .put("notes", r.notes)
+
+internal fun recipeFromCardJson(o: JSONObject, source: RecipeSource): Recipe {
+    val ingredients = o.optJSONArray("ingredients") ?: JSONArray()
+    val steps = o.optJSONArray("steps") ?: JSONArray()
+    return Recipe(
+        title = o.optString("title"),
+        description = o.optString("description"),
+        servings = o.optInt("servings"),
+        totalMinutes = o.optInt("totalMinutes"),
+        ingredients = (0 until ingredients.length()).map {
+            val i = ingredients.getJSONObject(it)
+            Ingredient(i.optString("name"), i.optString("quantity"))
+        },
+        steps = (0 until steps.length()).map { steps.getString(it) },
+        notes = o.optString("notes"),
+        source = source,
+    )
 }

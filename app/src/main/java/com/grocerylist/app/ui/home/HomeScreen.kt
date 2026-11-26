@@ -89,6 +89,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.ui.unit.Dp
+import androidx.compose.animation.AnimatedContent
 import com.grocerylist.app.data.RecipeMatch
 import com.grocerylist.app.ui.ReadableWidth
 import com.grocerylist.app.ui.recipe.RecipeSearchBar
@@ -99,6 +100,7 @@ import androidx.compose.foundation.layout.FlowRow
 import com.grocerylist.app.ui.TwoPanes
 import com.grocerylist.app.ui.readable
 import com.grocerylist.app.ui.rememberWindowLayout
+import com.grocerylist.app.ui.sharedContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,27 +163,30 @@ fun HomeScreen(
     ) { padding ->
         // Lists come first: they're what people open the app for.
         val lists: LazyListScope.() -> Unit = {
-            item {
+            item(key = "lists-header") {
                 SectionHeader("Shopping lists") {
                     // With no list going, the Start a list card does this job instead.
                     if (state.activeLists.isNotEmpty()) NewListButton { pickingStore = true }
                 }
             }
             if (state.activeLists.isEmpty()) {
-                item { StartListCard(onStart = { pickingStore = true }) }
+                item(key = "start-list") { Box(Modifier.animateItem()) { StartListCard(onStart = { pickingStore = true }) } }
             }
+            // New lists slide in, and closed-out ones fold away.
             items(state.activeLists, key = { it.id }) { list ->
-                SwipeAction(
-                    icon = Icons.Default.CheckCircle,
-                    label = "Close out",
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    onSwipe = { closingListId = list.id },
-                ) { ListRow(list) { onOpenList(list.id) } }
+                Box(Modifier.animateItem()) {
+                    SwipeAction(
+                        icon = Icons.Default.CheckCircle,
+                        label = "Close out",
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onSwipe = { closingListId = list.id },
+                    ) { ListRow(list) { onOpenList(list.id) } }
+                }
             }
             // Past lists stay out of the way: one row under the lists that opens the full history.
             if (state.pastListCount > 0) {
-                item { PastListsRow(state.pastListCount, onClick = onOpenPastLists) }
+                item(key = "past-lists") { Box(Modifier.animateItem()) { PastListsRow(state.pastListCount, onClick = onOpenPastLists) } }
             }
         }
         val recipesHeader = @Composable { top: Dp ->
@@ -394,7 +399,7 @@ private fun PastListsRow(count: Int, onClick: () -> Unit) {
         headlineContent = { Text("Past lists") },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                AnimatedContent(count, label = "past count") { Text("$it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
             }
         },
@@ -425,13 +430,15 @@ fun PastListsScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (Str
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = padding.readable()) {
             items(state.pastLists, key = { it.id }) { list ->
-                SwipeAction(
-                    icon = Icons.Default.Delete,
-                    label = "Delete",
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    onSwipe = { deletingListId = list.id },
-                ) { ListRow(list) { onOpenList(list.id) } }
+                Box(Modifier.animateItem()) {
+                    SwipeAction(
+                        icon = Icons.Default.Delete,
+                        label = "Delete",
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        onSwipe = { deletingListId = list.id },
+                    ) { ListRow(list) { onOpenList(list.id) } }
+                }
             }
             if (state.pastLists.isEmpty()) {
                 item {
@@ -480,16 +487,19 @@ private fun SwipeAction(
         state = state,
         enableDismissFromStartToEnd = false,
         backgroundContent = {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(MaterialTheme.shapes.large)
-                    .background(containerColor)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Icon(icon, contentDescription = label, tint = contentColor)
+            // Only while swiping: otherwise it would show through as the row grows into its list.
+            if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clip(MaterialTheme.shapes.large)
+                        .background(containerColor)
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Icon(icon, contentDescription = label, tint = contentColor)
+                }
             }
         },
     ) { content() }
@@ -501,6 +511,8 @@ private fun ListRow(list: GroceryList, onClick: () -> Unit) {
     ListItem(
         modifier = Modifier
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            // Opening it grows the row into the list.
+            .sharedContainer("list-${list.id}", MaterialTheme.shapes.large)
             .clip(MaterialTheme.shapes.large)
             .clickable(onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),

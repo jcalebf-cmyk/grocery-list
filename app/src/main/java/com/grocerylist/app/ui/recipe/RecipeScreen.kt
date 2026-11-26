@@ -1,5 +1,19 @@
 package com.grocerylist.app.ui.recipe
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.grocerylist.app.ui.sharedContainer
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.AnimatedVisibility
@@ -100,6 +114,7 @@ fun RecipeScreen(
         viewModel = viewModel,
         onBack = onBack,
         onOpenList = onOpenList,
+        modifier = Modifier.sharedContainer("recipe-$recipeId", CardDefaults.shape),
         actions = {
             ShareRecipeButton(recipe)
             IconButton(onClick = onEdit, enabled = recipe != null) {
@@ -149,6 +164,7 @@ fun RecipeDetail(
     viewModel: RecipeViewModel,
     onBack: () -> Unit,
     onOpenList: (String) -> Unit,
+    modifier: Modifier = Modifier,
     actions: @Composable () -> Unit = {},
 ) {
     val shopping by viewModel.shopping.collectAsStateWithLifecycle()
@@ -160,11 +176,15 @@ fun RecipeDetail(
     // How many people to cook for; amounts scale from what the recipe serves.
     var people by rememberSaveable(recipe?.id, recipe?.servings) { mutableIntStateOf(recipe?.servings ?: 0) }
     val factor = servingsFactor(recipe?.servings ?: 0, people)
+    // Which way the amounts roll when the servings change.
+    var growing by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
     // Past the title, the top bar shows it so you still know which recipe you're on.
     val pastTitle by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    val haptics = LocalHapticFeedback.current
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {
@@ -183,7 +203,7 @@ fun RecipeDetail(
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (recipe != null) {
                 val ingredients: LazyListScope.() -> Unit = {
-                    item(key = "title") { RecipeTitle(recipe, people, onPeopleChange = { people = it }) }
+                    item(key = "title") { RecipeTitle(recipe, people, onPeopleChange = { growing = it > people; people = it }) }
                     if (recipe.ingredients.isNotEmpty()) {
                         item {
                             // Sits with the ingredients rather than pinned to the screen, so it's there when
@@ -196,7 +216,7 @@ fun RecipeDetail(
                                 FilledTonalButton(
                                     onClick = { pickingStore = true },
                                     enabled = checked.isNotEmpty(),
-                                    modifier = Modifier.padding(top = 16.dp),
+                                    modifier = Modifier.padding(top = 16.dp).animateContentSize(),
                                 ) {
                                     Icon(Icons.Default.ShoppingCart, contentDescription = null, Modifier.size(18.dp))
                                     Text(if (checked.isEmpty()) "Add to list" else "Add ${checked.size} to list", Modifier.padding(start = 6.dp))
@@ -206,7 +226,10 @@ fun RecipeDetail(
                     }
                     itemsIndexed(recipe.ingredients) { i, ingredient ->
                         val isChecked = i in checked
-                        val toggle = { checked = if (isChecked) checked - i else checked + i }
+                        val toggle = {
+                            haptics.performHapticFeedback(if (isChecked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                            checked = if (isChecked) checked - i else checked + i
+                        }
                         ListItem(
                             modifier = Modifier.clickable(onClick = toggle),
                             leadingContent = { Checkbox(checked = isChecked, onCheckedChange = { toggle() }) },
@@ -214,11 +237,15 @@ fun RecipeDetail(
                             trailingContent = {
                                 // A long amount ("2 oz chopped, drained (half a can)") wraps instead of squeezing the name.
                                 if (ingredient.quantity.isNotBlank()) {
-                                    Text(
+                                    // Changing the servings rolls each amount over to its new value.
+                                    AnimatedContent(
                                         scaleQuantity(ingredient.quantity, factor),
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.widthIn(max = 128.dp),
-                                    )
+                                        transitionSpec = { rollTransition(up = growing) },
+                                        contentAlignment = Alignment.CenterEnd,
+                                        label = "amount",
+                                    ) { amount ->
+                                        Text(amount, textAlign = TextAlign.End, modifier = Modifier.widthIn(max = 128.dp))
+                                    }
                                 }
                             },
                         )
@@ -361,7 +388,14 @@ private fun ServingsControl(people: Int, onChange: (Int) -> Unit) {
         IconButton(onClick = { onChange(people - 1) }, enabled = people > 1) {
             Icon(AppIcons.Minus, contentDescription = "Fewer servings")
         }
-        Text("$people", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { contentDescription = "Serves $people" })
+        AnimatedContent(
+            people,
+            transitionSpec = { rollTransition(up = targetState > initialState) },
+            contentAlignment = Alignment.Center,
+            label = "servings",
+        ) { count ->
+            Text("$count", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { contentDescription = "Serves $count" })
+        }
         IconButton(onClick = { onChange(people + 1) }, enabled = people < MAX_PEOPLE) {
             Icon(Icons.Default.Add, contentDescription = "More servings")
         }
@@ -369,6 +403,17 @@ private fun ServingsControl(people: Int, onChange: (Int) -> Unit) {
 }
 
 private const val MAX_PEOPLE = 24
+
+/** A number rolling over like an odometer: up when it grows, down when it shrinks. */
+private fun rollTransition(up: Boolean): ContentTransform {
+    val dir = if (up) 1 else -1
+    return ContentTransform(
+        targetContentEnter = slideInVertically(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMedium)) { dir * it } +
+            fadeIn(tween(150)),
+        initialContentExit = slideOutVertically(tween(150)) { -dir * it } + fadeOut(tween(100)),
+        sizeTransform = SizeTransform(clip = false),
+    )
+}
 
 @Composable
 private fun StepRow(number: Int, step: String) {

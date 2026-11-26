@@ -47,6 +47,7 @@ import com.grocerylist.app.data.RecipeTint
 import com.grocerylist.app.data.recipeEmoji
 import com.grocerylist.app.data.videoThumbnail
 import com.grocerylist.app.ui.AppIcons
+import com.grocerylist.app.ui.sharedContainer
 
 private val Margin = 16.dp
 private val Gap = 12.dp
@@ -85,7 +86,8 @@ private fun RecipeCard(match: RecipeMatch, onClick: () -> Unit, modifier: Modifi
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        modifier = modifier,
+        // Opening it grows the card into the recipe.
+        modifier = modifier.sharedContainer("recipe-${recipe.id}", CardDefaults.shape),
     ) {
         RecipePicture(recipe, Modifier.fillMaxWidth().height(96.dp))
         Column(

@@ -187,6 +187,8 @@ private struct ItemRow: View {
                     .font(.title2)
                     .foregroundStyle(editable ? (item.checked ? Color.accentColor : .secondary) : Color.secondary.opacity(0.4))
                     .contentTransition(.symbolEffect(.replace))
+                    // A little hop as it's checked off.
+                    .symbolEffect(.bounce, value: item.checked)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name)
                         .strikethrough(item.checked)

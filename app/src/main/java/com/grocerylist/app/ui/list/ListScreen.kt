@@ -93,6 +93,7 @@ import com.grocerylist.app.ui.ItemNoteDialog
 import androidx.compose.material.icons.filled.Edit
 import com.grocerylist.app.ui.AppIcons
 import com.grocerylist.app.ui.readable
+import com.grocerylist.app.ui.sharedContainer
 import androidx.compose.material.icons.filled.CheckCircle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,6 +111,8 @@ fun ListScreen(session: Session.Ready, listId: String, onBack: () -> Unit) {
     // The list scrolls under a frosted top bar and a floating glass add bar.
     val haze = rememberHazeState()
     Scaffold(
+        // Opened from Home, the list grows out of its row.
+        modifier = Modifier.sharedContainer("list-$listId", MaterialTheme.shapes.large),
         topBar = {
             TopAppBar(
                 modifier = Modifier.hazeEffect(haze, style = glass()),

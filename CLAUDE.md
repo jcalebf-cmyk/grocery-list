@@ -35,6 +35,8 @@ repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swi
 Big screens (0.16): two panes (Home: lists | recipes; recipe: ingredients | steps) from 840dp/pt wide, split at the
 fold on a half-open Android foldable; other screens cap content at 640. iOS gotcha: pass `nil`, not 0, to
 `contentMargins` when no gutter is needed, or Lists lose their insets.
+Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTransition(.zoom)`, Android
+`sharedContainer` in `Transitions.kt`); other Android screens slide (shared X axis); numbers roll; chat messages rise in.
 
 ## Backend facts
 
@@ -62,8 +64,9 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
 - Server: https://grocery-recipes.vercel.app (Vercel project `grocery-recipes`, account jcalebf-cmyk).
   Env vars set by Josh in Vercel: `YOUTUBE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_PLACES_API_KEY`.
   Recipe box (replaced AI suggestions, cuisines and the "Tonight" picker in Nov 2026): households save recipes
-  three ways. `/api/recipe-chat`: a stateless chat (the app sends the whole conversation each turn and keeps
-  it only while the screen is open); replies are a short message plus 0–3 recipe cards. `/api/recipe-import`:
+  three ways. `/api/recipe-chat`: a stateless chat (the app sends the whole conversation each turn); the
+  conversation is kept on the phone per account and household (`RecipeChatStore.kt` ↔ `RecipeChat` in
+  `RecipeChatView.swift`) until Start over, and cleared on sign-out; replies are a short message plus 0–3 recipe cards. `/api/recipe-import`:
   pasted text is sorted into ingredients and steps keeping the author's wording; a YouTube link reads the
   video's description and the creator's own comments (pinned recipes live there) through the YouTube Data API
   (2 quota units), copies the recipe if the creator posted it (`source: youtube`), else Claude writes one
@@ -146,7 +149,7 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
 - Recipe box, Josh's calls: pasted recipes keep the author's wording (only ingredients get structured); chats
-  aren't saved; no cuisines; no My kitchen (Josh removed it: nobody keeps it up to date, and you tick only what
+  stay on the phone only (never in Firestore); no cuisines; no My kitchen (Josh removed it: nobody keeps it up to date, and you tick only what
   you need before "Add to list"). The servings control scales ingredient amounts only (steps keep the original
   amounts, and say so). Ingredients start unticked (Josh's call); "Add to list" sits by the Ingredients heading, never pinned
   to the screen (Josh found it nagging).

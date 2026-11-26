@@ -29,7 +29,7 @@ struct RecipeGrid: View {
     }
 }
 
-private struct ZoomSource: ViewModifier {
+struct ZoomSource: ViewModifier {
     let id: String
     let namespace: Namespace.ID?
 

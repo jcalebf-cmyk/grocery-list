@@ -2,6 +2,11 @@ package com.grocerylist.app.ui
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +19,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
+import com.grocerylist.app.data.RecipeChats
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -49,21 +56,34 @@ import kotlinx.coroutines.delay
 @Composable
 fun GroceryApp(sessionViewModel: SessionViewModel = viewModel()) {
     val session by sessionViewModel.session.collectAsStateWithLifecycle()
+    // Recipe chats stay on the phone only while someone's signed in (sign-out or account deletion clears them).
+    val context = LocalContext.current
+    LaunchedEffect(session == Session.SignedOut) {
+        if (session == Session.SignedOut) RecipeChats.clearAll(context.applicationContext)
+    }
 
     Surface(Modifier.fillMaxSize()) {
-        when (val s = session) {
-            Session.Loading -> LoadingScreen(onSignOut = sessionViewModel::signOut)
-            Session.SignedOut -> SignInScreen()
-            is Session.NeedsHousehold -> HouseholdSetupScreen(s.user, onSignOut = sessionViewModel::signOut)
-            // Fresh screens, starting on Home, when another household opens.
-            is Session.Ready -> key(s.householdId) { SignedInNav(s, onSignOut = sessionViewModel::signOut) }
-            is Session.Failed -> Column(
-                Modifier.fillMaxSize().padding(32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(s.message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-                TextButton(onClick = sessionViewModel::signOut) { Text("Sign out") }
+        // Signing in, picking a household, or switching to another fades from one to the next.
+        AnimatedContent(
+            targetState = session,
+            contentKey = { s -> if (s is Session.Ready) "ready/${s.householdId}" else s::class.simpleName },
+            transitionSpec = { fadeIn(tween(300, delayMillis = 60)) togetherWith fadeOut(tween(160)) },
+            label = "session",
+        ) { s ->
+            when (s) {
+                Session.Loading -> LoadingScreen(onSignOut = sessionViewModel::signOut)
+                Session.SignedOut -> SignInScreen()
+                is Session.NeedsHousehold -> HouseholdSetupScreen(s.user, onSignOut = sessionViewModel::signOut)
+                // Fresh screens, starting on Home, when another household opens.
+                is Session.Ready -> key(s.householdId) { SignedInNav(s, onSignOut = sessionViewModel::signOut) }
+                is Session.Failed -> Column(
+                    Modifier.fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(s.message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+                    TextButton(onClick = sessionViewModel::signOut) { Text("Sign out") }
+                }
             }
         }
     }
@@ -114,7 +134,14 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
     }
     SharedTransitionLayout {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {
-            NavHost(nav, startDestination = "home") {
+            NavHost(
+                nav,
+                startDestination = "home",
+                enterTransition = navEnter,
+                exitTransition = navExit,
+                popEnterTransition = navPopEnter,
+                popExitTransition = navPopExit,
+            ) {
                 screen("home") {
                     HomeScreen(
                         session = session,

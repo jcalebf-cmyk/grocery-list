@@ -4,19 +4,37 @@ struct RootView: View {
     @Environment(SessionModel.self) private var model
 
     var body: some View {
+        Group {
+            switch model.session {
+            case .loading:
+                LoadingView()
+            case .notConfigured:
+                ContentUnavailableView("Almost ready", systemImage: "gearshape",
+                                       description: Text("Add GoogleService-Info.plist from Firebase to finish setup."))
+            case .signedOut:
+                SignInView()
+            case .needsHousehold(let user):
+                HouseholdSetupView(user: user)
+            case .ready(let user, let householdId):
+                HomeView(user: user, householdId: householdId)
+                    .id(householdId) // fresh state if the household changes
+            }
+        }
+        // Signing in, picking a household, or switching to another fades from one to the next.
+        .animation(.smooth(duration: 0.35), value: screen)
+        // Recipe chats stay on the phone only while someone's signed in (sign-out or account deletion clears them).
+        .onChange(of: model.session == .signedOut) { _, signedOut in
+            if signedOut { RecipeChat.clearAll() }
+        }
+    }
+
+    private var screen: String {
         switch model.session {
-        case .loading:
-            LoadingView()
-        case .notConfigured:
-            ContentUnavailableView("Almost ready", systemImage: "gearshape",
-                                   description: Text("Add GoogleService-Info.plist from Firebase to finish setup."))
-        case .signedOut:
-            SignInView()
-        case .needsHousehold(let user):
-            HouseholdSetupView(user: user)
-        case .ready(let user, let householdId):
-            HomeView(user: user, householdId: householdId)
-                .id(householdId) // fresh state if the household changes
+        case .loading: "loading"
+        case .notConfigured: "notConfigured"
+        case .signedOut: "signedOut"
+        case .needsHousehold: "needsHousehold"
+        case .ready(_, let householdId): "ready/\(householdId)"
         }
     }
 }
