@@ -44,8 +44,10 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
 5. **Optionally install on Josh's Pixel** if it's connected: `adb -s <serial> install -r` the release APK
    (the Pixel's serial is in `adb devices -l`; it has the release-signed app, so debug builds won't install over it).
 
-6. **Show Josh the notes and ask to ship.** Shipping notifies testers and publishes a GitHub release, so wait
-   for a clear yes. One yes covers steps 7 and 8.
+6. **Ship without asking** (Josh's standing instruction, Nov 26, 2026): whenever Josh asks for a new Android
+   build or release, send it to testers automatically once step 3 passes – no confirmation needed. Go straight
+   to steps 7 and 8, and show Josh the notes in the final report. Stop and ask only if tests failed or the APK
+   isn't release-signed.
 
 7. **Upload to Firebase App Distribution** with the Firebase CLI:
    ```

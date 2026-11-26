@@ -113,8 +113,9 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
   never commit it. Josh's Pixel has the release-signed app, so install release builds on it (its serial from
   `adb devices -l`, then `adb -s <serial> install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
   `gradlew installDebug` targets every connected device, Pixel included; for the emulator use `adb -e install -r`.
-- **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`). Auto mode blocks
-  the Firebase upload (it emails testers) unless Josh asks for that step directly ("upload and send it").
+- **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`). Josh's standing
+  instruction (Nov 26): every new build he asks for goes to all Firebase testers automatically, no confirmation.
+  Auto mode may still block the upload (it emails testers); if so, quote this instruction and ask Josh to approve.
 - **iPhone releases:** use the `release-ios` skill (archive → upload to TestFlight via `ios/ExportOptions.plist`).
 - **iOS:** Xcode 27; `xcode-select` points at Xcode since Nov 3 (the `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
   prefix is harmless if it's ever reset). Run `xcodegen` in `ios/` after editing
@@ -174,11 +175,14 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
 - iOS filled buttons use `prominentGlassButton()` (readable text in dark mode), not `.glassProminent` directly.
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
-## Status (Nov 25, 2026)
+## Status (Nov 26, 2026)
 
-- **Android: 0.18** (code 22) on Firebase to all testers, tagged `v0.18`. **iPhone: 0.18** (build 18)
-  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.18`. Next iOS upload must be build 19.
+- **Android: 0.19** (code 23) on Firebase to all testers, tagged `v0.19`. **iPhone: 0.19** (build 19)
+  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.19`. Next iOS upload must be build 20.
   Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- 0.19 = recipe chat kept on the phone until Start over, plus transitions and motion on both apps. Checked with
+  sample data and a stubbed chat reply in the iPhone 18 Pro simulator and an Android phone emulator; not with a
+  real account or the live chat server.
 - 0.18 = recipe grid with pictures and better search, list item notes, New list in the Shopping lists heading, long
   ingredient amounts wrap (Android). Run against a local Firestore emulator with open rules on the Android emulator and
   iPhone 17 simulator, notes syncing both ways; not on the iPhone Duo's inner screen or with a real account.
