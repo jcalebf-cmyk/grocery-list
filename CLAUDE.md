@@ -134,7 +134,10 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
   The `iPhone Duo` simulator: outer 466×678pt, inner 951×669pt; drive postures with the iOS Simulator tool.
   `xcrun agent skills export` hung here (Nov 21) without writing anything.
 - **Checking signed-in screens without an account:** temporarily swap `RootView()` (iOS) or `GroceryApp()`
-  (Android) for a debug-only view with sample data, check it, then delete it before committing.
+  (Android) for a debug-only view with sample data, check it, then delete it before committing. Quicker: do it in
+  an rsync'd copy in the scratchpad (hardcode `Session.Ready`; stub `chat()` for the recipe chat) and turn the
+  emulator offline (`adb -e shell svc wifi disable; svc data disable`) so Firestore keeps lists and items you add
+  on screen. `settings put global animator_duration_scale 10` slows transitions enough to screenshot; reset to 1.
 - Firebase App Distribution always serves the APK as `app.apk`; the file can't be renamed for testers.
 
 ## Working with Josh
@@ -146,7 +149,9 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
 - Cloud sessions push straight to `main`; `git pull` on the Mac before building a release from their work.
 - Commit and push **only when asked**, except release commits and tags: the release skills always commit, tag and
   publish the GitHub release after a successful upload (Josh's call). Before committing, check no config/key/signing files are staged.
-- Ask before changing behavior Josh hasn't asked for; fix clear bugs directly.
+- Ask before changing behavior Josh hasn't asked for; fix clear bugs directly. Small fixes don't get a release
+  of their own (Josh's call): commit and push them, list them under Status as waiting for the next release, and
+  build only when Josh asks. When Josh does ask for a build, send it to testers without asking again.
 - Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
 - Recipe box, Josh's calls: pasted recipes keep the author's wording (only ingredients get structured); chats
