@@ -1,0 +1,32 @@
+Groceries is a shared grocery list and recipe box for your household. Everyone sees the same list as it changes, the app learns what you buy, and the recipes you love are one tap away from your list.
+
+SHOP TOGETHER
+• Start a household and invite people with a 6-character code.
+• Add, check off and edit items together in real time, even offline.
+• Start a list for a nearby store, with items grouped by aisle, or keep a general list.
+• Add a short note to an item ("the low-sodium one") that everyone can see.
+• Share what's left on a list as a text message.
+• Close out a list when you're done shopping. Past lists stay handy and can be reopened anytime.
+
+SMART SUGGESTIONS
+• Things you buy often show up as one-tap suggestions on new lists.
+• Press and hold a suggestion to stop seeing it.
+
+FIND RECIPES WITH AI
+• Ask for a recipe: say what you're in the mood for, what you have on hand, or how much time you've got, and an AI assistant suggests recipes to fit.
+• Keep chatting to adjust them ("make it vegetarian", "something quicker"), then save the ones you like.
+
+A RECIPE BOX FOR THE WHOLE HOUSEHOLD
+• Paste a recipe from anywhere. Groceries sorts it into ingredients and steps, keeping the author's own words.
+• Paste a YouTube link. If the creator posted the recipe, Groceries copies it; if not, AI writes one for the dish and labels it so you know.
+• Share a recipe to Groceries straight from Safari or another app.
+• Search your saved recipes by name or ingredient.
+• Scale servings up or down, tick the ingredients you need, and add them to your list in one tap.
+• Everyone in the household shares the same recipe box.
+
+MORE
+• Belong to more than one household, like home and the family cabin, and switch between them.
+• Ask Siri to add items, read your list, start a list or check things off.
+• Sign in with Apple, Google or email.
+• Location is optional. It's only used to find stores near you.
+• Delete your account anytime from Settings.
