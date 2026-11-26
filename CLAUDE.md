@@ -180,6 +180,8 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
 - **Android: 0.19** (code 23) on Firebase to all testers, tagged `v0.19`. **iPhone: 0.19** (build 19)
   uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.19`. Next iOS upload must be build 20.
   Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+- **Waiting for the next release** (Josh's call: not worth its own): Android checked-off items whose name wraps
+  now get a strike-through on every line (FIXED; iOS was already right). Put it in the next notes.
 - 0.19 = recipe chat kept on the phone until Start over, plus transitions and motion on both apps. Checked with
   sample data and a stubbed chat reply in the iPhone 18 Pro simulator and an Android phone emulator; not with a
   real account or the live chat server.

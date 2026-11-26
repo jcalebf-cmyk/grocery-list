@@ -10,6 +10,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
@@ -441,14 +442,30 @@ private fun GroceryRow(
                         },
                         label = "text color",
                     )
+                    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
                     Text(
                         item.name,
                         color = textColor,
+                        onTextLayout = { textLayout = it },
+                        // Through the middle of every line a long name wraps onto, drawn across one line after
+                        // the other.
                         modifier = Modifier.drawWithContent {
                             drawContent()
-                            if (strike > 0f) {
-                                val y = size.height / 2
-                                drawLine(textColor, Offset(0f, y), Offset(size.width * strike, y), strokeWidth = 1.5.dp.toPx())
+                            val lines = textLayout ?: return@drawWithContent
+                            if (strike <= 0f) return@drawWithContent
+                            val widths = (0 until lines.lineCount).map { lines.getLineRight(it) - lines.getLineLeft(it) }
+                            var remaining = widths.sum() * strike
+                            for (i in 0 until lines.lineCount) {
+                                if (remaining <= 0f) break
+                                val left = lines.getLineLeft(i)
+                                val y = (lines.getLineTop(i) + lines.getLineBottom(i)) / 2
+                                drawLine(
+                                    textColor,
+                                    Offset(left, y),
+                                    Offset(left + minOf(widths[i], remaining), y),
+                                    strokeWidth = 1.5.dp.toPx(),
+                                )
+                                remaining -= widths[i]
                             }
                         },
                     )
