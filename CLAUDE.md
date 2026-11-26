@@ -106,9 +106,9 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
   under Vercel's upload limit. Check `/api/health` afterwards. Claude's auto mode blocks running production
   deploys, so Claude ships server changes by pushing to `main` (when Josh asks) or Josh runs the deploy.
 - **Android:** `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleRelease testDebugUnitTest`.
-  Release signing key lives outside the repo in `../GroceryList-signing/` (backed up in Josh's LastPass);
-  never commit it. Josh's Pixel has the release-signed app, so install release builds on it
-  (`adb -s 47221FDAS000XD install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
+  Release signing key lives outside the repo in `../GroceryList-signing/` (Josh keeps a backup);
+  never commit it. Josh's Pixel has the release-signed app, so install release builds on it (its serial from
+  `adb devices -l`, then `adb -s <serial> install -r app/build/outputs/apk/release/app-release.apk`); debug builds won't install over it.
   `gradlew installDebug` targets every connected device, Pixel included; for the emulator use `adb -e install -r`.
 - **Android releases:** use the `release-android` skill (`.claude/skills/release-android/`). Auto mode blocks
   the Firebase upload (it emails testers) unless Josh asks for that step directly ("upload and send it").
@@ -134,6 +134,9 @@ fold on a half-open Android foldable; other screens cap content at 640. iOS gotc
 - Firebase App Distribution always serves the APK as `app.apk`; the file can't be renamed for testers.
 
 ## Working with Josh
+
+- The GitHub repo is public but not open source (Josh's call, Nov 26): `LICENSE` reserves all rights (view only, no
+  building or distributing). Keep personal details (device serials, where backups live, emails) out of tracked files.
 
 - Run the `wrap-up` skill at the end of a task to keep this file current; keep this file short.
 - Cloud sessions push straight to `main`; `git pull` on the Mac before building a release from their work.

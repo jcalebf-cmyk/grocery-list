@@ -1,0 +1,19 @@
+Copyright (c) 2026 Josh Franzen. All rights reserved.
+
+This repository's source code, designs, text and other materials ("the Software") are published so people
+can read them. They are not open source.
+
+You may view the Software on GitHub. GitHub's Terms of Service also let you fork it on GitHub. You may not,
+without written permission from the copyright holder:
+
+  - copy, modify, merge or build on the Software, in whole or in part, outside of viewing it on GitHub;
+  - build, run, publish or distribute the Software or anything made from it, including in any app store;
+  - use the names "Groceries" or "Household Groceries", the app's icon, or its look in another product.
+
+Third-party components keep their own licenses. The Plus Jakarta Sans font is under the SIL Open Font
+License (see licenses/PlusJakartaSans-OFL.txt), and libraries the apps depend on are under their own terms.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+To ask about other uses, email hello@householdgroceries.app.

@@ -41,8 +41,8 @@ Run from the repo root. Use `JAVA_HOME="/Applications/Android Studio.app/Content
    - Copy the notes to `../GroceryList-releases/release-notes-X.Y.txt` and to the clipboard (`LANG=en_US.UTF-8 pbcopy`, or bullets and dashes come out garbled).
    - Reveal the APK in Finder (`open -R`).
 
-5. **Optionally install on Josh's Pixel** if it's connected: `adb -s 47221FDAS000XD install -r` the release APK
-   (it has the release-signed app, so debug builds won't install over it).
+5. **Optionally install on Josh's Pixel** if it's connected: `adb -s <serial> install -r` the release APK
+   (the Pixel's serial is in `adb devices -l`; it has the release-signed app, so debug builds won't install over it).
 
 6. **Show Josh the notes and ask to ship.** Shipping notifies testers and publishes a GitHub release, so wait
    for a clear yes. One yes covers steps 7 and 8.
