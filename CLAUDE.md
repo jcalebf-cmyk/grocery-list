@@ -27,7 +27,7 @@ owns it; testers are friends and family.
 Android and iOS mirror each other: same Firestore documents and field names (timestamps are device
 millis as Int64/Long), same rules, same logic (suggestion ranking, "stores in use",
 store brand logos, servings scaling, recipe search). When changing behavior on one, change the other, or say why not.
-Android files to iOS files: `Suggestions.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt`/`RecipeSearch.kt` → `ios/Groceries/Data/Logic.swift`;
+Android files to iOS files: `Suggestions.kt`/`StoreBrands.kt`/`Aisles.kt`/`Scaling.kt`/`RecipeSearch.kt`/`ChatExamples.kt` → `ios/Groceries/Data/Logic.swift`;
 repositories → `*Service.swift`; `OnboardingScreen.kt` ↔ `OnboardingView.swift`; `AccountDeletion` exists in both;
 `ShareText.kt` ↔ `Logic.swift` (share text); `RecipeCards.kt` ↔ `RecipeCards.swift`; `RecipeVisual.kt` ↔ `RecipeVisual.swift`
 (the emoji tables must stay identical); `Adaptive.kt` ↔ `AdaptiveLayout.swift`; voice actions: `app/.../voice/` +
@@ -186,7 +186,8 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
   uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.19`. Next iOS upload must be build 20.
   Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
 - **Waiting for the next release** (Josh's call: not worth its own): Android checked-off items whose name wraps
-  now get a strike-through on every line (FIXED; iOS was already right). Put it in the next notes.
+  now get a strike-through on every line (FIXED; iOS was already right); an empty recipe chat shows 3 new example
+  prompts each new chat (CHANGED, both apps; built and unit-tested, not run on a device). Put them in the next notes.
 - 0.19 = recipe chat kept on the phone until Start over, plus transitions and motion on both apps. Checked with
   sample data and a stubbed chat reply in the iPhone 18 Pro simulator and an Android phone emulator; not with a
   real account or the live chat server.

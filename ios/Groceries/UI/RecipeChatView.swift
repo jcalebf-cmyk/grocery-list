@@ -17,6 +17,8 @@ final class RecipeChat {
     private(set) var saved: Set<Recipe> = []
     /// The reply that just came in, whose recipe cards deal in; ones already there just show.
     private(set) var freshReply: UUID?
+    /// Three starting points for an empty chat, new each time one starts.
+    private(set) var examples = ChatExamples.pick()
 
     private let uid: String
     private let service: RecipeService
@@ -68,8 +70,12 @@ final class RecipeChat {
         persist()
     }
 
-    /// Leaving the chat: cards already shown stay put when it opens again.
-    func settle() { freshReply = nil }
+    /// Leaving the chat: cards already shown stay put when it opens again, and if nothing was asked, it opens with three
+    /// new examples.
+    func settle() {
+        freshReply = nil
+        if messages.isEmpty && !sending { examples = ChatExamples.pick(avoiding: examples) }
+    }
 
     /// Clears the conversation for a fresh one. Recipes already saved stay in the recipe box.
     func startOver() {
@@ -79,6 +85,7 @@ final class RecipeChat {
         sending = false
         draft = ""
         freshReply = nil
+        examples = ChatExamples.pick(avoiding: examples)
         persist()
     }
 
@@ -126,12 +133,6 @@ struct RecipeChatView: View {
     @FocusState private var fieldFocused: Bool
 
     private var chat: RecipeChat { data.recipeChat }
-
-    private static let examples = [
-        "Boneless chicken thighs in the dutch oven",
-        "A quick vegetarian weeknight dinner",
-        "Something quick with ground beef",
-    ]
 
     var body: some View {
         conversation
@@ -232,7 +233,7 @@ struct RecipeChatView: View {
             Text("What do you feel like cooking?").font(.brand(26))
             Text("Describe a dish, an ingredient, or the gear you want to use. You can save any recipe you like, then add what you're missing to a list.")
                 .foregroundStyle(.secondary)
-            ForEach(Array(Self.examples.enumerated()), id: \.offset) { index, example in
+            ForEach(Array(chat.examples.enumerated()), id: \.element) { index, example in
                 // The examples arrive one after another.
                 DealIn(animate: true, index: index) {
                     Button(example) { Task { await chat.send(example) } }

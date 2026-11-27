@@ -39,6 +39,9 @@ class RecipeChatSession internal constructor(
     /** Suggested recipes someone has saved, to the saved copy's ID. */
     private val _saved = MutableStateFlow<Map<Recipe, String>>(emptyMap())
     val saved: StateFlow<Map<Recipe, String>> = _saved
+    /** Three starting points for an empty chat, new each time one starts. */
+    private val _examples = MutableStateFlow(ChatExamples.pick())
+    val examples: StateFlow<List<String>> = _examples
     /** Bumped by Start over, so a reply to the old conversation doesn't land in the new one. */
     private var generation = 0
 
@@ -101,7 +104,13 @@ class RecipeChatSession internal constructor(
         _saved.value = emptyMap()
         _sending.value = false
         draft.value = ""
+        _examples.value = ChatExamples.pick(avoid = _examples.value)
         AppGraph.appScope.launch { persist() }
+    }
+
+    /** Leaving the chat: if nothing was asked, it opens next time with three new examples. */
+    fun leave() {
+        if (_messages.value.isEmpty() && !_sending.value) _examples.value = ChatExamples.pick(avoid = _examples.value)
     }
 
     private suspend fun persist() {

@@ -74,6 +74,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -90,13 +91,6 @@ import com.grocerylist.app.ui.AppIcons
 import com.grocerylist.app.ui.ReadableWidth
 import androidx.compose.foundation.layout.wrapContentWidth
 import com.grocerylist.app.ui.Session
-
-/** Starting points for an empty chat. */
-private val EXAMPLES = listOf(
-    "Boneless chicken thighs in the dutch oven",
-    "A quick vegetarian weeknight dinner",
-    "Something quick with ground beef",
-)
 
 /**
  * Chat with the AI for recipe ideas. The conversation stays on the phone until Start over, so coming back picks it up.
@@ -115,6 +109,8 @@ fun RecipeChatScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (St
     val draft by chat.draft.collectAsStateWithLifecycle()
     val saved by chat.saved.collectAsStateWithLifecycle()
     val viewing by viewModel.viewing.collectAsStateWithLifecycle()
+    val examples by chat.examples.collectAsStateWithLifecycle()
+    DisposableEffect(chat) { onDispose { chat.leave() } }
     var confirmingStartOver by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { chat.userMessages.collect { snackbar.showSnackbar(it) } }
@@ -172,7 +168,7 @@ fun RecipeChatScreen(session: Session.Ready, onBack: () -> Unit, onOpenList: (St
                 label = "chat",
             ) { empty ->
                 if (empty) {
-                    EmptyChat(onExample = chat::send, modifier = Modifier.fillMaxSize())
+                    EmptyChat(examples, onExample = chat::send, modifier = Modifier.fillMaxSize())
                 } else {
                     LazyColumn(
                         state = listState,
@@ -271,7 +267,7 @@ private fun SaveButton(saved: Boolean, onSave: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EmptyChat(onExample: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyChat(examples: List<String>, onExample: (String) -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier.fillMaxWidth().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
@@ -304,7 +300,7 @@ private fun EmptyChat(onExample: (String) -> Unit, modifier: Modifier = Modifier
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EXAMPLES.forEachIndexed { i, example ->
+            examples.forEachIndexed { i, example ->
                 // The examples arrive one after another.
                 val shown = remember { MutableTransitionState(false) }.apply { targetState = true }
                 AnimatedVisibility(
