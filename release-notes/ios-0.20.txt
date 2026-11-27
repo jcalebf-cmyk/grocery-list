@@ -1,0 +1,7 @@
+Groceries 0.20
+
+CHANGED
+• Ask for a recipe suggests three new ideas each time you start a chat, so there's always something fresh to try.
+• Ask for a recipe writes better recipes: more flavor, real technique, and a word on why a step matters when it isn't obvious.
+
+Found a bug or have an idea? Let Josh know – a screenshot helps a lot.
