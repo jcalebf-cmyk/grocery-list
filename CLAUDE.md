@@ -184,8 +184,7 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
 ## Status (Nov 26, 2026)
 
 - **Android: 0.20** (code 24) on Firebase to all testers, tagged `v0.20`. **iPhone: 0.20** (build 20)
-  uploaded and tagged `ios-v0.20`; What to Test and Beta App Review submission were running at wrap-up (check
-  TestFlight). Next iOS upload must be build 21. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
+  uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.20`. Next iOS upload must be build 21. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).
 - 0.20 = 3 new example prompts per recipe chat, Android multi-line strike-through fix. Built and unit-tested only,
   never run on a device. The chat's switch to Sonnet 5.5 (server, live since Nov 26) has never been tried with a
   real chat: watch for slow replies hitting the apps' 60 s timeout, especially when asking for 3 recipes.
