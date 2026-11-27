@@ -152,7 +152,8 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
 - Ask before changing behavior Josh hasn't asked for; fix clear bugs directly. Small fixes don't get a release
   of their own (Josh's call): commit and push them, list them under Status as waiting for the next release, and
   build only when Josh asks. When Josh does ask for a build, send it to testers without asking again.
-- Verify UI changes in the simulator/emulator before calling them done; say plainly what wasn't tested.
+- Simulator/emulator only for significant changes (new screens, layout or navigation overhauls, big features); Josh's
+  call (Nov 26) to save tokens. Everything else: build both apps and run unit tests, then say it wasn't run on a device.
 - Josh prefers concise explanations of what changed and what Josh needs to do (Firebase/Vercel/Apple steps).
 - Recipe box, Josh's calls: pasted recipes keep the author's wording (only ingredients get structured); chats
   stay on the phone only (never in Firestore); no cuisines; no My kitchen (Josh removed it: nobody keeps it up to date, and you tick only what
