@@ -4,7 +4,10 @@ import { z } from "zod";
 import type { VideoDetails } from "./youtube.js";
 
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY
-const MODEL = "claude-haiku-5-5"; // Josh's choice, for cost
+const MODEL = "claude-haiku-5-5"; // imports: Josh's choice, for cost
+// The recipe chat writes recipes itself, so it gets the stronger model (Josh, Nov 26: Haiku's recipes were too plain).
+// Effort stays low so a reply lands well inside the apps' 60-second timeout.
+const CHAT_MODEL = "claude-sonnet-5-5";
 
 /**
  * The recipe card both endpoints return, and the shape the apps save. Same fields as Android's Recipe
@@ -56,7 +59,7 @@ const CARD_RULES = `Each recipe card:
 - servings: how many people it serves (4 unless they say otherwise)
 - totalMinutes: total time including prep
 - ingredients: everything the dish needs except water, each with a quantity in US kitchen measures (e.g. "1.5 lb", "2 cups", "1 tbsp", "to taste"). name is what someone would buy at the store ("boneless skinless chicken thighs", "yellow onion"), without the amount or prep; put prep in quantity if it matters ("1 large, diced").
-- steps: 5 to 10 steps in plain language, starting with any prep. Each step is one to three sentences and says the heat level, how long, and how to tell it's done (e.g. "until golden at the edges, about 4 minutes").
+- steps: as many steps as the dish needs (usually 5 to 12) in plain language, starting with any prep. Each step is one to three sentences and says the heat level, how long, and how to tell it's done (e.g. "until golden at the edges, about 4 minutes").
 - notes: one short, practical tip: a swap, a make-ahead note, or a common mistake to avoid.`;
 
 const CHAT_SYSTEM = `You help a household decide what to cook, inside their shared grocery list app. They chat with you to get recipe suggestions, like "boneless chicken thighs in the dutch oven" or "a quick vegetarian dinner".
@@ -64,7 +67,8 @@ const CHAT_SYSTEM = `You help a household decide what to cook, inside their shar
 How to answer:
 - reply: a short, friendly message, one to three sentences. Don't repeat the recipe's contents here; the app shows the recipe as a card under your message.
 - recipes: when they ask for a recipe or ideas, include recipe cards. Give one recipe unless they ask for several (at most 3). When they ask to change a recipe you already gave ("make it spicier", "for 6 people", "no dutch oven"), return the whole updated recipe. When the message doesn't call for a recipe (a substitution, a technique, a question about a step), answer in reply and leave recipes empty.
-- Respect the equipment, ingredients, time, and diet they mention. Pick well-known, reliable dishes that work in a normal home kitchen.
+- Respect the equipment, ingredients, time, and diet they mention.
+- Write the best version of the dish, the way a skilled home cook would make it, not the plainest one: build flavor with real technique (a good sear, aromatics, seasoning in layers, a finish of acid, herbs or fat) and say why a step matters when it isn't obvious. Keep it doable in a normal home kitchen with ingredients from a regular grocery store.
 - Stay on cooking and food. If they ask about something unrelated, say briefly that you can only help with recipes and cooking.
 
 ${CARD_RULES}`;
@@ -73,9 +77,9 @@ ${CARD_RULES}`;
 export async function chat(turns: ChatTurn[], kitchen: Kitchen): Promise<ChatReply | null> {
   const kitchenText = describeKitchen(kitchen);
   const response = await client.messages.parse({
-    model: MODEL,
+    model: CHAT_MODEL,
     max_tokens: 16000,
-    output_config: { effort: "medium", format: zodOutputFormat(ChatReplySchema) },
+    output_config: { effort: "low", format: zodOutputFormat(ChatReplySchema) },
     system: kitchenText ? `${CHAT_SYSTEM}\n\n${kitchenText}` : CHAT_SYSTEM,
     // Earlier replies go back as the JSON they were written as, so the model sees its own recipes.
     messages: turns.map((t) => ({

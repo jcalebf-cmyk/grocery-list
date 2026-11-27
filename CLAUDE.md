@@ -71,7 +71,7 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
   video's description and the creator's own comments (pinned recipes live there) through the YouTube Data API
   (2 quota units), copies the recipe if the creator posted it (`source: youtube`), else Claude writes one
   for the dish in the title (`source: ai`, labeled as possibly differing from the video). Transcripts aren't
-  used: YouTube blocks them from cloud servers. All on Claude Haiku 5.5 (Josh chose it for cost).
+  used: YouTube blocks them from cloud servers. Imports run on Claude Haiku 5.5 (Josh chose it for cost); the chat moved to Sonnet 5.5 at low effort (Nov 26: Haiku's recipes were too plain; low effort keeps replies inside the apps' 60 s timeout).
   "Share to Groceries": Android's share target opens the paste screen with the text (review, then save); the
   iPhone share extension can't open the app, so it sends `save: true` and the server writes the recipe to the
   user's household with Firebase Admin (checking membership itself, since Admin skips the rules).
