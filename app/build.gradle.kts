@@ -15,8 +15,8 @@ android {
         applicationId = "com.grocerylist.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 23
-        versionName = "0.19"
+        versionCode = 24
+        versionName = "0.20"
 
         buildConfigField("String", "RECIPES_API_URL", "\"https://grocery-recipes.vercel.app\"")
     }
