@@ -3,6 +3,8 @@ import SwiftUI
 enum Route: Hashable {
     case list(String)
     case recipe(String)
+    /// A recipe someone shared by link, by its code.
+    case shared(String)
     case recipes
     case recipeChat
     case pastLists
@@ -131,6 +133,9 @@ struct HomeView: View {
                 case .recipe(let id):
                     RecipeView(data: data, recipeId: id, onOpenList: { path = [.list($0)] })
                         .navigationTransition(.zoom(sourceID: id, in: zoom))
+                case .shared(let code):
+                    // The saved copy replaces the preview, so Back goes home.
+                    SharedRecipeView(data: data, code: code, onSaved: { path = [.recipe($0)] }, onOpenList: { path = [.list($0)] })
                 case .recipes: AllRecipesView(data: data, onPaste: { pasting = true })
                 case .recipeChat: RecipeChatView(data: data, onOpenList: { path = [.list($0)] })
                 case .pastLists: PastListsView(data: data, zoom: zoom)
@@ -167,6 +172,12 @@ struct HomeView: View {
             guard let id else { return }
             VoiceRouter.shared.recipeId = nil
             path = [.recipe(id)]
+        }
+        // A recipe share link someone opened.
+        .onChange(of: LinkRouter.shared.shareCode, initial: true) { _, code in
+            guard let code else { return }
+            LinkRouter.shared.shareCode = nil
+            path = [.shared(code)]
         }
         .task(id: data.stores.map(\.name) + data.recipes.map(\.title)) { GroceriesShortcuts.updateAppShortcutParameters() }
         .task { await consume(HouseholdService.householdsStream(data.user.id)) { v in data.households = v.byName } }

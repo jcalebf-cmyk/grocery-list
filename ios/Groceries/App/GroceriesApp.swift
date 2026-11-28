@@ -18,7 +18,14 @@ struct GroceriesApp: App {
             RootView()
                 .environment(session)
                 .tint(.accentColor)
-                .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
+                .onOpenURL { url in
+                    // A recipe share link waits for Home (after sign-in, if needed); anything else is Google sign-in.
+                    if let code = shareCode(from: url) {
+                        LinkRouter.shared.shareCode = code
+                    } else {
+                        GIDSignIn.sharedInstance.handle(url)
+                    }
+                }
                 .task { await session.start() }
         }
     }

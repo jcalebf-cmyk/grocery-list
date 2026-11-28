@@ -6,9 +6,11 @@ import Foundation
 /// Same documents and calls as Android's RecipeRepository.
 @MainActor
 final class RecipeService {
+    private let householdId: String
     private let recipes: CollectionReference
 
     init(householdId: String) {
+        self.householdId = householdId
         recipes = Firestore.firestore().collection("households").document(householdId).collection("savedRecipes")
     }
 
@@ -107,6 +109,35 @@ final class RecipeService {
             body: ChatRequest(messages: turns),
             timeout: 60)
         return ChatMessage(fromUser: false, text: response.reply, recipes: response.recipes.map { $0.recipe(source: .ai) })
+    }
+
+    private struct ShareRequest: Encodable { let householdId: String; let recipeId: String }
+    private struct ShareResponse: Decodable { let url: URL }
+
+    /// A link to a copy of this saved recipe as it is now, for someone in another household
+    /// (https://www.householdgroceries.app/r/<code>, 30 days). Throws `ServerError` or a URL error.
+    func shareLink(_ recipe: Recipe) async throws -> URL {
+        let response: ShareResponse = try await ServerAPI.post(
+            "/api/recipe-share", body: ShareRequest(householdId: householdId, recipeId: recipe.id))
+        return response.url
+    }
+
+    private struct SharedResponse: Decodable { let recipe: Recipe }
+
+    /// The recipe behind a share link, as its sender saw it. Throws `SharedRecipeProblem`.
+    static func fetchShared(code: String) async throws(SharedRecipeProblem) -> Recipe {
+        do {
+            let response: SharedResponse = try await ServerAPI.get("/api/recipe-share", query: ["code": code], signedIn: false)
+            return response.recipe
+        } catch let error as ServerError {
+            switch error.status {
+            case 410: throw .expired
+            case 404: throw .notFound
+            default: throw .offline
+            }
+        } catch {
+            throw .offline
+        }
     }
 
     private struct ImportRequest: Encodable { let text: String }

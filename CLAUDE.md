@@ -14,8 +14,8 @@ owns it; testers are friends and family.
   Share extension `GroceriesShare` (`ios/ShareExtension/`, bundle `com.householdgroceries.app.share`) shares the
   Firebase sign-in through keychain group `6759US4CJM.com.householdgroceries.shared` (`ios/Shared/SharedSignIn.swift`,
   both targets' entitlements); the app moves an existing sign-in into it on launch.
-- `server/` – Vercel functions (TypeScript): `/api/recipe-chat`, `/api/recipe-import`, `/api/stores`, `/api/send-verification`,
-  `/api/send-password-reset`, `/api/health`; `public/account.html` is the page email links open.
+- `server/` – Vercel functions (TypeScript): `/api/recipe-chat`, `/api/recipe-import`, `/api/recipe-share`, `/api/recipe-page`,
+  `/api/stores`, `/api/send-verification`, `/api/send-password-reset`, `/api/health`; `public/account.html` is the page email links open.
 - `firestore.rules` – security rules. **Josh publishes these** (Firebase console → Firestore →
   Rules); after changing them, copy them to the clipboard (`LANG=en_US.UTF-8 pbcopy < firestore.rules`) and also paste the full
   text in chat.
@@ -78,6 +78,15 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
   Endpoints require a Firebase ID token and have per-user daily limits (stores 20, chat 40, import 20) plus app-wide
   ones (`APP_LIMITS` in `server/lib/rateLimit.ts`), counted in Firestore `rateLimits` (server only). If the count
   can't be checked the request is refused. Chat sends Claude at most 60 KB of recent conversation.
+- Recipe share links (Nov 28): Share on a saved recipe sends "title + https://www.householdgroceries.app/r/<10-char code>"
+  (chat suggestions, not yet saved, still share as text). `POST /api/recipe-share` snapshots the recipe into top-level
+  `sharedRecipes/{code}` (server only, no rules change; same unchanged recipe reuses its code; 40/day per user); `GET` is
+  public (404 unknown, 410 expired); `DELETE` removes the caller's links (account deletion). Links last 30 days:
+  `expiresAt` + a Firestore TTL policy Josh sets on `sharedRecipes.expiresAt`. `/r/:code` rewrites to `/api/recipe-page`
+  (web page + link preview tags; video links only if http(s), since recipe docs are client-written). The link opens the
+  app via `public/.well-known/` (AASA for `6759US4CJM.com.householdgroceries.app`; `assetlinks.json` holds the release key's
+  SHA-256, so debug builds open the browser) and shows `SharedRecipeScreen.kt` ↔ `SharedRecipeView.swift` with Save
+  ("Save to <household>" with 2+), an exact client-side copy. Link parsing: `shareCodeFrom` ↔ `shareCode(from:)`. Always `www`.
 - Nearby stores: Google Places, cached on the phone 7 days per ~1.5 km area to keep costs down. Since 0.9 the apps
   send exact location (Android asks for precise; approximate still works) and re-measure saved stores' distances.
 - Instacart handoff: investigated (Oct 2026) sending a list's items to Instacart as a shoppable page via
@@ -182,6 +191,12 @@ Motion: a Home list row or recipe card grows into its screen (iOS `.navigationTr
   Home's swipe rows (`SwipeAction.swift`) use a UIKit pan; a SwiftUI drag let the row's tap open the list.
 
 ## Status (Nov 26, 2026)
+
+- **Waiting for the next release (0.21): recipe share links** (Nov 28, not committed yet). Builds and unit tests pass on
+  both; the iPhone preview screen checked with sample data in the iPhone 18 Pro simulator (Android's not run on an
+  emulator), the web page rendered locally. Not yet deployed or tried for real: link creation against Firestore, the AASA/assetlinks
+  verification, opening a link from Messages, or saving into a second account. Josh: add the TTL policy on
+  `sharedRecipes.expiresAt` (Firebase console → Firestore → TTL).
 
 - **Android: 0.20** (code 24) on Firebase to all testers, tagged `v0.20`. **iPhone: 0.20** (build 20)
   uploaded, What to Test set, submitted for Beta App Review, tagged `ios-v0.20`. Next iOS upload must be build 21. Firebase iOS must stay ≥ 12.19.3 (Google's Firestore cert fix).

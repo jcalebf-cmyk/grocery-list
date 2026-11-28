@@ -20,7 +20,15 @@ class ServerException(val status: Int, message: String) : Exception(message) {
  * email (sent while signed out) goes without one.
  */
 object ServerApi {
-    suspend fun post(path: String, body: JSONObject, readTimeoutMs: Int = 30_000, signedIn: Boolean = true): JSONObject {
+    suspend fun post(path: String, body: JSONObject, readTimeoutMs: Int = 30_000, signedIn: Boolean = true): JSONObject =
+        request("POST", path, body, readTimeoutMs, signedIn)
+
+    /** A GET; [signedIn] false for what anyone may read (a shared recipe). */
+    suspend fun get(path: String, signedIn: Boolean = true): JSONObject = request("GET", path, null, 30_000, signedIn)
+
+    suspend fun delete(path: String): JSONObject = request("DELETE", path, null, 30_000, signedIn = true)
+
+    private suspend fun request(method: String, path: String, body: JSONObject?, readTimeoutMs: Int, signedIn: Boolean): JSONObject {
         val token = if (signedIn) {
             Firebase.auth.currentUser?.getIdToken(false)?.await()?.token ?: error("Not signed in")
         } else {
@@ -29,13 +37,15 @@ object ServerApi {
         return withContext(Dispatchers.IO) {
             val conn = URL("${BuildConfig.RECIPES_API_URL}$path").openConnection() as HttpURLConnection
             try {
-                conn.requestMethod = "POST"
+                conn.requestMethod = method
                 conn.connectTimeout = 15_000
                 conn.readTimeout = readTimeoutMs
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
                 if (token != null) conn.setRequestProperty("Authorization", "Bearer $token")
-                conn.outputStream.use { it.write(body.toString().toByteArray()) }
+                if (body != null) {
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { it.write(body.toString().toByteArray()) }
+                }
                 if (conn.responseCode != 200) {
                     throw ServerException(
                         conn.responseCode,

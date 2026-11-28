@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["6759US4CJM.com.householdgroceries.app"],
+        "components": [{ "/": "/r/*", "comment": "Recipe share links" }]
+      }
+    ]
+  }
+}

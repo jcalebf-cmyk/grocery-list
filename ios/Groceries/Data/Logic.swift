@@ -569,3 +569,18 @@ enum ChatExamples {
         }.shuffled()
     }
 }
+
+// MARK: Recipe share links
+
+/// The code in a recipe share link (https://www.householdgroceries.app/r/<code>), or nil if `url` isn't one.
+/// Same rules as `shareCodeFrom` in SharedRecipe.kt and `isShareCode` on the server.
+func shareCode(from url: URL) -> String? {
+    guard url.scheme?.lowercased() == "https",
+          let host = url.host()?.lowercased(), ["www.householdgroceries.app", "householdgroceries.app"].contains(host)
+    else { return nil }
+    let parts = url.path().split(separator: "/", omittingEmptySubsequences: true)
+    guard parts.count == 2, parts[0] == "r" else { return nil }
+    let code = String(parts[1])
+    let alphabet = Set("23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ")
+    return code.count == 10 && code.allSatisfy(alphabet.contains) ? code : nil
+}

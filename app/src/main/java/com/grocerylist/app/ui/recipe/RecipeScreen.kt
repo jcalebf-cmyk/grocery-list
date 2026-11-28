@@ -75,7 +75,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.grocerylist.app.AppGraph
 import com.grocerylist.app.data.Recipe
+import com.grocerylist.app.data.ServerException
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import com.grocerylist.app.data.RecipeSource
 import com.grocerylist.app.data.recipeShareText
 import com.grocerylist.app.data.scaleQuantity
@@ -108,6 +116,8 @@ fun RecipeScreen(
     val recipe by viewModel.recipe.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
     var deleting by rememberSaveable { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     RecipeDetail(
         recipe = recipe,
@@ -115,8 +125,9 @@ fun RecipeScreen(
         onBack = onBack,
         onOpenList = onOpenList,
         modifier = Modifier.sharedContainer("recipe-$recipeId", CardDefaults.shape),
+        snackbarHost = { SnackbarHost(snackbar) },
         actions = {
-            ShareRecipeButton(recipe)
+            ShareRecipeButton(recipe, session.householdId, onError = { scope.launch { snackbar.showSnackbar(it) } })
             IconButton(onClick = onEdit, enabled = recipe != null) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit recipe")
             }
@@ -165,6 +176,7 @@ fun RecipeDetail(
     onBack: () -> Unit,
     onOpenList: (String) -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHost: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
 ) {
     val shopping by viewModel.shopping.collectAsStateWithLifecycle()
@@ -185,6 +197,7 @@ fun RecipeDetail(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = snackbarHost,
         topBar = {
             TopAppBar(
                 title = {
@@ -327,12 +340,47 @@ fun RecipeDetail(
     }
 }
 
-/** Sends the recipe as text (Messages, email, …). */
+/**
+ * Shares a saved recipe as a link that opens it in Groceries, where someone in another household can save an
+ * exact copy (and a web page for anyone without the app). A recipe that isn't saved yet (a chat suggestion,
+ * no [householdId]) has nothing to link to, so it goes as text. iOS: ShareRecipeButton in RecipeView.swift.
+ */
 @Composable
-fun ShareRecipeButton(recipe: Recipe?) {
+fun ShareRecipeButton(recipe: Recipe?, householdId: String? = null, onError: (String) -> Unit = {}) {
     val context = LocalContext.current
-    IconButton(onClick = { recipe?.let { shareText(context, it.title, recipeShareText(it)) } }, enabled = recipe != null) {
-        Icon(Icons.Default.Share, contentDescription = "Share recipe")
+    val scope = rememberCoroutineScope()
+    var making by remember { mutableStateOf(false) }
+    IconButton(
+        onClick = {
+            val r = recipe ?: return@IconButton
+            if (householdId == null || r.id.isEmpty()) {
+                shareText(context, r.title, recipeShareText(r))
+                return@IconButton
+            }
+            making = true
+            scope.launch {
+                try {
+                    val url = AppGraph.recipes(householdId).shareLink(r)
+                    shareText(context, r.title, "${r.title}\n$url")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    onError(
+                        if (e is ServerException && e.isRateLimited) "You've shared as many recipes as you can today"
+                        else "Couldn't make a link. Check your connection and try again.",
+                    )
+                } finally {
+                    making = false
+                }
+            }
+        },
+        enabled = recipe != null && !making,
+    ) {
+        if (making) {
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(Icons.Default.Share, contentDescription = "Share recipe")
+        }
     }
 }
 

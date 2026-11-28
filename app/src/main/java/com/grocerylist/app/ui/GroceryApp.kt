@@ -46,6 +46,8 @@ import com.grocerylist.app.ui.list.ListScreen
 import com.grocerylist.app.ui.settings.SettingsScreen
 import androidx.compose.runtime.LaunchedEffect
 import com.grocerylist.app.data.SharedRecipe
+import com.grocerylist.app.data.SharedRecipeLink
+import com.grocerylist.app.ui.recipe.SharedRecipeScreen
 import com.grocerylist.app.voice.OpenRecipeRequest
 import com.grocerylist.app.ui.recipe.AllRecipesScreen
 import com.grocerylist.app.ui.recipe.RecipeChatScreen
@@ -124,6 +126,14 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
     LaunchedEffect(shared) {
         if (shared != null) nav.navigate("recipes/paste") { launchSingleTop = true }
     }
+    // A recipe share link someone opened: shown over Home, to look at and save a copy.
+    val sharedLink by SharedRecipeLink.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(sharedLink) {
+        sharedLink?.let { code ->
+            SharedRecipeLink.pending.value = null
+            nav.navigate("shared/$code") { popUpTo("home"); launchSingleTop = true }
+        }
+    }
     // A recipe a voice action (Gemini) asked to open.
     val voiceRecipe by OpenRecipeRequest.pending.collectAsStateWithLifecycle()
     LaunchedEffect(voiceRecipe) {
@@ -196,6 +206,16 @@ private fun SignedInNav(session: Session.Ready, onSignOut: () -> Unit) {
                         recipeId = recipeId,
                         onBack = { nav.popBackStack() },
                         onEdit = { nav.navigate("recipe/$recipeId/edit") },
+                        onOpenList = { listId -> nav.navigate("list/$listId") { popUpTo("home") } },
+                    )
+                }
+                screen("shared/{code}") { entry ->
+                    SharedRecipeScreen(
+                        session = session,
+                        code = entry.arguments?.getString("code").orEmpty(),
+                        onBack = { nav.popBackStack() },
+                        // The saved copy replaces the preview, so Back goes home.
+                        onSaved = { id -> nav.navigate("recipe/$id") { popUpTo("home") } },
                         onOpenList = { listId -> nav.navigate("list/$listId") { popUpTo("home") } },
                     )
                 }

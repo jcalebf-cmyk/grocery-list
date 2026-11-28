@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.grocerylist.app.data.SharedRecipe
+import com.grocerylist.app.data.SharedRecipeLink
+import com.grocerylist.app.data.shareCodeFrom
 import com.grocerylist.app.ui.GroceryApp
 import com.grocerylist.app.ui.theme.GroceryListTheme
 import com.grocerylist.app.voice.OpenRecipeRequest
@@ -29,6 +31,8 @@ class MainActivity : ComponentActivity() {
 
     private fun receive(intent: Intent?) {
         receiveShare(intent)
+        // A recipe share link (householdgroceries.app/r/…) opened from Messages, email, …
+        if (intent?.action == Intent.ACTION_VIEW) shareCodeFrom(intent.dataString)?.let { SharedRecipeLink.pending.value = it }
         // A voice action (Gemini) asked to open a recipe.
         if (intent?.action == ACTION_OPEN_RECIPE) intent.getStringExtra(EXTRA_RECIPE_ID)?.let { OpenRecipeRequest.pending.value = it }
     }

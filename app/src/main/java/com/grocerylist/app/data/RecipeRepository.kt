@@ -57,7 +57,7 @@ data class ChatMessage(val fromUser: Boolean, val text: String, val recipes: Lis
  * The household's saved recipes (`households/{hid}/savedRecipes`), plus the server calls that make them:
  * the AI chat and reading a pasted recipe. Chats stay on the phone (RecipeChats); only recipes someone saves are shared.
  */
-class RecipeRepository(householdId: String) {
+class RecipeRepository(private val householdId: String) {
     private val recipes = Firebase.firestore.collection("households").document(householdId).collection("savedRecipes")
 
     /** Newest first. */
@@ -120,6 +120,15 @@ class RecipeRepository(householdId: String) {
         val video = reply.optJSONObject("video")
             ?: return recipe.copy(originalText = text)
         return recipe.copy(sourceUrl = video.optString("url"), sourceName = video.optString("channel"))
+    }
+
+    /**
+     * A link to a copy of this saved recipe as it is now, for someone in another household
+     * (https://www.householdgroceries.app/r/<code>, 30 days). Throws [ServerException] or an IO error.
+     */
+    suspend fun shareLink(recipe: Recipe): String {
+        val reply = ServerApi.post("/api/recipe-share", JSONObject().put("householdId", householdId).put("recipeId", recipe.id))
+        return reply.getString("url")
     }
 
     private fun toFirestore(r: Recipe): Map<String, Any> = mapOf(

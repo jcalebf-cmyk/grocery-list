@@ -16,6 +16,7 @@ const APP_LIMITS: Record<string, number> = {
   "recipe-import": 500, // Claude, and 2 of YouTube's 10,000 daily quota units
   stores: 300, // Google Places
   "verify-email": 200, // Resend
+  "recipe-share": 2000, // Firestore only: a cap on how many copies pile up
   // No app-wide limit on password resets: anyone could use it up and lock everyone out of resetting.
 };
 

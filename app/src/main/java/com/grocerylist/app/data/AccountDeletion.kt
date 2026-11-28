@@ -35,6 +35,8 @@ object AccountDeletion {
     /** [newOwners] maps a household's ID to the member who takes it over. */
     suspend fun deleteAccount(uid: String, currentHouseholdId: String, newOwners: Map<String, String>) {
         val repo = AppGraph.households
+        // Recipe links this account shared. Best effort: they'd expire within 30 days anyway.
+        runCatching { ServerApi.delete("/api/recipe-share") }
         // The open household goes last: once it's gone, the session looks for another to open.
         for (household in repo.households(uid).sortedBy { it.id == currentHouseholdId }) {
             if (household.memberIds.size <= 1) {

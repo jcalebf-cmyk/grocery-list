@@ -30,6 +30,8 @@ enum AccountDeletion {
 
     /// `newOwners` maps a household's ID to the member who takes it over.
     static func deleteAccount(uid: String, currentHouseholdId: String, newOwners: [String: String]) async throws {
+        // Recipe links this account shared. Best effort: they'd expire within 30 days anyway.
+        try? await ServerAPI.delete("/api/recipe-share")
         let households = try await HouseholdService.householdsOf(uid)
         // The open household goes last: once it's gone, the session looks for another to open.
         for household in households.filter({ $0.id != currentHouseholdId }) + households.filter({ $0.id == currentHouseholdId }) {

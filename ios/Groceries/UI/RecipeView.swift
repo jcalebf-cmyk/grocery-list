@@ -14,7 +14,7 @@ struct RecipeView: View {
     var body: some View {
         RecipeDetail(data: data, recipe: recipe, onOpenList: onOpenList)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { ShareRecipeButton(recipe: recipe) }
+                ToolbarItem(placement: .topBarTrailing) { ShareRecipeButton(recipe: recipe, service: data.recipeService) }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit", systemImage: "pencil") { editing = true }.disabled(recipe == nil)
                 }
@@ -39,17 +39,47 @@ struct RecipeView: View {
     }
 }
 
-/// Sends the recipe as text (Messages, Mail, …). Android: ShareRecipeButton.
+/// Shares a saved recipe as a link that opens it in Groceries, where someone in another household can save an
+/// exact copy (and a web page for anyone without the app). A recipe that isn't saved yet (a chat suggestion,
+/// no `service`) has nothing to link to, so it goes as text. Android: ShareRecipeButton.
 struct ShareRecipeButton: View {
     let recipe: Recipe?
+    var service: RecipeService? = nil
+    @State private var making = false
+    @State private var error: String?
 
     var body: some View {
-        if let recipe {
+        if let recipe, let service, !recipe.id.isEmpty {
+            Button {
+                Task { await share(recipe, service) }
+            } label: {
+                if making { ProgressView() } else { Label("Share recipe", systemImage: "square.and.arrow.up") }
+            }
+            .disabled(making)
+            .alert("Couldn't share", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(error ?? "")
+            }
+        } else if let recipe {
             ShareLink(item: recipeShareText(recipe), subject: Text(recipe.title)) {
                 Label("Share recipe", systemImage: "square.and.arrow.up")
             }
         } else {
             Button("Share recipe", systemImage: "square.and.arrow.up") {}.disabled(true)
+        }
+    }
+
+    private func share(_ recipe: Recipe, _ service: RecipeService) async {
+        making = true
+        defer { making = false }
+        do {
+            let url = try await service.shareLink(recipe)
+            presentShareSheet(text: "\(recipe.title)\n\(url.absoluteString)", subject: recipe.title)
+        } catch let e as ServerError where e.isRateLimited {
+            error = "You've shared as many recipes as you can today."
+        } catch {
+            self.error = "Couldn't make a link. Check your connection and try again."
         }
     }
 }
